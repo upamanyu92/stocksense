@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Prediction</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h2>Search by Security ID</h2>
+    <form id="searchForm">
+        <label for="securityID">Security ID:</label>
+        <input type="text" id="securityID" name="securityID">
+        <button type="submit">Search</button>
+    </form>
+    <div id="searchResult"></div>
+
+    <h2>Get Predictions</h2>
+    <form id="getPredictionsForm">
+        <button type="submit" class="btn btn-secondary">Get Predictions</button>
+    </form>
+    <div id="predictionsResult"></div>
+
+    <script>
+        $(document).ready(function() {
+            $('#searchForm').submit(function(event) {
+                event.preventDefault();
+                var securityID = $('#securityID').val();
+                $.get('/search/' + securityID, function(data) {
+                    $('#searchResult').html('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
+                }).fail(function() {
+                    $('#searchResult').html('<p>Security ID not found</p>');
+                });
+            });
+
+            $('#getPredictionsForm').submit(function(event) {
+                event.preventDefault();
+                $.get('/get_predictions', function(data) {
+                    $('#predictionsResult').html('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

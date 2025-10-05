@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Prediction Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        .card {
+            margin-bottom: 2rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border-radius: 0.5rem;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid rgba(0,0,0,.125);
+            padding: 1rem;
+        }
+        .loading-spinner {
+            display: none;
+            margin-left: 1rem;
+        }
+        .table {
+            font-size: 0.9rem;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+        .alert {
+            display: none;
+            margin-top: 1rem;
+        }
+        .prediction-card {
+            transition: transform 0.2s;
+        }
+        .prediction-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="text-center mb-4">Stock Prediction Dashboard</h1>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card prediction-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2"></i>Trigger Prediction</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="triggerPrediction" class="btn btn-primary">
+                            <i class="fas fa-play me-2"></i>Start Prediction
+                            <span class="spinner-border spinner-border-sm loading-spinner" role="status"></span>
+                        </button>
+                        <div id="triggerStatus" class="alert alert-info mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card prediction-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-search me-2"></i>Search by Security ID</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="searchForm" class="mb-3">
+                            <div class="input-group">
+                                <input type="text" id="securityID" name="securityID" class="form-control" placeholder="Enter Security ID" required>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </form>
+                        <div id="searchResult" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card prediction-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-quote-right me-2"></i>Search Quote</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="searchQuoteForm" class="mb-3">
+                            <div class="input-group">
+                                <input type="text" id="quoteSecurityID" name="securityID" class="form-control" placeholder="Enter Security ID for Quote" required>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Get Quote
+                                </button>
+                            </div>
+                        </form>
+                        <div id="quoteSearchResult" class="table-responsive mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card prediction-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fas fa-brain me-2"></i>Predictions Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="getPredictionsForm">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sync-alt me-2"></i>Get Latest Predictions
+                                <span class="spinner-border spinner-border-sm loading-spinner" role="status"></span>
+                            </button>
+                        </form>
+                        <div id="predictionsResult" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            function showLoading(button) {
+                button.prop('disabled', true);
+                button.find('.loading-spinner').show();
+            }
+
+            function hideLoading(button) {
+                button.prop('disabled', false);
+                button.find('.loading-spinner').hide();
+            }
+
+            function formatPredictionData(data) {
+                if (!data || typeof data !== 'object') return '<div class="alert alert-warning">No prediction data available</div>';
+
+                let html = '<div class="table-responsive"><table class="table table-striped table-hover">';
+                html += '<thead><tr>';
+                for (let key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        html += `<th>${key}</th>`;
+                    }
+                }
+                html += '</tr></thead><tbody><tr>';
+                for (let key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        html += `<td>${data[key]}</td>`;
+                    }
+                }
+                html += '</tr></tbody></table></div>';
+                return html;
+            }
+
+            $('#triggerPrediction').click(function() {
+                const button = $(this);
+                showLoading(button);
+                $('#triggerStatus').removeClass().addClass('alert alert-info').text('Prediction in progress...').show();
+
+                $.post('/trigger_prediction', function(data) {
+                    $('#triggerStatus').removeClass().addClass('alert alert-success').text(data.message).show();
+                }).fail(function() {
+                    $('#triggerStatus').removeClass().addClass('alert alert-danger').text('Error occurred during prediction').show();
+                }).always(function() {
+                    hideLoading(button);
+                });
+            });
+
+            $('#searchForm').submit(function(event) {
+                event.preventDefault();
+                const button = $(this).find('button');
+                showLoading(button);
+
+                const securityID = $('#securityID').val();
+                $.get('/search/' + securityID, function(data) {
+                    $('#searchResult').html(formatPredictionData(data));
+                }).fail(function() {
+                    $('#searchResult').html('<div class="alert alert-danger">Security ID not found</div>');
+                }).always(function() {
+                    hideLoading(button);
+                });
+            });
+
+            $('#searchQuoteForm').submit(function(event) {
+                event.preventDefault();
+                const button = $(this).find('button');
+                showLoading(button);
+
+                const securityID = $('#quoteSecurityID').val();
+                $.get('/search_quote/' + securityID, function(data) {
+                    if (data && Array.isArray(data) && data.length > 0) {
+                        let resultHtml = '<div class="table-responsive"><table class="table table-striped table-hover"><thead><tr>';
+
+                        // Headers
+                        Object.keys(data[0]).forEach(key => {
+                            if (data[0][key] !== null && data[0][key] !== '-' && data[0][key] !== 0) {
+                                resultHtml += `<th>${key.replace(/_/g, ' ').toUpperCase()}</th>`;
+                            }
+                        });
+                        resultHtml += '</tr></thead><tbody>';
+
+                        // Rows
+                        data.forEach(quote => {
+                            resultHtml += '<tr>';
+                            Object.keys(quote).forEach(key => {
+                                if (quote[key] !== null && quote[key] !== '-' && quote[key] !== 0) {
+                                    resultHtml += `<td>${quote[key]}</td>`;
+                                }
+                            });
+                            resultHtml += '</tr>';
+                        });
+
+                        resultHtml += '</tbody></table></div>';
+                        $('#quoteSearchResult').html(resultHtml);
+                    } else {
+                        $('#quoteSearchResult').html('<div class="alert alert-warning">No quote found for Security ID: ' + securityID + '</div>');
+                    }
+                }).fail(function() {
+                    $('#quoteSearchResult').html('<div class="alert alert-danger">Error retrieving quote for Security ID: ' + securityID + '</div>');
+                }).always(function() {
+                    hideLoading(button);
+                });
+            });
+
+            $('#getPredictionsForm').submit(function(event) {
+                event.preventDefault();
+                const button = $(this).find('button');
+                showLoading(button);
+
+                $.get('/get_predictions', function(data) {
+                    $('#predictionsResult').html(formatPredictionData(data));
+                }).fail(function() {
+                    $('#predictionsResult').html('<div class="alert alert-danger">Error retrieving predictions</div>');
+                }).always(function() {
+                    hideLoading(button);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

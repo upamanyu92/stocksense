@@ -1,0 +1,13 @@
+yfinance
+scikit-learn
+bsedata
+Flask
+numpy
+pandas
+tensorflow
+keras
+schedule
+flask-socketio
+flask-cors
+fastapi
+pytz
