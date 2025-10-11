@@ -9,8 +9,12 @@ from app.db.db_executor import execute_query
 from app.models.keras_model import predict_max_profit
 from app.models.training_script import download_stock_data
 from app.utils.util import predict_algo, check_index_existence
+from app.agents.prediction_coordinator import PredictionCoordinator
 
 app = Flask(__name__)
+
+# Initialize the agentic prediction coordinator
+prediction_coordinator = PredictionCoordinator(min_confidence=0.6)
 
 
 def prediction_executor(data):
@@ -20,7 +24,27 @@ def prediction_executor(data):
         if stock_symbol:
             stock_symbol_yahoo = stock_symbol + '.BO'
             logging.info(f"prediction_executor: started for {stock_symbol_yahoo} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            predicted_price = predict_max_profit(stock_symbol_yahoo)
+            
+            # Use agentic prediction system for improved accuracy
+            try:
+                result = prediction_coordinator.predict(stock_symbol_yahoo, validate=True)
+                predicted_price = result['prediction']
+                confidence = result['confidence']
+                decision = result['decision']
+                
+                # Log agentic prediction details
+                logging.info(f"Agentic prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
+                logging.info(f"Recommendation: {result['recommendation']}")
+                
+                # Only use prediction if decision is 'accept' or 'caution'
+                if decision == 'reject':
+                    logging.warning(f"Prediction rejected due to low confidence. Falling back to traditional method.")
+                    predicted_price = predict_max_profit(stock_symbol_yahoo)
+            except Exception as e:
+                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to traditional method.")
+                predicted_price = predict_max_profit(stock_symbol_yahoo)
+                confidence = 0.5
+                decision = 'fallback'
 
             # Handle both string and float values for current_value
             current_value = data['current_value']
