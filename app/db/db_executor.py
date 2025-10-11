@@ -2,13 +2,19 @@ from typing import Optional, List, Dict, Any
 import sqlite3
 
 from app.db.data_models import StockQuote
-from app.utils.util import get_db_connection
+from app.config import Config
 import logging
 from datetime import datetime
 import threading
 
 from bsedata.bse import BSE
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def get_db_connection() -> sqlite3.Connection:
+    Config.ensure_directories()
+    conn = sqlite3.connect(Config.DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
@@ -210,3 +216,139 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         print(f"Error updating stock quote: {e}")
     finally:
         conn.close()
+
+def get_prediction_by_security_id(security_id: str):
+    return fetch_one('SELECT * FROM predictions WHERE security_id = ?', (security_id,))
+
+def upsert_prediction(company_name: str, security_id: str, current_price: float, predicted_price: float, prediction_date: str):
+    row = get_prediction_by_security_id(security_id)
+    if row:
+        execute_query('''
+            UPDATE predictions
+            SET company_name = ?, current_price = ?, predicted_price = ?, prediction_date = ?
+            WHERE security_id = ?
+        ''', (company_name, current_price, predicted_price, prediction_date, security_id), commit=True)
+    else:
+        execute_query('''
+            INSERT INTO predictions (company_name, security_id, current_price, predicted_price, prediction_date)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (company_name, security_id, current_price, predicted_price, prediction_date), commit=True)
+
+def get_linear_prediction_active_status(security_id: str):
+    row = fetch_one('SELECT active FROM predictions_linear WHERE security_id = ?', (security_id,))
+    return row['active'] if row else None
+
+def upsert_linear_prediction(company_name: str, security_id: str, current_price: float, predicted_price: float, prediction_date: str, active: int = 1):
+    execute_query('''
+        INSERT INTO predictions_linear (company_name, security_id, current_price, predicted_price, prediction_date, active)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(security_id) DO UPDATE SET
+            company_name=excluded.company_name,
+            current_price=excluded.current_price,
+            predicted_price=excluded.predicted_price,
+            prediction_date=excluded.prediction_date,
+            active=excluded.active
+    ''', (company_name, security_id, current_price, predicted_price, prediction_date, active), commit=True)
+
+def set_linear_prediction_inactive(security_id: str):
+    execute_query('UPDATE predictions_linear SET active = 0 WHERE security_id = ?', (security_id,), commit=True)
+
+def get_configuration(symbol: str, model_type: str = 'transformer'):
+    query = '''
+        SELECT * FROM model_configurations 
+        WHERE symbol = ? AND model_type = ?
+        ORDER BY updated_at DESC LIMIT 1
+    '''
+    return fetch_one(query, (symbol, model_type))
+
+def get_all_configurations():
+    query = "SELECT * FROM model_configurations ORDER BY updated_at DESC"
+    return fetch_all(query)
+
+def create_configuration(config):
+    now = datetime.now()
+    config.created_at = now
+    config.updated_at = now
+    query = '''
+        INSERT INTO model_configurations (
+            symbol, model_type, num_heads, ff_dim, dropout_rate,
+            learning_rate, batch_size, epochs, sequence_length,
+            early_stopping_patience, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    '''
+    params = (
+        config.symbol, config.model_type, config.num_heads,
+        config.ff_dim, config.dropout_rate, config.learning_rate,
+        config.batch_size, config.epochs, config.sequence_length,
+        config.early_stopping_patience, config.created_at,
+        config.updated_at
+    )
+    config.id = execute_query(query, params)
+    return config
+
+def update_configuration(config):
+    config.updated_at = datetime.now()
+    query = '''
+        UPDATE model_configurations SET
+            num_heads = ?,
+            ff_dim = ?,
+            dropout_rate = ?,
+            learning_rate = ?,
+            batch_size = ?,
+            epochs = ?,
+            sequence_length = ?,
+            early_stopping_patience = ?,
+            updated_at = ?
+        WHERE id = ?
+    '''
+    params = (
+        config.num_heads, config.ff_dim, config.dropout_rate,
+        config.learning_rate, config.batch_size, config.epochs,
+        config.sequence_length, config.early_stopping_patience,
+        config.updated_at, config.id
+    )
+    execute_query(query, params)
+    return config
+
+def delete_configuration(config_id: int) -> bool:
+    query = "DELETE FROM model_configurations WHERE id = ?"
+    return execute_query(query, (config_id,)) > 0
+
+def get_recent_predictions_for_monitor(cutoff_date):
+    query = '''
+        SELECT 
+            symbol,
+            current_price,
+            predicted_price,
+            actual_price,
+            prediction_date,
+            model_type
+        FROM predictions
+        WHERE prediction_date >= ?
+        AND actual_price IS NOT NULL
+    '''
+    return fetch_all(query, (cutoff_date,))
+
+def check_index_existence(index_name: str, table_name: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='index' AND name='{index_name}'")
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
+
+def get_top_stocks():
+    query = '''
+        SELECT company_name, security_id, current_price, predicted_price, 
+               (predicted_price - current_price) AS profit,
+               prediction_date
+        FROM predictions
+        ORDER BY (predicted_price - current_price) / current_price DESC
+    '''
+    rows = fetch_all(query)
+    stocks = []
+    for row in rows:
+        stock = dict(row)
+        stock['profit_percentage'] = ((stock['predicted_price'] - stock['current_price']) / stock['current_price']) * 100
+        stocks.append(stock)
+    return stocks

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import numpy as np
 from app.services.configuration_service import ConfigurationService
-from app.db.db_executor import execute_query, fetch_all
+from app.db.db_executor import get_recent_predictions_for_monitor
 from app.models.training_script import train_transformer_model
 import logging
 
@@ -12,20 +12,8 @@ class ModelPerformanceMonitor:
     @staticmethod
     def get_recent_predictions():
         """Fetch recent predictions from the database"""
-        query = """
-            SELECT 
-                symbol,
-                current_price,
-                predicted_price,
-                actual_price,
-                prediction_date,
-                model_type
-            FROM predictions
-            WHERE prediction_date >= ?
-            AND actual_price IS NOT NULL
-        """
         cutoff_date = (datetime.now() - timedelta(days=ModelPerformanceMonitor.MONITORING_WINDOW_DAYS))
-        return fetch_all(query, (cutoff_date,))
+        return get_recent_predictions_for_monitor(cutoff_date)
 
     @staticmethod
     def calculate_model_metrics(predictions):

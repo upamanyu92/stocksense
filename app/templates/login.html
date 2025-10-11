@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - StockSense</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h2>Login</h2>
+    <form id="loginForm">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <button type="submit">Login</button>
+    </form>
+    <div id="loginMessage"></div>
+    <hr>
+    <h2>Register</h2>
+    <form id="registerForm">
+        <label for="regUsername">Username:</label>
+        <input type="text" id="regUsername" name="regUsername" required><br>
+        <label for="regEmail">Email:</label>
+        <input type="email" id="regEmail" name="regEmail" required><br>
+        <label for="regPassword">Password:</label>
+        <input type="password" id="regPassword" name="regPassword" required><br>
+        <button type="submit">Register</button>
+    </form>
+    <div id="registerMessage"></div>
+    <script>
+    document.getElementById('loginForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        const data = await res.json();
+        document.getElementById('loginMessage').innerText = data.message || data.error;
+        if (res.ok) window.location.href = '/dashboard';
+    };
+    document.getElementById('registerForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('regUsername').value;
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, email, password})
+        });
+        const data = await res.json();
+        document.getElementById('registerMessage').innerText = data.message || data.error;
+        if (res.ok) window.location.href = '/dashboard';
+    };
+    </script>
+</body>
+</html>
+

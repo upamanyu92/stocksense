@@ -10,7 +10,7 @@ import logging
 from scripts import create_db
 from app.models.training_script import download_stock_data
 from app.db.db_executor import execute_query
-from app.utils.util import predict_algo, check_index_existence
+from app.utils.util import predict_algo
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)

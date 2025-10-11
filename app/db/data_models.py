@@ -66,3 +66,18 @@ class ModelConfiguration:
     early_stopping_patience: int = 10
     created_at: datetime = None
     updated_at: datetime = None
+
+@dataclass
+class User:
+    id: int
+    username: str
+    password_hash: str
+    email: str
+    created_at: str
+
+@dataclass
+class UserWatchList:
+    id: int
+    user_id: int
+    security_id: str
+    added_at: str

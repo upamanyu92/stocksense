@@ -28,12 +28,7 @@ class SQLiteConnectionPool:
             self._connections.append(conn)
         else:
             conn.close()
-
-def get_db_connection() -> sqlite3.Connection:
-    Config.ensure_directories()
-    conn = sqlite3.connect(Config.DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+        return conn
 
 def predict_algo(stock_data: Optional[dict], stock_symbol: str) -> float:
     if stock_data is None or stock_data.empty:
@@ -42,11 +37,3 @@ def predict_algo(stock_data: Optional[dict], stock_symbol: str) -> float:
     # For now, return a simple moving average as prediction
     last_close = stock_data['Close'].iloc[-1] if len(stock_data) > 0 else 0
     return float(last_close)
-
-def check_index_existence(index_name: str, table_name: str) -> bool:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='index' AND name='{index_name}'")
-    exists = cursor.fetchone() is not None
-    conn.close()
-    return exists

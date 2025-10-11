@@ -69,6 +69,24 @@ def create_db():
             sell_5_price REAL
         )''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL
+        )''')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS user_watchlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            security_id TEXT NOT NULL,
+            added_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )''')
+
     # Create indexes
     c.execute('CREATE INDEX IF NOT EXISTS idx_security_id ON stock_quotes (security_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_predictions_security_id ON predictions (security_id)')

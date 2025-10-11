@@ -131,8 +131,35 @@
       <nav><ul class="pagination pagination-sm justify-content-center mt-2" id="predPagination"></ul></nav>
     </div>
   </div>
+
+  <!-- 📈 Prediction Section -->
+  <div class="card p-3 mb-4">
+    <h5 class="section-header">📈 Run Predictions</h5>
+    <div class="d-flex gap-2">
+      <button id="predictBtn" class="btn btn-custom">Start Prediction</button>
+      <button id="cancelPredictBtn" class="btn btn-danger">Cancel</button>
+    </div>
+    <div id="predictStatus" class="status-box mt-3"></div>
+  </div>
+
+  <!-- User Watch List Section -->
+  <div class="card bg-dark-2 shadow-sm mt-4">
+    <div class="card-body">
+      <h6 class="fw-bold text-accent mb-3">Your Watch List</h6>
+      <form id="addWatchForm" class="mb-3 d-flex gap-2">
+        <input type="text" id="watchSecurityId" class="form-control" placeholder="Add stock by Security ID" required>
+        <button type="submit" class="btn btn-sm btn-accent">Add</button>
+      </form>
+      <ul id="watchList" class="list-group mb-3"></ul>
+      <div id="watchListMsg" class="small text-error"></div>
+      <canvas id="watchChart" height="120"></canvas>
+    </div>
+  </div>
+
 </div>
 
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   // ===== Trigger Prediction =====
@@ -632,6 +659,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ===== User Watch List =====
+  async function fetchWatchList() {
+    const res = await fetch('/api/watchlist');
+    const data = await res.json();
+    const list = document.getElementById('watchList');
+    list.innerHTML = '';
+    if (res.ok && data.watchlist.length) {
+      for (const secId of data.watchlist) {
+        const li = document.createElement('li');
+        li.className = 'list-group-item bg-dark text-light d-flex justify-content-between align-items-center';
+        li.textContent = secId;
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm btn-danger';
+        btn.textContent = 'Remove';
+        btn.onclick = async () => {
+          await fetch('/api/watchlist', {method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({security_id: secId})});
+          fetchWatchList();
+        };
+        li.appendChild(btn);
+        list.appendChild(li);
+      }
+      drawWatchChart(data.watchlist);
+    } else {
+      list.innerHTML = '<li class="list-group-item bg-dark text-light">No stocks in watch list</li>';
+    }
+  }
+
+  document.getElementById('addWatchForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const secId = document.getElementById('watchSecurityId').value;
+    const res = await fetch('/api/watchlist', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({security_id: secId})});
+    const data = await res.json();
+    document.getElementById('watchListMsg').innerText = data.message || data.error;
+    if (res.ok) fetchWatchList();
+  };
+
+  async function drawWatchChart(watchlist) {
+    // Fetch current prices for each stock in watchlist
+    const prices = [];
+    for (const secId of watchlist) {
+      const res = await fetch(`/search_quote/${secId}`);
+      const data = await res.json();
+      if (res.ok && data.length) prices.push({label: secId, value: data[0].current_value});
+    }
+    const ctx = document.getElementById('watchChart').getContext('2d');
+    if (window.watchChartInstance) window.watchChartInstance.destroy();
+    window.watchChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: prices.map(p => p.label),
+        datasets: [{label: 'Current Price', data: prices.map(p => p.value), backgroundColor: '#4e8cff'}]
+      },
+      options: {responsive: true, plugins: {legend: {display: false}}}
+    });
+  }
+
+  fetchWatchList();
 });
 </script>
 </body>
