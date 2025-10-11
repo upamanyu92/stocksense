@@ -2,6 +2,7 @@ yfinance
 scikit-learn
 bsedata
 Flask
+Flask-Login
 numpy
 pandas
 tensorflow
@@ -11,3 +12,4 @@ flask-socketio
 flask-cors
 fastapi
 pytz
+psutil

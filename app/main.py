@@ -1,8 +1,9 @@
 # Main Flask application entry point
 import threading
 
-from flask import Flask, jsonify, render_template, request, Response
+from flask import Flask, jsonify, render_template, request, Response, redirect, url_for
 from flask_cors import CORS
+from flask_login import LoginManager, login_required, current_user
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -11,7 +12,12 @@ import queue
 
 from app.db.db_executor import fetch_quotes_batch, fetch_quotes, data_retriever_executor
 from app.services.prediction_service import prediction_executor
+from app.services.auth_service import User
+from app.services.background_worker import background_worker
 from app.utils.util import get_db_connection
+from app.utils.disk_monitor import DiskSpaceMonitor
+from app.api.auth_routes import auth_bp
+from app.api.watchlist_routes import watchlist_bp
 
 # Configure logging
 logging.basicConfig(
@@ -21,10 +27,32 @@ logging.basicConfig(
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 CORS(app)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+login_manager.login_message = 'Please log in to access this page.'
+
+# Register blueprints
+app.register_blueprint(auth_bp)
+app.register_blueprint(watchlist_bp)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get_by_id(int(user_id))
 
 status_queue = queue.Queue()  # For predictions
 fetch_quotes_status_queue = queue.Queue()  # For fetch_stock_quotes
+
+# Start background worker when app starts
+@app.before_first_request
+def start_background_worker():
+    """Start the background worker on first request"""
+    background_worker.start()
+    logging.info("Background worker started automatically")
 
 @app.route('/search_quote/<company_name>', methods=['GET'])
 def search_quote(company_name):
@@ -163,7 +191,59 @@ def get_top_stocks():
 
 @app.route('/')
 def index():
-    return render_template('dashboard.html')
+    """Redirect to login page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('user_dashboard'))
+    return redirect(url_for('auth.login'))
+
+@app.route('/dashboard')
+@login_required
+def user_dashboard():
+    """User dashboard page"""
+    return render_template('dashboard.html', username=current_user.username)
+
+@app.route('/api/system/status')
+@login_required
+def system_status():
+    """Get system status including background worker and disk space"""
+    worker_status = background_worker.get_status()
+    disk_usage = DiskSpaceMonitor.get_disk_usage()
+    model_stats = DiskSpaceMonitor.get_model_directory_size()
+    
+    return jsonify({
+        'background_worker': worker_status,
+        'disk_usage': disk_usage,
+        'model_stats': model_stats
+    }), 200
+
+@app.route('/api/system/cleanup_models', methods=['POST'])
+@login_required
+def cleanup_models():
+    """Cleanup old models"""
+    try:
+        keep_newest = request.json.get('keep_newest', 2) if request.json else 2
+        result = DiskSpaceMonitor.cleanup_old_models(keep_newest)
+        return jsonify({
+            'success': True,
+            'result': result
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/background_worker/status')
+@login_required
+def background_worker_status():
+    """Get background worker status stream"""
+    def event_stream():
+        while True:
+            status = background_worker.get_status()
+            yield f"data: {jsonify(status).get_data(as_text=True)}\n\n"
+            import time
+            time.sleep(2)
+    return Response(event_stream(), mimetype="text/event-stream")
 
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
