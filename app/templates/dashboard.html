@@ -4,635 +4,545 @@
   <meta charset="UTF-8">
   <title>StockSense Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    .dashboard-section {
-      min-height: 320px;
-      height: 320px;
-      max-width: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+    :root {
+      --primary-color: #00d4ff;
+      --secondary-color: #1a1a2e;
+      --accent-color: #ff006e;
+      --bg-dark: #0f0f1e;
+      --bg-darker: #0a0a15;
+      --bg-card: #16213e;
+      --text-light: #e0e0e0;
+      --text-muted: #8b8b9a;
+      --success-color: #00ff87;
+      --warning-color: #ffaa00;
+      --danger-color: #ff006e;
     }
-    #searchInputQuote {
-      font-size: 0.95em;
-      height: 32px;
-      padding: 2px 8px;
-      max-width: 320px;
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+      color: var(--text-light);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+    
+    /* Header */
+    .header {
+      background: rgba(26, 26, 46, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+      padding: 15px 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    
+    .logo {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: var(--primary-color);
+      text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    
+    .user-name {
+      color: var(--text-light);
+      font-weight: 500;
+    }
+    
+    .btn-logout {
+      background: linear-gradient(135deg, var(--danger-color) 0%, #cc0055 100%);
+      border: none;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-logout:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 0, 110, 0.4);
+    }
+    
+    /* Container */
+    .dashboard-container {
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    
+    /* Cards */
+    .card {
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid rgba(0, 212, 255, 0.1);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 25px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      animation: fadeIn 0.5s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .card:hover {
+      border-color: rgba(0, 212, 255, 0.3);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    .card-header {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 2px solid rgba(0, 212, 255, 0.2);
+    }
+    
+    /* Progress Section */
+    .progress-section {
+      background: rgba(0, 212, 255, 0.05);
+      padding: 15px;
+      border-radius: 10px;
+      border-left: 4px solid var(--primary-color);
+      margin-bottom: 15px;
+    }
+    
+    .progress-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .progress-item:last-child {
+      border-bottom: none;
+    }
+    
+    .progress-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+    
+    .progress-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    
+    .status-downloading {
+      background: rgba(255, 170, 0, 0.2);
+      color: var(--warning-color);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    .status-predicting {
+      background: rgba(0, 212, 255, 0.2);
+      color: var(--primary-color);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    .status-complete {
+      background: rgba(0, 255, 135, 0.2);
+      color: var(--success-color);
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.6;
+      }
+    }
+    
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(0, 212, 255, 0.2);
+      border-top: 2px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    /* Table Styles */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    
+    .custom-table th {
+      background: rgba(0, 212, 255, 0.1);
+      color: var(--primary-color);
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid rgba(0, 212, 255, 0.2);
+    }
+    
+    .custom-table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.3s ease;
+    }
+    
+    .custom-table tr:hover td {
+      background: rgba(0, 212, 255, 0.05);
+    }
+    
+    /* Buttons */
+    .btn-custom {
+      background: linear-gradient(135deg, var(--primary-color) 0%, #0099cc 100%);
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0, 212, 255, 0.2);
+    }
+    
+    .btn-custom:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(0, 212, 255, 0.4);
+    }
+    
+    .btn-custom:active {
+      transform: translateY(0);
+    }
+    
+    .btn-danger-custom {
+      background: linear-gradient(135deg, var(--danger-color) 0%, #cc0055 100%);
+    }
+    
+    .btn-warning-custom {
+      background: linear-gradient(135deg, var(--warning-color) 0%, #cc8800 100%);
+    }
+    
+    .btn-success-custom {
+      background: linear-gradient(135deg, var(--success-color) 0%, #00cc6a 100%);
+    }
+    
+    /* Search Box */
+    .search-container {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 12px 40px 12px 15px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 10px;
+      color: var(--text-light);
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+    }
+    
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .search-icon {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--primary-color);
+    }
+    
+    /* Autocomplete dropdown */
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: rgba(22, 33, 62, 0.98);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 100;
+      margin-top: 5px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: none;
+    }
+    
+    .autocomplete-item {
+      padding: 12px 15px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .autocomplete-item:hover, .autocomplete-item.active {
+      background: rgba(0, 212, 255, 0.1);
+      color: var(--primary-color);
+    }
+    
+    /* Disk space warning */
+    .disk-warning {
+      background: rgba(255, 170, 0, 0.15);
+      border: 1px solid var(--warning-color);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: slideDown 0.5s ease-out;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .disk-warning-text {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--warning-color);
+    }
+    
+    /* Profit indicators */
+    .profit-positive {
+      color: var(--success-color);
+      font-weight: 600;
+    }
+    
+    .profit-negative {
+      color: var(--danger-color);
+      font-weight: 600;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        gap: 15px;
+      }
+      
+      .dashboard-container {
+        padding: 0 15px;
+      }
+      
+      .card {
+        padding: 15px;
+      }
+      
+      .custom-table {
+        font-size: 0.85rem;
+      }
+      
+      .custom-table th, .custom-table td {
+        padding: 8px;
+      }
     }
   </style>
 </head>
 
-<body class="dark-bg text-light">
-<div class="container py-4">
-  <h3 class="text-center fw-bold mb-4">📈 StockSense Dashboard</h3>
-
-  <!-- Prediction + Search -->
-  <div class="row g-3">
-    <div class="col-md-6">
-      <div class="card bg-dark-2 shadow-sm dashboard-section">
-        <div class="card-body d-flex flex-column justify-content-between h-100">
-          <h6 class="fw-bold mb-3 text-accent">Trigger Prediction</h6>
-          <div class="d-flex gap-2 align-items-center">
-            <button id="triggerBtn" class="btn btn-sm btn-accent smooth-transition">
-              <span class="btn-text">▶ Start Prediction</span>
-            </button>
-            <button id="cancelBtn" class="btn btn-sm btn-danger d-none smooth-transition">
-              <span class="btn-text">⏹ Cancel</span>
-            </button>
-          </div>
-          <div id="triggerMsg" class="status-message"></div>
-          <div id="progressBar" class="progress-bar"></div>
-          <div id="cancelProgress" class="cancel-progress"></div>
-          <div id="statusStreamPrediction" class="mt-2 text-info" style="font-size:0.5em; height:100px; overflow-y:auto;"></div>
-        </div>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i> StockSense
       </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card bg-dark-2 shadow-sm dashboard-section">
-        <div class="card-body d-flex flex-column justify-content-between h-100">
-          <h6 class="fw-bold mb-3 text-accent">Fetch Stock Quotes</h6>
-          <div class="d-flex gap-2 align-items-center">
-            <button id="fetchQuotesBtn" class="btn btn-sm btn-secondary smooth-transition">
-              <span class="btn-text">⟳ Fetch New Stock Quotations</span>
-            </button>
-          </div>
-          <div id="fetchQuotesMsg" class="status-message"></div>
-          <div id="statusStreamQuotes" class="mt-2 text-info" style="font-size:0.5em; height:100px; overflow-y:auto;"></div>
-        </div>
+      <div class="user-info">
+        <span class="user-name">
+          <i class="fas fa-user-circle"></i> {{ username }}
+        </span>
+        <a href="{{ url_for('auth.logout') }}" class="btn-logout">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
       </div>
     </div>
   </div>
 
-  <!-- Search Result -->
-  <div class="card bg-dark-2 shadow-sm mt-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="fw-bold text-accent mb-0">Search Quote</h6>
-        <span id="quoteCount" class="small text-muted"></span>
+  <div class="dashboard-container">
+    <!-- Disk Space Warning (shown when low) -->
+    <div id="diskWarning" class="disk-warning" style="display: none;">
+      <div class="disk-warning-text">
+        <i class="fas fa-exclamation-triangle fa-2x"></i>
+        <div>
+          <strong>Low Disk Space Warning!</strong>
+          <p class="mb-0" id="diskWarningText">Less than 15% disk space remaining.</p>
+        </div>
       </div>
-      <div class="input-group input-group-sm mb-2" style="max-width: 350px;">
-        <input id="searchInputQuote" class="form-control bg-dark text-light border-secondary" placeholder="Enter company name or ID" autocomplete="off" style="font-size: 0.95em; height: 2.1em;">
-        <button id="searchBtnQuote" class="btn btn-sm btn-accent">Search</button>
-        <div id="suggestionsQuote" class="dropdown-menu bg-dark-2 w-100" style="max-height: 200px; overflow-y: auto; display: none;"></div>
-      </div>
-      <div id="searchMsgQuote" class="fade-msg mt-2 small text-error"></div>
+      <button class="btn-warning-custom" onclick="cleanupModels()">
+        <i class="fas fa-broom"></i> Cleanup Models
+      </button>
+    </div>
 
-      <div class="table-responsive">
-        <table class="table table-dark table-striped table-hover align-middle text-center" id="quoteTable">
+    <!-- Current Progress Section -->
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-tasks"></i> Current Operations</span>
+        <span class="status-badge status-complete" id="systemStatus">System Ready</span>
+      </div>
+      <div class="progress-section" id="progressSection">
+        <div class="progress-item">
+          <div class="progress-label">
+            <i class="fas fa-download"></i>
+            <span id="currentOperation">No active operations</span>
+          </div>
+          <div class="progress-status">
+            <span id="operationETA">--:--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watchlist Section -->
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-star"></i> My Watchlist</span>
+        <button class="btn-custom" onclick="showAddToWatchlist()">
+          <i class="fas fa-plus"></i> Add Stock
+        </button>
+      </div>
+      <div id="watchlistContent">
+        <table class="custom-table">
           <thead>
-          <tr class="text-accent">
-            <th>Company</th>
-            <th>Current</th>
-            <th>High</th>
-            <th>Low</th>
-            <th>Change</th>
-            <th>Market Cap</th>
-          </tr>
+            <tr>
+              <th>Company</th>
+              <th>Symbol</th>
+              <th>Current Price</th>
+              <th>Predicted Price</th>
+              <th>Change %</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
           </thead>
-          <tbody>
-          <tr><td colspan="6" class="text-muted">No results yet</td></tr>
+          <tbody id="watchlistTable">
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted);">
+                Loading watchlist...
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
-
-      <nav><ul class="pagination pagination-sm justify-content-center mt-2" id="pagination"></ul></nav>
     </div>
-  </div>
 
-  <!-- Predictions Overview -->
-  <div class="card bg-dark-2 shadow-sm mt-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
-        <h6 class="fw-bold text-accent mb-0">Predictions Overview</h6>
-        <button id="getPredictions" class="btn btn-sm btn-accent">🔁 Get Latest Predictions</button>
+    <!-- Stock Search Section -->
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-search"></i> Search Stocks</span>
       </div>
+      <div class="search-container">
+        <input 
+          type="text" 
+          class="search-input" 
+          id="stockSearch" 
+          placeholder="Start typing company name or symbol..."
+          autocomplete="off"
+        >
+        <i class="fas fa-search search-icon"></i>
+        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+      </div>
+      <div id="searchResults"></div>
+    </div>
 
-      <div class="table-responsive mt-3">
-        <table class="table table-dark table-striped align-middle text-center" id="predTable">
-          <thead>
-          <tr class="text-accent">
+    <!-- Top Predictions Section -->
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-trophy"></i> Top Predictions</span>
+        <button class="btn-custom" onclick="loadTopPredictions()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+      <table class="custom-table">
+        <thead>
+          <tr>
             <th>Company</th>
             <th>Current</th>
             <th>Predicted</th>
-            <th>Profit %</th>
+            <th>Potential Profit</th>
+            <th>Prediction Date</th>
           </tr>
-          </thead>
-          <tbody>
-          <tr><td colspan="4" class="text-muted">No data yet</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination container for Predictions Overview -->
-      <nav><ul class="pagination pagination-sm justify-content-center mt-2" id="predPagination"></ul></nav>
+        </thead>
+        <tbody id="topPredictionsTable">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted);">
+              Loading predictions...
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // ===== Trigger Prediction =====
-  const triggerBtn = document.getElementById('triggerBtn');
-  const cancelBtn = document.getElementById('cancelBtn');
-  const msg = document.getElementById('triggerMsg');
-  const progressBar = document.getElementById('progressBar');
-  const cancelProgress = document.getElementById('cancelProgress');
-  const statusStreamPrediction = document.getElementById('statusStreamPrediction');
-  const fetchQuotesBtn = document.getElementById('fetchQuotesBtn');
-  const fetchQuotesMsg = document.getElementById('fetchQuotesMsg');
-  const statusStreamQuotes = document.getElementById('statusStreamQuotes');
-  let eventSourcePrediction = null;
-  let eventSourceQuotes = null;
-
-  function startStatusStreamPrediction() {
-    if (eventSourcePrediction) eventSourcePrediction.close();
-    statusStreamPrediction.innerHTML = '';
-    eventSourcePrediction = new EventSource('/prediction_status');
-    eventSourcePrediction.onmessage = function(event) {
-      const msgDiv = document.createElement('div');
-      msgDiv.textContent = event.data;
-      statusStreamPrediction.appendChild(msgDiv);
-      statusStreamPrediction.scrollTop = statusStreamPrediction.scrollHeight;
-    };
-  }
-
-  function startStatusStreamQuotes() {
-    if (eventSourceQuotes) eventSourceQuotes.close();
-    statusStreamQuotes.innerHTML = '';
-    eventSourceQuotes = new EventSource('/fetch_quotes_status');
-    eventSourceQuotes.onmessage = function(event) {
-      const msgDiv = document.createElement('div');
-      msgDiv.textContent = event.data;
-      statusStreamQuotes.appendChild(msgDiv);
-      statusStreamQuotes.scrollTop = statusStreamQuotes.scrollHeight;
-    };
-  }
-
-  if (triggerBtn) {
-    triggerBtn.addEventListener('click', async () => {
-      startStatusStreamPrediction();
-      // Start animation sequence
-      triggerBtn.disabled = true;
-      triggerBtn.querySelector('.btn-text').textContent = '⏳ Processing';
-      triggerBtn.classList.add('processing');
-      cancelBtn.classList.remove('d-none');
-      progressBar.classList.add('active');
-
-      msg.textContent = '🔄 Starting prediction process';
-      msg.className = 'status-message loading-message';
-
-      try {
-          const res = await fetch('/trigger_prediction', {method: 'POST'});
-
-          if (res.ok) {
-              const data = await res.json();
-              if (data.message.includes('cancelled')) {
-                  showStatus('⏹ Prediction cancelled', 'warning');
-              } else {
-                  showStatus('✨ Prediction complete', 'success');
-              }
-          } else if (res.status === 409) {
-              showStatus('⚠️ Prediction already in progress', 'warning');
-          } else {
-              showStatus('❌ Error running prediction', 'error');
-          }
-      } catch (err) {
-          showStatus('❌ Request failed', 'error');
-      } finally {
-          resetUI();
-      }
-    });
-  }
-
-  // Enhanced cancel button handler
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', async () => {
-      try {
-          // Start cancellation animation
-          cancelBtn.classList.add('cancelling');
-          cancelBtn.disabled = true;
-          cancelBtn.querySelector('.btn-text').textContent = '⏳ Cancelling';
-          cancelProgress.classList.add('active');
-
-          showStatus('🛑 Stopping predictions...', 'warning');
-
-          const res = await fetch('/cancel_prediction', {method: 'POST'});
-          if (res.ok) {
-              let checkCount = 0;
-              const maxChecks = 5;
-
-              const checkStatus = async () => {
-                  try {
-                      checkCount++;
-                      const statusRes = await fetch('/trigger_prediction', {method: 'POST'});
-                      const data = await statusRes.json();
-
-                      if (data.message.includes('already in progress') && checkCount < maxChecks) {
-                          showStatus(`🔄 Stopping predictions (${checkCount}/${maxChecks})`, 'warning');
-                          setTimeout(checkStatus, 800);
-                      } else {
-                          showStatus('⏹ Successfully cancelled', 'warning');
-                          setTimeout(resetUI, 1000);
-                      }
-                  } catch (error) {
-                      showStatus('❌ Error checking status', 'error');
-                      resetUI();
-                  }
-              };
-
-              checkStatus();
-          } else {
-              showStatus('❌ Failed to cancel', 'error');
-              resetUI();
-          }
-      } catch (error) {
-          showStatus('❌ Error during cancellation', 'error');
-          resetUI();
-      }
-    });
-  }
-
-  if (fetchQuotesBtn) {
-    fetchQuotesBtn.addEventListener('click', async () => {
-      startStatusStreamQuotes();
-      fetchQuotesBtn.disabled = true;
-      fetchQuotesBtn.querySelector('.btn-text').textContent = '⏳ Fetching...';
-      try {
-        const response = await fetch('/fetch_stock_quotes', { method: 'POST' });
-        const data = await response.json();
-        if (data.error) {
-          const msgDiv = document.createElement('div');
-          msgDiv.textContent = data.error;
-          msgDiv.className = 'text-danger';
-          statusStreamQuotes.appendChild(msgDiv);
-        }
-      } catch (e) {
-        const msgDiv = document.createElement('div');
-        msgDiv.textContent = 'Error fetching stock quotes.';
-        msgDiv.className = 'text-danger';
-        statusStreamQuotes.appendChild(msgDiv);
-      } finally {
-        fetchQuotesBtn.disabled = false;
-        fetchQuotesBtn.querySelector('.btn-text').textContent = '⟳ Fetch New Stock Quotations';
-      }
-    });
-  }
-
-  function showStatus(message, type) {
-    msg.textContent = message;
-    msg.className = `status-message status-${type}`;
-  }
-
-  function resetUI() {
-    // Smooth cleanup
-    cancelBtn.classList.add('fade-exit');
-    progressBar.classList.remove('active');
-    cancelProgress.classList.remove('active');
-
-    setTimeout(() => {
-        triggerBtn.disabled = false;
-        triggerBtn.classList.remove('processing');
-        triggerBtn.querySelector('.btn-text').textContent = '▶ Start Prediction';
-
-        cancelBtn.classList.remove('cancelling', 'fade-exit');
-        cancelBtn.classList.add('d-none');
-        cancelBtn.disabled = false;
-        cancelBtn.querySelector('.btn-text').textContent = '⏹ Cancel';
-
-        // Fade out status message
-        msg.classList.add('fade-out');
-        setTimeout(() => {
-            msg.className = '';
-            msg.textContent = '';
-        }, 300);
-    }, 500);
-  }
-
-  // ===== Search Quote =====
-  const searchBtn = document.getElementById('searchBtn');
-  if (searchBtn) {
-    searchBtn.addEventListener('click', async () => {
-      const q = document.getElementById('searchInput').value.trim();
-      const msg = document.getElementById('searchMsg');
-      if (!q) {
-        msg.textContent = 'Enter a search term!';
-        msg.classList.add('show');
-        setTimeout(() => msg.classList.remove('show'), 2000);
-        return;
-      }
-      const res = await fetch(`/search_quote/${q}`);
-      const tbody = document.querySelector('#quoteTable tbody');
-      const quoteCount = document.getElementById('quoteCount');
-      if (!res.ok) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-error">No results found</td></tr>`;
-        quoteCount.textContent = '';
-        return;
-      }
-      const data = await res.json();
-      quoteCount.textContent = `Found ${data.length} result(s)`;
-      renderTable(tbody, data, 6, 1);
-    });
-  }
-
-  // Search Quote from new input
-  document.getElementById('searchBtnQuote').addEventListener('click', async () => {
-    const q = document.getElementById('searchInputQuote').value.trim();
-    const msg = document.getElementById('searchMsgQuote');
-    if (!q) {
-      msg.textContent = 'Enter a company name or ID!';
-      msg.classList.add('show');
-      setTimeout(() => msg.classList.remove('show'), 2000);
-      return;
-    }
-    const res = await fetch(`/search_quote/${q}`);
-    const tbody = document.querySelector('#quoteTable tbody');
-    const quoteCount = document.getElementById('quoteCount');
-    if (!res.ok) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-error">No results found</td></tr>`;
-      quoteCount.textContent = '';
-      return;
-    }
-    const data = await res.json();
-    quoteCount.textContent = `Found ${data.length} result(s)`;
-    renderTable(tbody, data, 6, 1);
-  });
-
-  // ===== Predictions Overview with Pagination =====
-  const getPredictions = document.getElementById('getPredictions');
-  if (getPredictions) {
-    getPredictions.addEventListener('click', async () => {
-      const res = await fetch('/get_predictions');
-      if (!res.ok) return;
-      const data = await res.json();
-      const tbody = document.querySelector('#predTable tbody');
-      const perPage = 6;
-      renderPredTable(tbody, data, perPage, 1);
-    });
-  }
-
-  function renderPredTable(tbody, data, perPage, page) {
-    const totalPages = Math.ceil(data.length / perPage);
-    const start = (page - 1) * perPage;
-    const end = start + perPage;
-    const slice = data.slice(start, end);
-
-    tbody.innerHTML = slice.map(stock => `
-        <tr>
-            <td>${stock.company_name}</td>
-            <td>${stock.current_price.toFixed(2)}</td>
-            <td>${stock.predicted_price.toFixed(2)}</td>
-            <td>${stock.profit_percentage.toFixed(2)}%</td>
-        </tr>
-    `).join('');
-
-    renderPredPagination(totalPages, page, data, tbody, perPage);
-  }
-
-  function renderPredPagination(totalPages, currentPage, data, tbody, perPage) {
-    const pagination = document.getElementById('predPagination');
-    pagination.innerHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
-        const li = document.createElement('li');
-        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
-        li.innerHTML = `<a class="page-link bg-dark text-accent border-secondary" href="#">${i}</a>`;
-        li.addEventListener('click', e => {
-            e.preventDefault();
-            renderPredTable(tbody, data, perPage, i);
-        });
-        pagination.appendChild(li);
-    }
-  }
-
-  // ===== Search Table Pagination =====
-  function renderTable(tbody, data, perPage, page) {
-    const totalPages = Math.ceil(data.length / perPage);
-    const start = (page - 1) * perPage;
-    const end = start + perPage;
-    const slice = data.slice(start, end);
-    tbody.innerHTML = slice.map(d => `
-      <tr>
-        <td>${d.company_name}</td>
-        <td>${d.current_value || d.current_price}</td>
-        <td>${d.day_high || '-'}</td>
-        <td>${d.day_low || '-'}</td>
-        <td class="${d.change < 0 ? 'text-error' : 'text-success'}">${d.change || '-'}</td>
-        <td>${d.market_cap || '-'}</td>
-      </tr>`).join('');
-    renderPagination(totalPages, page, data, tbody, perPage);
-  }
-
-  function renderPagination(totalPages, currentPage, data, tbody, perPage) {
-    const pagination = document.getElementById('pagination');
-    pagination.innerHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
-      const li = document.createElement('li');
-      li.className = `page-item ${i === currentPage ? 'active' : ''}`;
-      li.innerHTML = `<a class="page-link bg-dark text-accent border-secondary" href="#">${i}</a>`;
-      li.addEventListener('click', e => {
-        e.preventDefault();
-        renderTable(tbody, data, perPage, i);
-      });
-      pagination.appendChild(li);
-    }
-  }
-
-  // ===== Search with Suggestions =====
-  const searchInput = document.getElementById('searchInput');
-  const suggestionsBox = document.getElementById('suggestions');
-  let selectedIndex = -1;
-  if (searchInput) {
-    searchInput.addEventListener('input', async () => {
-      const query = searchInput.value.trim();
-      if (query.length < 2) {
-        suggestionsBox.style.display = 'none';
-        return;
-      }
-
-      try {
-        // First get company suggestions from stk.json
-        const res = await fetch(`/search_quote/${encodeURIComponent(query)}`);
-        if (!res.ok) throw new Error('Failed to fetch suggestions');
-        const suggestions = await res.json();
-
-        if (suggestions.length > 0) {
-          suggestionsBox.innerHTML = suggestions.map((item, index) => `
-            <a class="dropdown-item text-light px-3 py-2 suggestion" href="#" data-index="${index}" data-company="${item.company_name}">
-              ${item.security_id} - ${item.company_name}
-            </a>
-          `).join('');
-          suggestionsBox.style.display = 'block';
-
-          // Add click handlers to suggestions
-          document.querySelectorAll('.suggestion').forEach(item => {
-            item.addEventListener('click', async (e) => {
-              e.preventDefault();
-              const selectedCompany = item.getAttribute('data-company');
-              searchInput.value = item.textContent.trim();
-              suggestionsBox.style.display = 'none';
-
-              // Use search_quote endpoint with the selected company name
-              try {
-                const quoteRes = await fetch(`/search_quote/${encodeURIComponent(selectedCompany)}`);
-                if (!quoteRes.ok) throw new Error('No quotes found');
-                const quotes = await quoteRes.json();
-
-                const tbody = document.querySelector('#quoteTable tbody');
-                const quoteCount = document.getElementById('quoteCount');
-                quoteCount.textContent = `Found ${quotes.length} result(s)`;
-                renderTable(tbody, quotes, 6, 1);
-              } catch (error) {
-                const tbody = document.querySelector('#quoteTable tbody');
-                tbody.innerHTML = `<tr><td colspan="6" class="text-error">No quotes found</td></tr>`;
-                document.getElementById('quoteCount').textContent = '';
-              }
-            });
-          });
-        } else {
-          suggestionsBox.style.display = 'none';
-        }
-      } catch (error) {
-        console.error('Error fetching suggestions:', error);
-        suggestionsBox.style.display = 'none';
-      }
-    });
-
-    // Handle keyboard navigation
-    searchInput.addEventListener('keydown', (e) => {
-      const suggestions = document.querySelectorAll('.suggestion');
-      if (suggestions.length === 0) return;
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        selectedIndex = Math.min(selectedIndex + 1, suggestions.length - 1);
-        updateSelection(suggestions);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        selectedIndex = Math.max(selectedIndex - 1, -1);
-        updateSelection(suggestions);
-      } else if (e.key === 'Enter' && selectedIndex >= 0) {
-        e.preventDefault();
-        suggestions[selectedIndex].click();
-      }
-    });
-  }
-  // Update search button click handler to use search_quote endpoint
-  document.getElementById('searchBtn').addEventListener('click', async () => {
-    const query = searchInput.value.trim();
-    if (!query) {
-      const msg = document.getElementById('searchMsg');
-      msg.textContent = 'Enter a search term!';
-      msg.classList.add('show');
-      setTimeout(() => msg.classList.remove('show'), 2000);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/search_quote/${encodeURIComponent(query)}`);
-      if (!res.ok) throw new Error('No quotes found');
-
-      const quotes = await res.json();
-      const tbody = document.querySelector('#quoteTable tbody');
-      const quoteCount = document.getElementById('quoteCount');
-      quoteCount.textContent = `Found ${quotes.length} result(s)`;
-      renderTable(tbody, quotes, 6, 1);
-    } catch (error) {
-      const tbody = document.querySelector('#quoteTable tbody');
-      tbody.innerHTML = `<tr><td colspan="6" class="text-error">No quotes found</td></tr>`;
-      document.getElementById('quoteCount').textContent = '';
-    }
-  });
-
-  function updateSelection(suggestions) {
-    suggestions.forEach((s, i) => {
-      if (i === selectedIndex) {
-        s.classList.add('active');
-        s.scrollIntoView({ block: 'nearest' });
-      } else {
-        s.classList.remove('active');
-      }
-    });
-  }
-
-  // Close suggestions when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
-      suggestionsBox.style.display = 'none';
-    }
-  });
-
-  // ===== Search Quote Typeahead using app/static/stk.json =====
-  let stkData = [];
-  fetch('/static/stk.json')
-    .then(res => res.json())
-    .then(data => {
-      if (!Array.isArray(data)) {
-        stkData = Object.entries(data).map(([security_id, company_name]) => ({ security_id, company_name }));
-      } else {
-        stkData = data;
-      }
-    });
-
-  const searchInputQuote = document.getElementById('searchInputQuote');
-  const suggestionsBoxQuote = document.getElementById('suggestionsQuote');
-  let selectedIndexQuote = -1;
-  if (searchInputQuote) {
-    searchInputQuote.addEventListener('input', () => {
-      const query = searchInputQuote.value.trim().toLowerCase();
-      if (query.length < 2 || stkData.length === 0) {
-        suggestionsBoxQuote.style.display = 'none';
-        return;
-      }
-      const suggestions = stkData.filter(item =>
-        item.company_name.toLowerCase().includes(query) ||
-        (item.security_id && item.security_id.toLowerCase().includes(query))
-      ).slice(0, 10);
-      if (suggestions.length > 0) {
-        suggestionsBoxQuote.innerHTML = suggestions.map((item, index) => `
-          <a class="dropdown-item text-light px-3 py-2 suggestion-quote" href="#" data-index="${index}" data-company="${item.company_name}" data-id="${item.security_id}">
-            ${item.security_id} - ${item.company_name}
-          </a>
-        `).join('');
-        suggestionsBoxQuote.style.display = 'block';
-        document.querySelectorAll('.suggestion-quote').forEach(item => {
-          item.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const selectedCompany = item.getAttribute('data-company');
-            searchInputQuote.value = `${item.getAttribute('data-id')} - ${selectedCompany}`;
-            suggestionsBoxQuote.style.display = 'none';
-            // Call the API with the selected company name or ID
-            try {
-              const quoteRes = await fetch(`/search_quote/${encodeURIComponent(selectedCompany)}`);
-              if (!quoteRes.ok) throw new Error('No quotes found');
-              const quotes = await quoteRes.json();
-              const tbody = document.querySelector('#quoteTable tbody');
-              const quoteCount = document.getElementById('quoteCount');
-              quoteCount.textContent = `Found ${quotes.length} result(s)`;
-              renderTable(tbody, quotes, 6, 1);
-            } catch (err) {
-              const tbody = document.querySelector('#quoteTable tbody');
-              tbody.innerHTML = `<tr><td colspan="6" class="text-error">No results found</td></tr>`;
-              document.getElementById('quoteCount').textContent = '';
-            }
-          });
-        });
-      } else {
-        suggestionsBoxQuote.style.display = 'none';
-      }
-    });
-  }
-
-  // Hide suggestions when clicking outside
-  window.addEventListener('click', (e) => {
-    if (!searchInputQuote.contains(e.target) && !suggestionsBoxQuote.contains(e.target)) {
-      suggestionsBoxQuote.style.display = 'none';
-    }
-  });
-
-});
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>

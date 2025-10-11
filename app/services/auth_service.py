@@ -11,11 +11,16 @@ from datetime import datetime
 class User(UserMixin):
     """User model for Flask-Login"""
     
-    def __init__(self, id, username, email, is_active=True):
+    def __init__(self, id, username, email, active=True):
         self.id = id
         self.username = username
         self.email = email
-        self.is_active = is_active
+        self._active = active
+    
+    @property
+    def is_active(self):
+        """Override Flask-Login's is_active property"""
+        return self._active
     
     @staticmethod
     def get_by_id(user_id: int) -> Optional['User']:
@@ -27,7 +32,7 @@ class User(UserMixin):
         conn.close()
         
         if row:
-            return User(row['id'], row['username'], row['email'], row['is_active'])
+            return User(row['id'], row['username'], row['email'], bool(row['is_active']))
         return None
     
     @staticmethod
@@ -40,7 +45,7 @@ class User(UserMixin):
         conn.close()
         
         if row:
-            return User(row['id'], row['username'], row['email'], row['is_active'])
+            return User(row['id'], row['username'], row['email'], bool(row['is_active']))
         return None
     
     @staticmethod
