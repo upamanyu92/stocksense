@@ -135,6 +135,20 @@
       border-bottom: 2px solid rgba(0, 212, 255, 0.2);
     }
     
+    /* Fix for dark text on dark backgrounds */
+    .card-header,
+    .card-header.bg-info,
+    .card-header.bg-info.text-dark,
+    .bg-info,
+    .bg-info.text-dark {
+      color: var(--text-light) !important;
+      background-color: var(--bg-card) !important;
+    }
+    .card-body,
+    .card {
+      color: var(--text-light) !important;
+    }
+
     /* Progress Section */
     .progress-section {
       background: rgba(0, 212, 255, 0.05);
@@ -174,23 +188,27 @@
       border-radius: 20px;
       font-size: 0.85rem;
       font-weight: 500;
+      color: #fff !important;
+      background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 100%);
+      border: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
     
     .status-downloading {
-      background: rgba(255, 170, 0, 0.2);
-      color: var(--warning-color);
+      background: linear-gradient(90deg, var(--warning-color) 0%, var(--primary-color) 100%) !important;
+      color: #fff !important;
       animation: pulse 1.5s ease-in-out infinite;
     }
     
     .status-predicting {
-      background: rgba(0, 212, 255, 0.2);
-      color: var(--primary-color);
+      background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 100%) !important;
+      color: #fff !important;
       animation: pulse 1.5s ease-in-out infinite;
     }
     
     .status-complete {
-      background: rgba(0, 255, 135, 0.2);
-      color: var(--success-color);
+      background: linear-gradient(90deg, var(--success-color) 0%, var(--primary-color) 100%) !important;
+      color: #fff !important;
     }
     
     @keyframes pulse {
@@ -457,6 +475,24 @@
           </div>
           <div class="progress-status">
             <span id="operationETA">--:--</span>
+          </div>
+        </div>
+        <!-- Real-time Background Worker Status -->
+        <div class="progress-item">
+          <div class="progress-label">
+            <span id="currentStock"></span>
+          </div>
+          <div class="progress-status">
+            <span id="stocksCompleted"></span>
+            <span id="stocksRemaining"></span>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-label">
+            <strong>Recent Activity:</strong>
+          </div>
+          <div class="progress-status" style="width:100%">
+            <ul id="backgroundActivityLog" class="list-unstyled" style="width:100%"></ul>
           </div>
         </div>
       </div>

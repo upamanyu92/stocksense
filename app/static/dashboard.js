@@ -65,23 +65,36 @@ async function cleanupModels() {
 
 // Background Worker Monitoring
 function startBackgroundWorkerMonitoring() {
-  const eventSource = new EventSource('/api/background_worker/status');
-  
-  eventSource.onmessage = function(event) {
-    try {
-      const status = JSON.parse(event.data);
-      updateProgressSection(status);
-    } catch (error) {
-      console.error('Error parsing worker status:', error);
+  setInterval(updateBackgroundWorkerStatus, 5000); // Poll every 5 seconds
+  updateBackgroundWorkerStatus(); // Initial fetch
+}
+
+async function updateBackgroundWorkerStatus() {
+  try {
+    const response = await fetch('/api/background-status');
+    const data = await response.json();
+    const status = data.recent_updates && data.recent_updates.length > 0 ? data.recent_updates[data.recent_updates.length - 1] : null;
+
+    // Update current stock
+    document.getElementById('currentStock').textContent = status && status.current_stock ? `Currently processing: ${status.current_stock}` : '';
+
+    // Update completed and remaining
+    document.getElementById('stocksCompleted').textContent = status && typeof status.processed !== 'undefined' ? `Completed: ${status.processed}` : '';
+    document.getElementById('stocksRemaining').textContent = status && typeof status.remaining !== 'undefined' ? `Remaining: ${status.remaining}` : '';
+
+    // Update recent activity log
+    const logElem = document.getElementById('backgroundActivityLog');
+    logElem.innerHTML = '';
+    if (data.recent_updates) {
+      data.recent_updates.slice(-10).forEach(update => {
+        const li = document.createElement('li');
+        li.textContent = `[${update.timestamp}] ${update.status} ${update.current_stock ? update.current_stock : ''}`;
+        logElem.appendChild(li);
+      });
     }
-  };
-  
-  eventSource.onerror = function(error) {
-    console.error('EventSource error:', error);
-    eventSource.close();
-    // Retry connection after 5 seconds
-    setTimeout(startBackgroundWorkerMonitoring, 5000);
-  };
+  } catch (error) {
+    console.error('Error fetching background worker status:', error);
+  }
 }
 
 function updateProgressSection(status) {

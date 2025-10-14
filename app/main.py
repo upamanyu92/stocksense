@@ -1,23 +1,24 @@
 # Main Flask application entry point
+import json
+import logging
+import os
+import queue
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, Response, redirect, url_for
 from flask_cors import CORS
 from flask_login import LoginManager, login_required, current_user
-import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-import os
-import queue
 
-from app.db.db_executor import fetch_quotes_batch, fetch_quotes, data_retriever_executor
-from app.services.prediction_service import prediction_executor
-from app.services.auth_service import User
-from app.services.background_worker import background_worker
-from app.utils.util import get_db_connection
-from app.utils.disk_monitor import DiskSpaceMonitor
 from app.api.auth_routes import auth_bp
 from app.api.watchlist_routes import watchlist_bp
+from app.db.db_executor import fetch_quotes_batch, fetch_quotes
+from app.services.auth_service import User
+from app.services.background_worker import background_worker
+from app.services.prediction_service import prediction_executor
+from app.utils.disk_monitor import DiskSpaceMonitor
+from app.utils.util import get_db_connection
 
 # Configure logging
 logging.basicConfig(
@@ -48,9 +49,9 @@ status_queue = queue.Queue()  # For predictions
 fetch_quotes_status_queue = queue.Queue()  # For fetch_stock_quotes
 
 # Start background worker when app starts
-@app.before_first_request
+@app.before_request
 def start_background_worker():
-    """Start the background worker on first request"""
+    """Start the background worker before every request"""
     background_worker.start()
     logging.info("Background worker started automatically")
 
@@ -71,6 +72,11 @@ def search_quote(company_name):
 #     logging.info(f"Prediction request for: {data}")
 #     prediction_executor(data)
 #     return jsonify({'message': 'Prediction triggered'}), 200
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker and monitoring"""
+    return jsonify({"status": "healthy", "service": "stocksense"}), 200
 
 @app.route('/prediction_status')
 def prediction_status():
@@ -93,6 +99,8 @@ def fetch_quotes_status():
 def fetch_stock_quotes():
     logging.info("Starting stock quotes fetching process")
     fetch_quotes_status_queue.put("Starting stock quotes fetching process...")
+    logging.info("fetch_stock_quotes endpoint triggered")
+    fetch_quotes_status_queue.put("fetch_stock_quotes endpoint triggered")
     from app.db.db_executor import fetch_quotes, data_retriever_executor
     stock_list = fetch_quotes("")  # Fetch all stocks, adjust as needed
     results = []
@@ -240,12 +248,18 @@ def background_worker_status():
     def event_stream():
         while True:
             status = background_worker.get_status()
-            yield f"data: {jsonify(status).get_data(as_text=True)}\n\n"
+            yield f"data: {json.dumps(status)}\n\n"
             import time
             time.sleep(2)
     return Response(event_stream(), mimetype="text/event-stream")
 
+
+@app.route('/api/background-status', methods=['GET'])
+def background_status():
+    """Return real-time status of background worker"""
+    return jsonify(background_worker.get_status())
+
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    app.run(host='0.0.0.0', debug=True, port=port)
+    app.run(host='0.0.0.0', debug=False, port=port)

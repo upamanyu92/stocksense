@@ -1,77 +1,48 @@
 services:
-#  linear_predict_scheduler:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-#    command: python3 -m scripts.linear_predict_scheduler
-#    ports:
-#      - "5001:5001"
-#    volumes:
-#      - .:/app
-#      - ./app/db:/app/db
-#      - ./model/saved_models:/app/model/saved_models
-#    networks:
-#      - stocknet
-#    environment:
-#      - FLASK_ENV=development
-#      - PYTHONPATH=/app
-#      - FLASK_PORT=5001
-#    depends_on:
-#      - prediction_service
-#
-#  prediction_service:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-#    command: python3 -m app.services.prediction_service
-#    ports:
-#      - "5002:5002"
-#    volumes:
-#      - .:/app
-#      - ./app/db:/app/db
-#      - ./model/saved_models:/app/model/saved_models
-#    networks:
-#      - stocknet
-#    environment:
-#      - FLASK_ENV=development
-#      - PYTHONPATH=/app
-#      - FLASK_PORT=5002
-
   predict_main:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: stocksense_main
     command: python3 -m app.main
-    network_mode: "host"  # This will make the service accessible on host network
+    ports:
+      - "5005:5005"
     volumes:
       - .:/app
       - ./app/db:/app/db
       - ./app/templates:/app/templates
       - ./model/saved_models:/app/model/saved_models
+      - pip_cache:/root/.cache/pip
     environment:
       - FLASK_ENV=development
       - PYTHONPATH=/app
       - FLASK_PORT=5005
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import requests; requests.get('http://localhost:5005/health', timeout=5)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   model_monitor:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: stocksense_monitor
     command: python3 -m scripts.model_monitor_scheduler
     volumes:
       - .:/app
       - ./app/db:/app/db
       - ./model/saved_models:/app/model/saved_models
-    network_mode: "host"  # Using host network mode for consistency
     environment:
       - FLASK_ENV=development
       - PYTHONPATH=/app
       - TZ=Asia/Kolkata
     depends_on:
-      - predict_main
+      predict_main:
+        condition: service_started
     restart: unless-stopped
 
-networks:
-  stocknet:
-    driver: bridge
+volumes:
+  pip_cache:

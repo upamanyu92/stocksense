@@ -1,18 +1,19 @@
 """
 Background worker service for automated stock downloads and predictions.
 """
+import concurrent
+import logging
+import queue
 import threading
 import time
-import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any
-import queue
 
-from app.utils.util import get_db_connection
-from app.services.prediction_service import prediction_executor
 from bsedata.bse import BSE
-import yfinance as yf
+
+from app.services.prediction_service import prediction_executor
+from app.utils.util import get_db_connection
 
 
 class BackgroundWorker:
@@ -22,7 +23,6 @@ class BackgroundWorker:
         self.running = False
         self.worker_thread = None
         self.status_queue = queue.Queue()
-        self.download_timeout = 30  # 30 seconds timeout for downloads
         self.prediction_interval = 300  # Run predictions every 5 minutes
         self.lock = threading.Lock()
         
@@ -64,56 +64,52 @@ class BackgroundWorker:
                 time.sleep(60)  # Wait a minute before retrying on error
     
     def _download_stocks(self):
-        """Download stock quotes with timeout handling"""
+        """Download stock quotes without timeout handling, with real-time status updates"""
         logging.info("Starting automated stock download")
         self.status_queue.put({
             'type': 'download',
             'status': 'started',
             'timestamp': datetime.now().isoformat()
         })
-        
+
         try:
             b = BSE()
             b.updateScripCodes()
             funds = b.getScripCodes()
-            
+
             total_stocks = len(funds)
             processed = 0
             failed = 0
-            
-            for code, name in funds.items():
-                if not self.running:
-                    break
-                
-                try:
-                    # Download with timeout
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(self._download_single_stock, code, name)
-                        future.result(timeout=self.download_timeout)
-                    
-                    processed += 1
-                    
-                except FuturesTimeoutError:
-                    logging.warning(f"Timeout downloading {name} (code: {code})")
-                    self._mark_stock_inactive(code, name, "Download timeout")
-                    failed += 1
-                    
-                except Exception as e:
-                    logging.error(f"Error downloading {name}: {e}")
-                    self._mark_stock_inactive(code, name, str(e))
-                    failed += 1
-                
-                # Update progress
-                if processed % 10 == 0:
+            remaining = total_stocks
+
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_code = {
+                    executor.submit(self._download_single_stock, code, name, processed, remaining): (code, name) for
+                    code, name in funds.items()}
+                for future in concurrent.futures.as_completed(future_to_code):
+                    code, name = future_to_code[future]
+                    try:
+                        future.result()  # Removed timeout
+                        processed += 1
+                        remaining -= 1
+                    except Exception as e:
+                        logging.error(f"Error downloading stock {name} ({code}): {e}")
+                        self._mark_stock_inactive(code, name, str(e))
+                        failed += 1
+                        remaining -= 1
+
+                    # Update progress for each stock (use company name)
                     self.status_queue.put({
                         'type': 'download',
                         'status': 'progress',
                         'processed': processed,
                         'total': total_stocks,
                         'failed': failed,
+                        'remaining': remaining,
+                        'current_stock': name,  # <-- use company name
                         'timestamp': datetime.now().isoformat()
                     })
-            
+
             self.status_queue.put({
                 'type': 'download',
                 'status': 'completed',
@@ -121,7 +117,7 @@ class BackgroundWorker:
                 'failed': failed,
                 'timestamp': datetime.now().isoformat()
             })
-            
+
         except Exception as e:
             logging.error(f"Error in stock download: {e}", exc_info=True)
             self.status_queue.put({
@@ -130,24 +126,34 @@ class BackgroundWorker:
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             })
-    
-    def _download_single_stock(self, code: str, name: str):
-        """Download data for a single stock"""
+
+    def _download_single_stock(self, code: str, name: str, processed: int = 0, remaining: int = 0):
+        """Download data for a single stock, emit status before and after"""
+        # Emit status before processing (use company name)
+        self.status_queue.put({
+            'type': 'download',
+            'status': 'processing',
+            'current_stock': name,  # <-- use company name
+            'stock_name': name,
+            'processed': processed,
+            'remaining': remaining,
+            'timestamp': datetime.now().isoformat()
+        })
         try:
             b = BSE()
             quote = b.getQuote(code)
-            
+
             if not quote:
                 raise ValueError("No quote data returned")
-            
+
             # Store quote in database
             self._store_stock_quote(quote)
-            
+
             # Reset download attempts on success
             self._reset_download_attempts(quote.get('securityID'))
-            
+
             logging.debug(f"Successfully downloaded {name}")
-            
+
         except Exception as e:
             logging.error(f"Error downloading single stock {name}: {e}")
             raise
