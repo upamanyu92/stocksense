@@ -1,14 +1,15 @@
-from typing import Optional, List, Dict, Any
+import logging
 import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+
+from bsedata.bse import BSE
 
 from app.db.data_models import StockQuote
 from app.utils.util import get_db_connection
-import logging
-from datetime import datetime
-import threading
 
-from bsedata.bse import BSE
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
@@ -65,8 +66,11 @@ def data_retriever_executor(status_queue, max_workers=4):
                     # quote = b.getQuote(code)
                     # update_stock_quote(quote)
                 else:
+                    logging.debug(f"Calling b.getQuote for {name} with code {code}")
                     quote = b.getQuote(code)
+                    logging.debug(f"Quote received for {name}: {quote}")
                     insert_stock_quote(quote)
+                    logging.debug(f"Inserted quote for {name}")
             # Thread-safe increment
             done = None
             from threading import Lock
@@ -163,7 +167,7 @@ def insert_stock_quote(quote: Dict[str, Any]) -> None:
         c.execute(sql, list(data.values()))
         conn.commit()
     except sqlite3.Error as e:
-        print(f"Error inserting stock quote: {e}")
+        logging.error(f"Error inserting stock quote: {e}")
     finally:
         conn.close()
 

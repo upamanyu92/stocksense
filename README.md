@@ -2,6 +2,19 @@
 
 StockSense is a modular, production-ready platform for stock prediction, analysis, and monitoring. It is designed for data scientists, quantitative analysts, and developers who need a robust, extensible system for building, deploying, and monitoring stock market models at scale.
 
+## 🚀 NEW: Agentic Prediction System
+
+StockSense now features an **intelligent agentic prediction system** that autonomously makes high-accuracy predictions through multi-agent collaboration:
+
+- **🤖 Multi-Agent Architecture**: Specialized agents work together (Data Enrichment, Ensemble, Adaptive Learning)
+- **📈 Enhanced Accuracy**: Ensemble methods combine Transformer + LSTM models with adaptive weighting
+- **🧠 Self-Learning**: Continuously improves from prediction errors and adapts to market conditions
+- **🎯 Confidence Scoring**: Every prediction includes confidence levels and uncertainty quantification
+- **🔄 Market Regime Detection**: Automatically adapts strategies for bull/bear/sideways/volatile markets
+- **✅ Autonomous Decisions**: Makes intelligent accept/caution/reject decisions on predictions
+
+[Read Full Documentation →](docs/AGENTIC_SYSTEM.md)
+
 ## Purpose & Need
 
 Modern financial markets generate vast amounts of data, and actionable insights require advanced analytics, automation, and reliable infrastructure. StockSense addresses these needs by providing:

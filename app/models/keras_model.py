@@ -1,20 +1,21 @@
-import logging
 import json
-import joblib
-from pathlib import Path
+import logging
 import time
 from datetime import datetime
+from pathlib import Path
 
+import joblib
 import numpy as np
 import yfinance as yf
 from keras.callbacks import EarlyStopping
+from keras.layers import Dense, LSTM, Dropout, Bidirectional, Input, LayerNormalization, MultiHeadAttention, \
+    GlobalAveragePooling1D
 from keras.models import Sequential, Model, load_model
-from keras.layers import Dense, LSTM, Dropout, Bidirectional, Input, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from sklearn.preprocessing import MinMaxScaler
 
+from app.db.data_models import ModelConfiguration
 from app.features.feature_factory import create_features
 from app.services.configuration_service import ConfigurationService
-from app.db.data_models import ModelConfiguration
 
 # Define consistent feature columns
 FEATURE_COLUMNS = ['Close', 'SMA_20', 'SMA_50', 'EMA_20', 'EMA_50', 'Volume_Mean', 'RSI', 'MACD']
@@ -81,7 +82,8 @@ def load_latest_model(symbol, model_type='transformer'):
         logging.error(f"Error loading model for {symbol}: {str(e)}")
         return None, None, None
 
-def predict_max_profit(symbol, use_transformer=True, timeout=30):
+
+def predict_max_profit(symbol, use_transformer=True):
     """Make prediction with cancellation support"""
     try:
         model_type = 'transformer' if use_transformer else 'lstm'

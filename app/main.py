@@ -1,16 +1,23 @@
 # Main Flask application entry point
-import threading
-
-from flask import Flask, jsonify, render_template, request, Response
-from flask_cors import CORS
+import json
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 import os
 import queue
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
-from app.db.db_executor import fetch_quotes_batch, fetch_quotes, data_retriever_executor
+from flask import Flask, jsonify, render_template, request, Response, redirect, url_for
+from flask_cors import CORS
+from flask_login import LoginManager, login_required, current_user
+
+from app.api.auth_routes import auth_bp
+from app.api.watchlist_routes import watchlist_bp
+from app.db.db_executor import fetch_quotes_batch, fetch_quotes
+from app.services.auth_service import User
+from app.services.background_worker import background_worker
 from app.services.prediction_service import prediction_executor
+from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.util import get_db_connection
 
 # Configure logging
@@ -21,10 +28,32 @@ logging.basicConfig(
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 CORS(app)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+login_manager.login_message = 'Please log in to access this page.'
+
+# Register blueprints
+app.register_blueprint(auth_bp)
+app.register_blueprint(watchlist_bp)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get_by_id(int(user_id))
 
 status_queue = queue.Queue()  # For predictions
 fetch_quotes_status_queue = queue.Queue()  # For fetch_stock_quotes
+
+# Start background worker when app starts
+@app.before_request
+def start_background_worker():
+    """Start the background worker before every request"""
+    background_worker.start()
+    logging.info("Background worker started automatically")
 
 @app.route('/search_quote/<company_name>', methods=['GET'])
 def search_quote(company_name):
@@ -43,6 +72,11 @@ def search_quote(company_name):
 #     logging.info(f"Prediction request for: {data}")
 #     prediction_executor(data)
 #     return jsonify({'message': 'Prediction triggered'}), 200
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker and monitoring"""
+    return jsonify({"status": "healthy", "service": "stocksense"}), 200
 
 @app.route('/prediction_status')
 def prediction_status():
@@ -65,6 +99,8 @@ def fetch_quotes_status():
 def fetch_stock_quotes():
     logging.info("Starting stock quotes fetching process")
     fetch_quotes_status_queue.put("Starting stock quotes fetching process...")
+    logging.info("fetch_stock_quotes endpoint triggered")
+    fetch_quotes_status_queue.put("fetch_stock_quotes endpoint triggered")
     from app.db.db_executor import fetch_quotes, data_retriever_executor
     stock_list = fetch_quotes("")  # Fetch all stocks, adjust as needed
     results = []
@@ -163,9 +199,67 @@ def get_top_stocks():
 
 @app.route('/')
 def index():
-    return render_template('dashboard.html')
+    """Redirect to login page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('user_dashboard'))
+    return redirect(url_for('auth.login'))
+
+@app.route('/dashboard')
+@login_required
+def user_dashboard():
+    """User dashboard page"""
+    return render_template('dashboard.html', username=current_user.username)
+
+@app.route('/api/system/status')
+@login_required
+def system_status():
+    """Get system status including background worker and disk space"""
+    worker_status = background_worker.get_status()
+    disk_usage = DiskSpaceMonitor.get_disk_usage()
+    model_stats = DiskSpaceMonitor.get_model_directory_size()
+    
+    return jsonify({
+        'background_worker': worker_status,
+        'disk_usage': disk_usage,
+        'model_stats': model_stats
+    }), 200
+
+@app.route('/api/system/cleanup_models', methods=['POST'])
+@login_required
+def cleanup_models():
+    """Cleanup old models"""
+    try:
+        keep_newest = request.json.get('keep_newest', 2) if request.json else 2
+        result = DiskSpaceMonitor.cleanup_old_models(keep_newest)
+        return jsonify({
+            'success': True,
+            'result': result
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/background_worker/status')
+@login_required
+def background_worker_status():
+    """Get background worker status stream"""
+    def event_stream():
+        while True:
+            status = background_worker.get_status()
+            yield f"data: {json.dumps(status)}\n\n"
+            import time
+            time.sleep(2)
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
+@app.route('/api/background-status', methods=['GET'])
+def background_status():
+    """Return real-time status of background worker"""
+    return jsonify(background_worker.get_status())
 
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    app.run(host='0.0.0.0', debug=True, port=port)
+    app.run(host='0.0.0.0', debug=False, port=port)

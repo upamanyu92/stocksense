@@ -1,11 +1,12 @@
 # Placeholder for API routes
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
 from app.api.config_routes import router as config_router
 from app.models.training_script import train_transformer_model, train_model
+from app.services.background_worker import background_worker
 from app.services.configuration_service import ConfigurationService
-from typing import Optional
-from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -52,3 +53,9 @@ async def train_stock_model(symbol: str, model_type: str = "transformer"):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/background-status")
+async def get_background_status():
+    """Get real-time status of background worker stock acquisition"""
+    return background_worker.get_status()
