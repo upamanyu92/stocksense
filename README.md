@@ -74,6 +74,7 @@ Modern financial markets generate vast amounts of data, and actionable insights 
 - **Development**: The app generates self-signed SSL certificates automatically. Your browser will show a security warning, which you can safely bypass in development.
 - **Production**: Always use certificates from a trusted Certificate Authority (CA) like Let's Encrypt for production deployments.
 - **Disable SSL**: Set `USE_SSL=false` environment variable to disable HTTPS and use HTTP (not recommended for production).
+- **Detailed SSL Guide**: See [docs/SSL_SETUP.md](docs/SSL_SETUP.md) for comprehensive HTTPS/SSL configuration instructions.
 
 ## Extending StockSense
 - **Add new models:** Place model code in `app/models/` and update the prediction pipeline.
