@@ -260,6 +260,28 @@ def background_status():
     return jsonify(background_worker.get_status())
 
 if __name__ == '__main__':
+    from app.config import Config
+    
+    # Ensure directories exist
+    Config.ensure_directories()
+    
     port = int(os.environ.get('FLASK_PORT', 5005))
-    logging.info(f"Starting StockSense application on port {port}")
-    app.run(host='0.0.0.0', debug=False, port=port)
+    
+    # Get SSL context
+    ssl_context = Config.get_ssl_context()
+    
+    if ssl_context:
+        logging.info(f"Starting StockSense application on port {port} with HTTPS")
+        logging.info(f"SSL Certificate: {Config.SSL_CERT_PATH}")
+        logging.info(f"SSL Key: {Config.SSL_KEY_PATH}")
+        logging.info("⚠️  If using self-signed certificates, your browser will show a security warning.")
+        logging.info("   You can safely proceed in development by accepting the certificate.")
+        app.run(host='0.0.0.0', debug=False, port=port, ssl_context=ssl_context)
+    else:
+        logging.warning("SSL is disabled or certificates not found. Running with HTTP (not secure).")
+        logging.warning("To enable HTTPS:")
+        logging.warning("  1. Run: python scripts/generate_ssl_cert.py")
+        logging.warning("  2. Or set USE_SSL=False in environment to disable this warning")
+        logging.info(f"Starting StockSense application on port {port} with HTTP")
+        app.run(host='0.0.0.0', debug=False, port=port)
+

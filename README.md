@@ -50,7 +50,14 @@ Modern financial markets generate vast amounts of data, and actionable insights 
    - Copy `.env.example` to `.env` and edit as needed.
 3. **Initialize the database:**
    - Run scripts from `scripts/` (e.g., `python scripts/create_db.py`).
-4. **Start the application:**
+4. **Generate SSL certificates (for HTTPS):**
+   - For development with self-signed certificates:
+     ```bash
+     python scripts/generate_ssl_cert.py
+     ```
+   - For production, obtain certificates from a trusted CA (e.g., Let's Encrypt)
+   - To disable SSL and use HTTP only, set `USE_SSL=false` in your environment
+5. **Start the application:**
    - For local development:
      ```bash
      python -m app.main
@@ -59,8 +66,14 @@ Modern financial markets generate vast amounts of data, and actionable insights 
      ```bash
      docker compose up --build
      ```
-5. **Access the dashboard:**
-   - Visit `http://localhost:5005` (or your configured port).
+6. **Access the dashboard:**
+   - Visit `https://localhost:5005` (or your configured port).
+   - For self-signed certificates, your browser will show a security warning - you can safely proceed in development by accepting the certificate.
+
+## Security Notes
+- **Development**: The app generates self-signed SSL certificates automatically. Your browser will show a security warning, which you can safely bypass in development.
+- **Production**: Always use certificates from a trusted Certificate Authority (CA) like Let's Encrypt for production deployments.
+- **Disable SSL**: Set `USE_SSL=false` environment variable to disable HTTPS and use HTTP (not recommended for production).
 
 ## Extending StockSense
 - **Add new models:** Place model code in `app/models/` and update the prediction pipeline.

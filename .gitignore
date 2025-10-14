@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+# SSL certificates (should not be committed)
+certs/
+*.pem
+*.key
+*.crt
+
