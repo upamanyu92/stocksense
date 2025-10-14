@@ -59,6 +59,11 @@ Modern financial markets generate vast amounts of data, and actionable insights 
      ```bash
      docker compose up --build
      ```
+   - Using pre-built Docker Hub image:
+     ```bash
+     docker pull upamanyu92/stocksense:latest
+     docker run -p 5005:5005 upamanyu92/stocksense:latest
+     ```
 5. **Access the dashboard:**
    - Visit `http://localhost:5005` (or your configured port).
 
