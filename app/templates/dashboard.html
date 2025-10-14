@@ -73,6 +73,20 @@
       font-weight: 500;
     }
     
+    .uptime-info {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 400;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .uptime-info i {
+      color: var(--primary-color);
+      font-size: 0.9rem;
+    }
+    
     .btn-logout {
       background: linear-gradient(135deg, var(--danger-color) 0%, #cc0055 100%);
       border: none;
@@ -438,6 +452,9 @@
       <div class="user-info">
         <span class="user-name">
           <i class="fas fa-user-circle"></i> {{ username }}
+        </span>
+        <span class="uptime-info">
+          <i class="fas fa-clock"></i> Uptime: <span id="appUptime">Loading...</span>
         </span>
         <a href="{{ url_for('auth.logout') }}" class="btn-logout">
           <i class="fas fa-sign-out-alt"></i> Logout
