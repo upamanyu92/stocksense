@@ -30,3 +30,9 @@
 2025-10-15 01:17:39,858 - INFO - Outside market hours, waiting for next scheduled run
 2025-10-15 01:21:03,270 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
 2025-10-15 01:21:03,283 - INFO - Outside market hours, waiting for next scheduled run
+2025-10-15 02:38:21,464 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
+2025-10-15 02:38:21,481 - INFO - Outside market hours, waiting for next scheduled run
+2025-10-15 03:46:21,991 - INFO - Starting scheduled model monitoring job
+2025-10-15 03:46:21,992 - INFO - Starting model performance monitoring...
+2025-10-15 03:46:21,993 - INFO - No recent predictions to analyze
+2025-10-15 03:46:21,993 - INFO - Completed model monitoring job

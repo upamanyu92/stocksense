@@ -53,7 +53,7 @@ fetch_quotes_status_queue = queue.Queue()  # For fetch_stock_quotes
 def start_background_worker():
     """Start the background worker before every request"""
     background_worker.start()
-    logging.info("Background worker started automatically")
+    # logging.info("Background worker started automatically")
 
 @app.route('/search_quote/<company_name>', methods=['GET'])
 def search_quote(company_name):

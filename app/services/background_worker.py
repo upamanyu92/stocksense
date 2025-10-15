@@ -29,7 +29,7 @@ class BackgroundWorker:
     def start(self):
         """Start the background worker"""
         if self.running:
-            logging.warning("Background worker already running")
+            # logging.warning("Background worker already running")
             return
         
         self.running = True
