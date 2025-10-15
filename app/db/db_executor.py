@@ -3,6 +3,7 @@ import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from threading import Lock
 from typing import Optional, List, Dict, Any
 
 from bsedata.bse import BSE
@@ -10,23 +11,26 @@ from bsedata.bse import BSE
 from app.db.data_models import StockQuote
 from app.utils.util import get_db_connection
 
+logger = logging.getLogger(__name__)
+
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
+    """Fetch a single row from database."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(query, args)
         row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
+        return dict(row) if row else None
     except Exception as e:
-        print(f"An error occurred while fetching one: {e}")
+        logger.error(f"Error fetching one: {e}")
         return None
     finally:
         conn.close()
 
+
 def fetch_all(query: str, args: tuple = ()) -> List[Dict[str, Any]]:
+    """Fetch all rows from database."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -34,64 +38,60 @@ def fetch_all(query: str, args: tuple = ()) -> List[Dict[str, Any]]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except Exception as e:
-        print(f"An error occurred while fetching all: {e}")
+        logger.error(f"Error fetching all: {e}")
+        return []
     finally:
         conn.close()
 
 
 def data_retriever_executor(status_queue, max_workers=4):
-    status_queue.put(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    logging.info(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    """Retrieve and store stock data from BSE."""
+    logger.info("Starting data retrieval from BSE")
+    status_queue.put(f"Starting data retrieval at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
     b = BSE()
     b.updateScripCodes()
     trade_funds = b.getScripCodes()
     total_funds = len(trade_funds)
     codes_list = list(trade_funds.items())
-    counter = {'done': 0}
+    counter = {'done': 0, 'lock': Lock()}
 
     def process_stock(code_name):
         code, name = code_name
         try:
             company_name = b.verifyScripCode(code)
             existing_quote = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
-            if (not company_name) or (company_name != name):
-                msg = f"{name} - skipped - name mismatch or not found"
-                logging.info(msg)
-                status_queue.put(msg)
+            
+            if not company_name or company_name != name:
+                logger.debug(f"{name}: Skipped (name mismatch)")
+                status_queue.put(f"{name} - skipped")
                 return
+            
+            if existing_quote:
+                logger.debug(f"{name}: Existing quote found")
             else:
-                logging.debug(f"Processing {name} with code {code}")
-                if existing_quote:
-                    logging.debug(f"Updating existing quote for {name}")
-                    # quote = b.getQuote(code)
-                    # update_stock_quote(quote)
-                else:
-                    logging.debug(f"Calling b.getQuote for {name} with code {code}")
-                    quote = b.getQuote(code)
-                    logging.debug(f"Quote received for {name}: {quote}")
-                    insert_stock_quote(quote)
-                    logging.debug(f"Inserted quote for {name}")
-            # Thread-safe increment
-            done = None
-            from threading import Lock
-            if not hasattr(process_stock, 'lock'):
-                process_stock.lock = Lock()
-            with process_stock.lock:
+                logger.debug(f"{name}: Fetching new quote")
+                quote = b.getQuote(code)
+                insert_stock_quote(quote)
+            
+            with counter['lock']:
                 counter['done'] += 1
                 done = counter['done']
-            msg = f"{name} - completed - {total_funds-done}/{total_funds}"
-            logging.info(f"{msg} [Thread: {threading.current_thread().name}]")
-            status_queue.put(msg)
+            
+            status_queue.put(f"{name} - completed - {total_funds-done}/{total_funds}")
+            
         except Exception as e:
-            logging.debug(f"Downloading failed {code}: {e}")
+            logger.warning(f"{name}: Failed - {e}")
             status_queue.put(f"{name} - failed: {e}")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_stock, code_name) for code_name in codes_list]
         for _ in as_completed(futures):
-            pass  # All status is handled in process_stock
+            pass
+
 
 def execute_query(query: str, args: tuple = (), fetchone: bool = False, fetchall: bool = False, commit: bool = False) -> Optional[Any]:
+    """Execute a database query."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -105,7 +105,7 @@ def execute_query(query: str, args: tuple = (), fetchone: bool = False, fetchall
         else:
             result = None
     except Exception as e:
-        print(f"An error occurred while executing query: {query}: {e}")
+        logger.error(f"Query execution error: {e}")
         result = None
     finally:
         conn.close()
@@ -167,7 +167,7 @@ def insert_stock_quote(quote: Dict[str, Any]) -> None:
         c.execute(sql, list(data.values()))
         conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Error inserting stock quote: {e}")
+        logger.error(f"Error inserting stock quote: {e}")
     finally:
         conn.close()
 
@@ -211,6 +211,6 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         c.execute(sql, list(data.values()) + [quote.get('securityID')])
         conn.commit()
     except sqlite3.Error as e:
-        print(f"Error updating stock quote: {e}")
+        logger.error(f"Error updating stock quote: {e}")
     finally:
         conn.close()

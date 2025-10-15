@@ -1,3 +1,4 @@
+import logging
 import yfinance as yf
 import numpy as np
 from keras.models import Sequential
@@ -11,6 +12,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -224,7 +227,7 @@ def train_transformer_model(symbol, time_step=60, epochs=100, batch_size=32):
 
     # Save model with enhanced metrics
     model_path = save_model_artifacts(model, scaler, symbol, 'transformer', metrics)
-    print(f"Model saved to: {model_path}")
+    logger.info(f"Model saved to: {model_path}")
 
     return model, scaler, metrics
 
@@ -254,19 +257,20 @@ def train_model(symbol):
     }
 
     model_path = save_model_artifacts(model, scaler, symbol, 'lstm', metrics)
-    print(f"Model saved to: {model_path}")
+    logger.info(f"Model saved to: {model_path}")
 
     return model, scaler
 
 
 # Optionally, add a main block for CLI usage
 def main():
+    """Train models for a stock symbol."""
     symbol = 'AAPL'  # Example symbol
-    print(f"Training Transformer model for {symbol}...")
+    logger.info(f"Training Transformer model for {symbol}...")
     model, scaler, metrics = train_transformer_model(symbol)
-    print(f"\nTraining LSTM model for {symbol}...")
+    logger.info(f"Training LSTM model for {symbol}...")
     lstm_model, lstm_scaler = train_model(symbol)
-    print("\nTraining complete!")
+    logger.info("Training complete!")
 
 
 if __name__ == "__main__":
