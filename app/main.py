@@ -26,6 +26,9 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# Track application start time for uptime calculation
+app_start_time = datetime.now()
+
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -222,6 +225,27 @@ def system_status():
         'background_worker': worker_status,
         'disk_usage': disk_usage,
         'model_stats': model_stats
+    }), 200
+
+@app.route('/api/system/uptime')
+@login_required
+def get_uptime():
+    """Get application uptime"""
+    uptime_seconds = (datetime.now() - app_start_time).total_seconds()
+    days = int(uptime_seconds // 86400)
+    hours = int((uptime_seconds % 86400) // 3600)
+    minutes = int((uptime_seconds % 3600) // 60)
+    
+    uptime_str = ""
+    if days > 0:
+        uptime_str += f"{days}d "
+    if hours > 0 or days > 0:
+        uptime_str += f"{hours}h "
+    uptime_str += f"{minutes}m"
+    
+    return jsonify({
+        'uptime': uptime_str,
+        'uptime_seconds': int(uptime_seconds)
     }), 200
 
 @app.route('/api/system/cleanup_models', methods=['POST'])

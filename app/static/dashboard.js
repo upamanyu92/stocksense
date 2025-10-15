@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTopPredictions();
   startBackgroundWorkerMonitoring();
   initStockSearch();
+  updateUptime(); // Initial uptime fetch
   
   // Auto-refresh every 30 seconds
   setInterval(() => {
@@ -15,7 +16,25 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTopPredictions();
     checkDiskSpace();
   }, 30000);
+  
+  // Update uptime every minute
+  setInterval(updateUptime, 60000);
 });
+
+// Uptime Monitoring
+async function updateUptime() {
+  try {
+    const response = await fetch('/api/system/uptime');
+    const data = await response.json();
+    
+    const uptimeElement = document.getElementById('appUptime');
+    if (uptimeElement) {
+      uptimeElement.textContent = data.uptime;
+    }
+  } catch (error) {
+    console.error('Error fetching uptime:', error);
+  }
+}
 
 // Disk Space Monitoring
 async function checkDiskSpace() {
