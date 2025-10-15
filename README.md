@@ -42,6 +42,8 @@ Modern financial markets generate vast amounts of data, and actionable insights 
 - `.env` - Environment variables
 
 ## Setup & Usage
+
+### Local Development
 1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
@@ -61,6 +63,10 @@ Modern financial markets generate vast amounts of data, and actionable insights 
      ```
 5. **Access the dashboard:**
    - Visit `http://localhost:5005` (or your configured port).
+
+### Cloud Deployment
+- **AWS Free Tier:** [Deploy on AWS for free →](docs/AWS_FREE_TIER_DEPLOYMENT.md)
+- **Docker:** See [Docker Setup Guide](DOCKER_SETUP.md)
 
 ## Extending StockSense
 - **Add new models:** Place model code in `app/models/` and update the prediction pipeline.
