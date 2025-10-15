@@ -1,5 +1,7 @@
 # AWS Free Tier Deployment Guide for StockSense
 
+> 📌 **Quick Reference**: See [AWS Free Tier Quick Reference](AWS_FREE_TIER_QUICK_REFERENCE.md) for a condensed summary of what's free and how to get started in 5 minutes.
+
 ## Overview
 
 This guide explains how to deploy StockSense using AWS Free Tier services, allowing you to run your stock prediction platform in the cloud at minimal to no cost for the first 12 months.
