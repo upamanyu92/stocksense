@@ -5,9 +5,16 @@
 let socket = null;
 let connectionStatus = 'disconnected';
 
+// Real-time chart
+let priceChart = null;
+let isPriceTracking = false;
+
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize WebSocket connection
   initWebSocket();
+  
+  // Initialize charts
+  initCharts();
   
   // Initialize dashboard
   checkDiskSpace();
@@ -25,6 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update uptime every minute
   setInterval(updateUptime, 60000);
 });
+
+// Initialize charts
+function initCharts() {
+  try {
+    priceChart = new MultiStockChart('priceChart', {
+      maxDataPoints: 30,
+      label: 'Stock Prices'
+    });
+    console.log('Charts initialized successfully');
+  } catch (error) {
+    console.error('Error initializing charts:', error);
+  }
+}
 
 // WebSocket initialization and management
 function initWebSocket() {
@@ -120,6 +140,13 @@ function handleStockPriceUpdate(data) {
   console.log('Stock price update:', data);
   // Update specific stock price in the UI
   updateStockPriceInUI(data);
+  
+  // Update chart if tracking is enabled
+  if (isPriceTracking && priceChart) {
+    const timeLabel = new Date().toLocaleTimeString();
+    const symbol = data.company_name || data.symbol;
+    priceChart.addDataPoint(symbol, timeLabel, data.price);
+  }
 }
 
 function handleBackgroundWorkerStatus(data) {
@@ -777,4 +804,88 @@ function renderPredictionPagination(currentPage, totalPages) {
 
   html += '</div>';
   paginationDiv.innerHTML = html;
+}
+
+// Real-time Price Tracking Functions
+async function startPriceTracking() {
+  try {
+    // Get watchlist stocks
+    const response = await fetch('/api/watchlist/');
+    const data = await response.json();
+    
+    if (data.success && data.watchlist && data.watchlist.length > 0) {
+      // Get symbols to track
+      const symbols = data.watchlist.map(s => s.stock_symbol);
+      
+      // Add stocks to chart
+      data.watchlist.forEach(stock => {
+        if (priceChart) {
+          priceChart.addStock(stock.company_name, stock.company_name);
+        }
+      });
+      
+      // Subscribe to price updates via WebSocket
+      if (socket && socket.connected) {
+        socket.emit('subscribe_stock_prices', { symbols: symbols });
+      }
+      
+      // Also start via API
+      const streamResponse = await fetch('/api/price_stream/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: symbols })
+      });
+      
+      const streamData = await streamResponse.json();
+      
+      if (streamData.success) {
+        isPriceTracking = true;
+        showNotification(`Started tracking ${symbols.length} stocks`, 'success');
+      } else {
+        showNotification('Failed to start price tracking', 'error');
+      }
+    } else {
+      showNotification('No stocks in watchlist to track', 'warning');
+    }
+  } catch (error) {
+    console.error('Error starting price tracking:', error);
+    showNotification('Error starting price tracking', 'error');
+  }
+}
+
+async function stopPriceTracking() {
+  try {
+    // Get watchlist stocks
+    const response = await fetch('/api/watchlist/');
+    const data = await response.json();
+    
+    if (data.success && data.watchlist && data.watchlist.length > 0) {
+      const symbols = data.watchlist.map(s => s.stock_symbol);
+      
+      // Unsubscribe via WebSocket
+      if (socket && socket.connected) {
+        socket.emit('unsubscribe_stock_prices', { symbols: symbols });
+      }
+      
+      // Stop via API
+      const streamResponse = await fetch('/api/price_stream/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: symbols })
+      });
+      
+      const streamData = await streamResponse.json();
+      
+      if (streamData.success) {
+        isPriceTracking = false;
+        if (priceChart) {
+          priceChart.clearChart();
+        }
+        showNotification('Stopped price tracking', 'info');
+      }
+    }
+  } catch (error) {
+    console.error('Error stopping price tracking:', error);
+    showNotification('Error stopping price tracking', 'error');
+  }
 }
