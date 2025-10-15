@@ -13,4 +13,3 @@ flask-cors
 fastapi
 pytz
 psutil
-cryptography
