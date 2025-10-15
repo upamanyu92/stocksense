@@ -28,14 +28,6 @@ The StockSense application has been successfully containerized with a refactored
 - ✅ Returns JSON: `{"service": "stocksense", "status": "healthy"}`
 - ✅ Enables Docker to monitor service health automatically
 
-### 4. **HTTPS/SSL Support**
-
-- ✅ Added SSL/HTTPS support for secure connections
-- ✅ Automatic generation of self-signed certificates for development
-- ✅ Configurable SSL paths for production certificates
-- ✅ Environment variable `USE_SSL` to enable/disable HTTPS
-- ✅ Updated health checks to use HTTPS
-
 ## Services
 
 ### 1. `predict_main` (Main Application)
@@ -97,10 +89,6 @@ docker-compose up -d --build
 ### Test Health Endpoint
 
 ```bash
-# HTTPS (default)
-curl -k https://localhost:5005/health
-
-# HTTP (if SSL disabled)
 curl http://localhost:5005/health
 ```
 
@@ -142,59 +130,14 @@ Outside market hours, waiting for next scheduled run
 - `FLASK_ENV=development`
 - `PYTHONPATH=/app`
 - `FLASK_PORT=5005`
-- `USE_SSL=true` - Enable/disable HTTPS (default: true)
-- `SSL_CERT_PATH=/app/certs/cert.pem` - Path to SSL certificate
-- `SSL_KEY_PATH=/app/certs/key.pem` - Path to SSL private key
 - `TZ=Asia/Kolkata` (model_monitor)
-
-## SSL/HTTPS Configuration
-
-The application now supports HTTPS for secure connections:
-
-### Development
-- Self-signed SSL certificates are automatically generated on first run
-- Certificates are stored in `./certs/` directory
-- Your browser will show a security warning for self-signed certificates - this is expected and safe to bypass in development
-
-### Production
-For production deployments, use certificates from a trusted CA:
-
-1. **Let's Encrypt (Recommended - Free)**:
-   ```bash
-   # Install certbot
-   sudo apt-get install certbot
-   
-   # Generate certificates
-   sudo certbot certonly --standalone -d yourdomain.com
-   ```
-
-2. **Update environment variables**:
-   ```yaml
-   environment:
-     - USE_SSL=true
-     - SSL_CERT_PATH=/path/to/fullchain.pem
-     - SSL_KEY_PATH=/path/to/privkey.pem
-   ```
-
-3. **Mount certificate directory in docker-compose.yml**:
-   ```yaml
-   volumes:
-     - /etc/letsencrypt:/etc/letsencrypt:ro
-   ```
-
-### Disable SSL
-To run without HTTPS (not recommended for production):
-```bash
-export USE_SSL=false
-```
 
 ## Next Steps
 
-1. ✅ Using production WSGI server recommended for production (current: Flask dev server with SSL)
+1. Consider using production WSGI server (e.g., Gunicorn) instead of Flask dev server
 2. Add environment-specific configurations (.env files)
 3. Implement log aggregation for better monitoring
 4. Consider adding database service to docker-compose if needed
-5. For production: Replace self-signed certificates with CA-signed certificates (e.g., Let's Encrypt)
 
 ## Troubleshooting
 
