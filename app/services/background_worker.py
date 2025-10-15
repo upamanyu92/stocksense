@@ -255,8 +255,8 @@ class BackgroundWorker:
             conn.close()
     
     def _run_predictions(self):
-        """Run predictions on active stocks"""
-        logging.info("Starting automated predictions")
+        """Run predictions on watchlist stocks only"""
+        logging.info("Starting automated predictions on watchlist stocks")
         start_update = {
             'type': 'prediction',
             'status': 'started',
@@ -266,21 +266,25 @@ class BackgroundWorker:
         if websocket_manager:
             websocket_manager.emit_background_worker_status(start_update)
         
-        # Get active stocks
+        # Get watchlist stocks from all users
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT * FROM stock_quotes 
-            WHERE stock_status = 'active'
-            ORDER BY company_name
+            SELECT DISTINCT sq.* 
+            FROM stock_quotes sq
+            INNER JOIN user_watchlist uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
+            WHERE sq.stock_status = 'active'
+            ORDER BY sq.company_name
         ''')
-        active_stocks = cursor.fetchall()
+        watchlist_stocks = cursor.fetchall()
         conn.close()
         
-        total = len(active_stocks)
+        total = len(watchlist_stocks)
         processed = 0
         
-        for stock in active_stocks:
+        logging.info(f"Found {total} unique stocks in watchlists to process")
+        
+        for stock in watchlist_stocks:
             if not self.running:
                 break
             
