@@ -12,7 +12,7 @@ from flask_cors import CORS
 from flask_login import LoginManager, login_required, current_user
 
 from app.api.auth_routes import auth_bp
-from app.api.watchlist_routes import watchlist_bp
+from app.api.watchlist_routes import watchlist_bp, get_user_watchlist_stocks
 from app.db.db_executor import fetch_quotes_batch, fetch_quotes
 from app.services.auth_service import User
 from app.services.background_worker import background_worker
@@ -179,15 +179,23 @@ def trigger_prediction():
 @app.route('/get_predictions', methods=['GET'])
 def get_top_stocks():
     logging.info("Fetching top stock predictions")
+    page = int(request.args.get('page', 1))
+    page_size = int(request.args.get('page_size', 2000))
+    offset = (page - 1) * page_size
     conn = get_db_connection()
     c = conn.cursor()
+    c.execute('''
+        SELECT COUNT(*) FROM predictions
+    ''')
+    total = c.fetchone()[0]
     c.execute('''
         SELECT company_name, security_id, current_price, predicted_price, 
                (predicted_price - current_price) AS profit,
                prediction_date
         FROM predictions
         ORDER BY (predicted_price - current_price) / current_price DESC
-    ''')
+        LIMIT ? OFFSET ?
+    ''', (page_size, offset))
     rows = c.fetchall()
     conn.close()
 
@@ -197,8 +205,14 @@ def get_top_stocks():
         stock['profit_percentage'] = ((stock['predicted_price'] - stock['current_price']) / stock['current_price']) * 100
         stocks.append(stock)
 
-    logging.info(f"Found {len(stocks)} predictions")
-    return jsonify(stocks), 200
+    logging.info(f"Found {len(stocks)} predictions (page {page})")
+    return jsonify({
+        'predictions': stocks,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total + page_size - 1) // page_size
+    }), 200
 
 @app.route('/')
 def index():
@@ -282,6 +296,47 @@ def background_worker_status():
 def background_status():
     """Return real-time status of background worker"""
     return jsonify(background_worker.get_status())
+
+@app.route('/trigger_watchlist_prediction', methods=['POST'])
+@login_required
+def trigger_watchlist_prediction():
+    logging.info("Starting prediction for watchlist stocks")
+    status_queue.put("Starting prediction for watchlist stocks...")
+    # Fetch user's watchlist stocks
+    try:
+        watchlist_stocks = get_user_watchlist_stocks(current_user.id)
+    except Exception as e:
+        msg = f"Error fetching watchlist: {e}"
+        status_queue.put(msg)
+        return jsonify({'message': msg}), 500
+
+    if not watchlist_stocks:
+        msg = "No stocks in watchlist"
+        status_queue.put(msg)
+        return jsonify({'message': msg}), 404
+
+    results = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = []
+        for quote in watchlist_stocks:
+            msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
+            logging.info(msg)
+            status_queue.put(msg)
+            futures.append(executor.submit(prediction_executor, quote.__dict__))
+
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                results.append({'stock': getattr(result, 'company_name', str(result)), 'status': 'done'})
+                status_queue.put("Prediction complete")
+            except Exception as e:
+                err_msg = f"Error during prediction: {str(e)}"
+                logging.error(err_msg, exc_info=True)
+                results.append({'stock': None, 'status': f'error: {err_msg}'})
+                status_queue.put(err_msg)
+
+    status_queue.put("Watchlist predictions triggered and data stored to DB")
+    return jsonify({'message': 'Watchlist predictions triggered and data stored to DB', 'results': results}), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))

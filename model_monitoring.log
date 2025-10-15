@@ -36,3 +36,50 @@
 2025-10-15 03:46:21,992 - INFO - Starting model performance monitoring...
 2025-10-15 03:46:21,993 - INFO - No recent predictions to analyze
 2025-10-15 03:46:21,993 - INFO - Completed model monitoring job
+2025-10-15 08:29:59,597 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
+2025-10-15 08:29:59,616 - INFO - Outside market hours, waiting for next scheduled run
+2025-10-15 08:33:17,317 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
+2025-10-15 08:33:17,331 - INFO - Outside market hours, waiting for next scheduled run
+2025-10-15 08:58:44,889 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
+2025-10-15 08:58:44,916 - INFO - Outside market hours, waiting for next scheduled run
+2025-10-15 09:16:45,024 - INFO - Starting scheduled model monitoring job
+2025-10-15 09:16:45,024 - INFO - Starting model performance monitoring...
+2025-10-15 09:16:45,027 - INFO - No recent predictions to analyze
+2025-10-15 09:16:45,027 - INFO - Completed model monitoring job
+2025-10-15 09:26:23,741 - INFO - Model monitoring scheduler started. Will run at 9:16 AM IST every day except Sunday
+2025-10-15 09:26:23,776 - INFO - Starting scheduled model monitoring job
+2025-10-15 09:26:23,776 - INFO - Starting model performance monitoring...
+2025-10-15 09:26:23,777 - INFO - No recent predictions to analyze
+2025-10-15 09:26:23,777 - INFO - Completed model monitoring job
+2025-10-15 09:33:24,814 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 09:33:24,815 - INFO - MODEL_MONITOR_TEST=1 set - running one job for test and exiting
+2025-10-15 09:33:24,815 - INFO - Starting scheduled model monitoring job
+2025-10-15 09:33:24,815 - INFO - Starting model performance monitoring...
+2025-10-15 09:33:24,819 - INFO - Fetched 167 predictions from the last 7 days
+2025-10-15 09:33:24,819 - INFO - Usable predictions with actuals: 0
+2025-10-15 09:33:24,819 - INFO - No usable predictions with actual values found for monitoring
+2025-10-15 09:33:24,819 - INFO - Completed model monitoring job
+2025-10-15 09:41:57,366 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:15:38,813 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:17:37,034 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:20:02,042 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:20:02,042 - INFO - MODEL_MONITOR_TEST=1 set - running one job for test and exiting
+2025-10-15 10:20:02,042 - INFO - Starting scheduled model monitoring job
+2025-10-15 10:20:02,042 - INFO - Starting model performance monitoring...
+2025-10-15 10:20:02,044 - INFO - Fetched 159 predictions from the last 7 days
+2025-10-15 10:20:02,044 - INFO - Usable predictions with actuals: 0
+2025-10-15 10:20:02,044 - INFO - No usable predictions with actual values found for monitoring
+2025-10-15 10:20:02,044 - INFO - Completed model monitoring job
+2025-10-15 10:23:27,679 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:23:27,679 - INFO - MODEL_MONITOR_TEST=1 set - running one job for test and exiting
+2025-10-15 10:23:27,679 - INFO - Starting scheduled model monitoring job
+2025-10-15 10:23:27,679 - INFO - Starting model performance monitoring...
+2025-10-15 10:23:27,680 - INFO - Fetched 159 predictions from the last 7 days
+2025-10-15 10:23:27,680 - INFO - Usable predictions with actuals: 0
+2025-10-15 10:23:27,680 - INFO - No usable predictions with actual values found for monitoring
+2025-10-15 10:23:27,680 - INFO - Completed model monitoring job
+2025-10-15 10:23:42,129 - INFO - Model monitoring scheduler starting. Will run daily at 09:16 IST except Sunday
+2025-10-15 10:23:42,130 - INFO - Scheduler heartbeat. Current IST time: 2025-10-15 10:23:42
+2025-10-15 10:23:47,135 - INFO - Scheduler heartbeat. Current IST time: 2025-10-15 10:23:47
+2025-10-15 10:23:52,141 - INFO - Scheduler heartbeat. Current IST time: 2025-10-15 10:23:52
+2025-10-15 10:23:57,146 - INFO - Scheduler heartbeat. Current IST time: 2025-10-15 10:23:57

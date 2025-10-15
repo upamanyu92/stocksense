@@ -41,10 +41,10 @@ async function checkDiskSpace() {
   try {
     const response = await fetch('/api/system/status');
     const data = await response.json();
-    
+
     const diskWarning = document.getElementById('diskWarning');
     const diskWarningText = document.getElementById('diskWarningText');
-    
+
     if (data.disk_usage && data.disk_usage.is_low) {
       diskWarning.style.display = 'flex';
       diskWarningText.textContent = `Only ${data.disk_usage.percent_free.toFixed(1)}% disk space remaining. Models using ${data.model_stats.total_mb.toFixed(0)}MB.`;
@@ -60,7 +60,7 @@ async function cleanupModels() {
   if (!confirm('This will remove old model versions, keeping only the 2 newest for each stock. Continue?')) {
     return;
   }
-  
+
   try {
     const response = await fetch('/api/system/cleanup_models', {
       method: 'POST',
@@ -92,25 +92,64 @@ async function updateBackgroundWorkerStatus() {
   try {
     const response = await fetch('/api/background-status');
     const data = await response.json();
-    const status = data.recent_updates && data.recent_updates.length > 0 ? data.recent_updates[data.recent_updates.length - 1] : null;
 
-    // Update current stock
-    document.getElementById('currentStock').textContent = status && status.current_stock ? `Currently processing: ${status.current_stock}` : '';
+    // Ensure we have a consistent recent updates array
+    const recent = Array.isArray(data.recent_updates) ? data.recent_updates : [];
+    const latest = recent.length > 0 ? recent[recent.length - 1] : null;
 
-    // Update completed and remaining
-    document.getElementById('stocksCompleted').textContent = status && typeof status.processed !== 'undefined' ? `Completed: ${status.processed}` : '';
-    document.getElementById('stocksRemaining').textContent = status && typeof status.remaining !== 'undefined' ? `Remaining: ${status.remaining}` : '';
+    // Extract a display name from possible fields
+    const getNameFromUpdate = (u) => {
+      if (!u) return '';
+      if (typeof u === 'string') return u;
+      return u.current_stock || u.stock_name || u.company_name || u.name || u.security_id || '';
+    };
 
-    // Update recent activity log
+    const displayName = getNameFromUpdate(latest);
+
+    // Update current stock display
+    const currentStockElem = document.getElementById('currentStock');
+    if (currentStockElem) {
+      currentStockElem.textContent = displayName ? `Currently processing: ${displayName}` : 'No active stock';
+    }
+
+    // Update completed and remaining (support different field names)
+    const processed = latest && (latest.processed !== undefined ? latest.processed : (latest.processed_count !== undefined ? latest.processed_count : null));
+    const remaining = latest && (latest.remaining !== undefined ? latest.remaining : (latest.remaining_count !== undefined ? latest.remaining_count : null));
+    const total = latest && (latest.total !== undefined ? latest.total : (latest.total_count !== undefined ? latest.total_count : null));
+
+    const completedElem = document.getElementById('stocksCompleted');
+    const remainingElem = document.getElementById('stocksRemaining');
+    if (completedElem) completedElem.textContent = (processed !== null && processed !== undefined) ? `Completed: ${processed}` : '';
+    if (remainingElem) remainingElem.textContent = (remaining !== null && remaining !== undefined) ? `Remaining: ${remaining}` : (total && processed ? `Remaining: ${total - processed}` : '');
+
+    // Update recent activity log with richer formatting
     const logElem = document.getElementById('backgroundActivityLog');
-    logElem.innerHTML = '';
-    if (data.recent_updates) {
-      data.recent_updates.slice(-10).forEach(update => {
+    if (logElem) {
+      logElem.innerHTML = '';
+      const items = recent.slice(-10).reverse(); // show newest first
+      items.forEach(update => {
         const li = document.createElement('li');
-        li.textContent = `[${update.timestamp}] ${update.status} ${update.current_stock ? update.current_stock : ''}`;
+        let timestamp = (update && update.timestamp) ? update.timestamp : (new Date()).toISOString();
+        if (typeof update === 'string') {
+          li.textContent = `[${timestamp}] ${update}`;
+        } else {
+          const type = update.type ? `${update.type.toUpperCase()} ` : '';
+          const statusText = update.status || update.message || '';
+          const name = getNameFromUpdate(update);
+          const p = (update.processed !== undefined) ? update.processed : (update.processed_count !== undefined ? update.processed_count : '');
+          const t = (update.total !== undefined) ? update.total : (update.total_count !== undefined ? update.total_count : '');
+          const processedText = p !== '' && t !== '' ? ` (${p}/${t})` : (p !== '' ? ` (${p})` : '');
+          li.textContent = `[${timestamp}] ${type}${statusText}${name ? ' - ' + name : ''}${processedText}`;
+        }
         logElem.appendChild(li);
       });
     }
+
+    // Let the progress section update badge and main operation as well
+    if (typeof updateProgressSection === 'function') {
+      updateProgressSection(data);
+    }
+
   } catch (error) {
     console.error('Error fetching background worker status:', error);
   }
@@ -430,22 +469,21 @@ async function addToWatchlistFromSearch(symbol, name) {
   }
 }
 
-// Top Predictions
-async function loadTopPredictions() {
+// Top Predictions with Pagination
+let currentPredictionPage = 1;
+const predictionPageSize = 20;
+
+async function loadTopPredictions(page = 1) {
   try {
-    const response = await fetch('/get_predictions');
-    const predictions = await response.json();
-    
+    const response = await fetch(`/get_predictions?page=${page}&page_size=${predictionPageSize}`);
+    const data = await response.json();
+    console.log('Fetched Predictions:', data);
+
+    const predictions = Array.isArray(data.predictions) ? data.predictions : [];
     const tbody = document.getElementById('topPredictionsTable');
-    
-    if (predictions && predictions.length > 0) {
-      // Sort by profit percentage
-      predictions.sort((a, b) => b.profit_percentage - a.profit_percentage);
-      
-      // Take top 10
-      const topPredictions = predictions.slice(0, 10);
-      
-      tbody.innerHTML = topPredictions.map(stock => `
+
+    if (predictions.length > 0) {
+      tbody.innerHTML = predictions.map(stock => `
         <tr>
           <td>${stock.company_name}</td>
           <td>₹${stock.current_price.toFixed(2)}</td>
@@ -456,7 +494,12 @@ async function loadTopPredictions() {
           <td>${new Date(stock.prediction_date).toLocaleDateString()}</td>
         </tr>
       `).join('');
+      console.log('Predictions table updated.');
+
+      // Render pagination controls
+      renderPredictionPagination(data.page || page, data.total_pages || 1);
     } else {
+      console.warn('No predictions available.');
       tbody.innerHTML = `
         <tr>
           <td colspan="5" style="text-align: center; color: var(--text-muted);">
@@ -464,8 +507,55 @@ async function loadTopPredictions() {
           </td>
         </tr>
       `;
+      // Clear pagination if no data
+      const paginationDiv = document.getElementById('predictions-pagination');
+      if (paginationDiv) paginationDiv.innerHTML = '';
     }
+
+    currentPredictionPage = page;
   } catch (error) {
     console.error('Error loading predictions:', error);
   }
+}
+
+function renderPredictionPagination(currentPage, totalPages) {
+  const paginationDiv = document.getElementById('predictions-pagination');
+  if (!paginationDiv) return;
+
+  if (totalPages <= 1) {
+    paginationDiv.innerHTML = '';
+    return;
+  }
+
+  let html = '<div class="pagination-controls" style="margin-top: 15px; text-align: center;">';
+
+  // Previous button
+  if (currentPage > 1) {
+    html += `<button class="btn-custom btn-sm" onclick="loadTopPredictions(${currentPage - 1})" style="margin: 0 5px;">
+      <i class="fas fa-chevron-left"></i> Previous
+    </button>`;
+  } else {
+    html += `<button class="btn-custom btn-sm" disabled style="margin: 0 5px; opacity: 0.5;">
+      <i class="fas fa-chevron-left"></i> Previous
+    </button>`;
+  }
+
+  // Page info
+  html += `<span style="margin: 0 15px; color: var(--text-color);">
+    Page ${currentPage} of ${totalPages}
+  </span>`;
+
+  // Next button
+  if (currentPage < totalPages) {
+    html += `<button class="btn-custom btn-sm" onclick="loadTopPredictions(${currentPage + 1})" style="margin: 0 5px;">
+      Next <i class="fas fa-chevron-right"></i>
+    </button>`;
+  } else {
+    html += `<button class="btn-custom btn-sm" disabled style="margin: 0 5px; opacity: 0.5;">
+      Next <i class="fas fa-chevron-right"></i>
+    </button>`;
+  }
+
+  html += '</div>';
+  paginationDiv.innerHTML = html;
 }

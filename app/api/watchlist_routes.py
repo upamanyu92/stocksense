@@ -111,3 +111,8 @@ def reorder_watchlist():
             'success': False,
             'error': str(e)
         }), 500
+
+
+def get_user_watchlist_stocks(user_id):
+    """Return a list of stock objects in the user's watchlist for internal use."""
+    return WatchlistService.get_watchlist(user_id)
