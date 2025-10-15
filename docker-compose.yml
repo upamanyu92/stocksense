@@ -12,14 +12,18 @@ services:
       - ./app/db:/app/db
       - ./app/templates:/app/templates
       - ./model/saved_models:/app/model/saved_models
+      - ./certs:/app/certs
       - pip_cache:/root/.cache/pip
     environment:
       - FLASK_ENV=development
       - PYTHONPATH=/app
       - FLASK_PORT=5005
+      - USE_SSL=${USE_SSL:-true}
+      - SSL_CERT_PATH=/app/certs/cert.pem
+      - SSL_KEY_PATH=/app/certs/key.pem
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "python3", "-c", "import requests; requests.get('http://localhost:5005/health', timeout=5)" ]
+      test: [ "CMD", "python3", "-c", "import requests; requests.get('https://localhost:5005/health', verify=False, timeout=5)" ]
       interval: 30s
       timeout: 10s
       retries: 3
