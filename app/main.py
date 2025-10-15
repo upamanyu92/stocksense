@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Flask, jsonify, render_template, request, Response, redirect, url_for
 from flask_cors import CORS
 from flask_login import LoginManager, login_required, current_user
+from flask_socketio import SocketIO, emit
 
 from app.api.auth_routes import auth_bp
 from app.api.watchlist_routes import watchlist_bp, get_user_watchlist_stocks
@@ -19,6 +20,7 @@ from app.services.background_worker import background_worker
 from app.services.prediction_service import prediction_executor
 from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.util import get_db_connection
+from app.utils.websocket_manager import websocket_manager
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +35,16 @@ template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'template
 app = Flask(__name__, template_folder=template_dir)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 CORS(app)
+
+# Initialize SocketIO for real-time updates
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# Initialize WebSocket manager
+websocket_manager.init_socketio(socketio)
+
+# Set websocket manager in background worker
+from app.services import background_worker as bg_worker_module
+bg_worker_module.set_websocket_manager(websocket_manager)
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -142,6 +154,12 @@ def fetch_stock_quotes():
 def trigger_prediction():
     logging.info("Starting batch prediction process")
     status_queue.put("Starting batch prediction process...")
+    websocket_manager.emit_prediction_progress({
+        'status': 'started',
+        'message': 'Starting batch prediction process...',
+        'timestamp': datetime.now().isoformat()
+    })
+    
     offset = 0
     batch_size = 3
 
@@ -153,12 +171,23 @@ def trigger_prediction():
                 msg = f"No more batches to process, finished at {datetime.now()}"
                 logging.info(msg)
                 status_queue.put(msg)
+                websocket_manager.emit_prediction_progress({
+                    'status': 'completed',
+                    'message': msg,
+                    'timestamp': datetime.now().isoformat()
+                })
                 break
             else:
                 for quote in batch:
                     msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
                     logging.info(f"{msg} [Thread: {threading.current_thread().name}]")
                     status_queue.put(msg)
+                    websocket_manager.emit_prediction_progress({
+                        'status': 'processing',
+                        'company_name': getattr(quote, 'company_name', str(quote)),
+                        'message': msg,
+                        'timestamp': datetime.now().isoformat()
+                    })
                     futures.append(executor.submit(prediction_executor, quote.__dict__))
                     status_queue.put(f"Running prediction_executor for: {getattr(quote, 'company_name', str(quote))}")
 
@@ -170,10 +199,20 @@ def trigger_prediction():
                     err_msg = f"Error during prediction: {str(e)}"
                     logging.error(err_msg, exc_info=True)
                     status_queue.put(err_msg)
+                    websocket_manager.emit_prediction_progress({
+                        'status': 'error',
+                        'message': err_msg,
+                        'timestamp': datetime.now().isoformat()
+                    })
 
             offset += batch_size
 
     status_queue.put("Predictions triggered and data stored to DB")
+    websocket_manager.emit_prediction_progress({
+        'status': 'completed',
+        'message': 'All predictions completed and stored to DB',
+        'timestamp': datetime.now().isoformat()
+    })
     return jsonify({'message': 'Predictions triggered and data stored to DB'}), 200
 
 @app.route('/get_predictions', methods=['GET'])
@@ -297,6 +336,67 @@ def background_status():
     """Return real-time status of background worker"""
     return jsonify(background_worker.get_status())
 
+# WebSocket event handlers for real-time updates
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    logging.info(f"Client connected: {request.sid}")
+    emit('connection_status', {'status': 'connected', 'message': 'Connected to StockSense'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    logging.info(f"Client disconnected: {request.sid}")
+
+@socketio.on('subscribe_predictions')
+def handle_subscribe_predictions():
+    """Subscribe to real-time prediction updates"""
+    logging.info(f"Client {request.sid} subscribed to prediction updates")
+    emit('subscription_confirmed', {'type': 'predictions'})
+
+@socketio.on('subscribe_watchlist')
+def handle_subscribe_watchlist(data):
+    """Subscribe to real-time watchlist updates"""
+    user_id = data.get('user_id') if data else None
+    logging.info(f"Client {request.sid} subscribed to watchlist updates for user {user_id}")
+    emit('subscription_confirmed', {'type': 'watchlist'})
+
+@socketio.on('subscribe_stock_prices')
+def handle_subscribe_stock_prices(data):
+    """Subscribe to real-time stock price updates"""
+    symbols = data.get('symbols', []) if data else []
+    logging.info(f"Client {request.sid} subscribed to price updates for {len(symbols)} stocks")
+    emit('subscription_confirmed', {'type': 'stock_prices', 'symbols': symbols})
+
+@socketio.on('request_system_status')
+def handle_system_status_request():
+    """Send current system status via WebSocket"""
+    worker_status = background_worker.get_status()
+    disk_usage = DiskSpaceMonitor.get_disk_usage()
+    model_stats = DiskSpaceMonitor.get_model_directory_size()
+    
+    emit('system_status', {
+        'background_worker': worker_status,
+        'disk_usage': disk_usage,
+        'model_stats': model_stats
+    })
+
+def emit_prediction_update(prediction_data):
+    """Emit real-time prediction update to all connected clients"""
+    socketio.emit('prediction_update', prediction_data, broadcast=True)
+
+def emit_watchlist_update(watchlist_data):
+    """Emit real-time watchlist update to all connected clients"""
+    socketio.emit('watchlist_update', watchlist_data, broadcast=True)
+
+def emit_stock_price_update(price_data):
+    """Emit real-time stock price update to all connected clients"""
+    socketio.emit('stock_price_update', price_data, broadcast=True)
+
+def emit_background_worker_status(status_data):
+    """Emit background worker status update to all connected clients"""
+    socketio.emit('background_worker_status', status_data, broadcast=True)
+
 @app.route('/trigger_watchlist_prediction', methods=['POST'])
 @login_required
 def trigger_watchlist_prediction():
@@ -341,4 +441,4 @@ def trigger_watchlist_prediction():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    app.run(host='0.0.0.0', debug=False, port=port)
+    socketio.run(app, host='0.0.0.0', debug=False, port=port)

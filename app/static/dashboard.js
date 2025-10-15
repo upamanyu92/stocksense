@@ -1,18 +1,23 @@
 // Dashboard JavaScript for StockSense
 // Handles watchlist, search, predictions, and background worker monitoring
 
+// WebSocket connection
+let socket = null;
+let connectionStatus = 'disconnected';
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize WebSocket connection
+  initWebSocket();
+  
   // Initialize dashboard
   checkDiskSpace();
   loadWatchlist();
   loadTopPredictions();
-  startBackgroundWorkerMonitoring();
   initStockSearch();
   updateUptime(); // Initial uptime fetch
   
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds (fallback for non-WebSocket data)
   setInterval(() => {
-    loadWatchlist();
     loadTopPredictions();
     checkDiskSpace();
   }, 30000);
@@ -20,6 +25,272 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update uptime every minute
   setInterval(updateUptime, 60000);
 });
+
+// WebSocket initialization and management
+function initWebSocket() {
+  try {
+    // Connect to Socket.IO server
+    socket = io({
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    // Connection event handlers
+    socket.on('connect', () => {
+      console.log('WebSocket connected');
+      connectionStatus = 'connected';
+      updateConnectionStatus();
+      
+      // Subscribe to real-time updates
+      socket.emit('subscribe_predictions');
+      socket.emit('subscribe_watchlist');
+      socket.emit('subscribe_stock_prices', { symbols: [] });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('WebSocket disconnected');
+      connectionStatus = 'disconnected';
+      updateConnectionStatus();
+    });
+
+    socket.on('connection_status', (data) => {
+      console.log('Connection status:', data);
+    });
+
+    socket.on('subscription_confirmed', (data) => {
+      console.log('Subscription confirmed:', data.type);
+    });
+
+    // Real-time event handlers
+    socket.on('prediction_update', handlePredictionUpdate);
+    socket.on('watchlist_update', handleWatchlistUpdate);
+    socket.on('stock_price_update', handleStockPriceUpdate);
+    socket.on('background_worker_status', handleBackgroundWorkerStatus);
+    socket.on('system_status', handleSystemStatus);
+    socket.on('system_alert', handleSystemAlert);
+    socket.on('prediction_progress', handlePredictionProgress);
+
+    socket.on('connect_error', (error) => {
+      console.error('WebSocket connection error:', error);
+      connectionStatus = 'error';
+      updateConnectionStatus();
+    });
+
+  } catch (error) {
+    console.error('Error initializing WebSocket:', error);
+    // Fallback to polling
+    startBackgroundWorkerMonitoring();
+  }
+}
+
+function updateConnectionStatus() {
+  const statusElement = document.getElementById('connectionStatus');
+  if (statusElement) {
+    if (connectionStatus === 'connected') {
+      statusElement.innerHTML = '<i class="fas fa-circle" style="color: var(--success-color);"></i> Live';
+      statusElement.title = 'Real-time connection active';
+    } else if (connectionStatus === 'disconnected') {
+      statusElement.innerHTML = '<i class="fas fa-circle" style="color: var(--warning-color);"></i> Offline';
+      statusElement.title = 'Reconnecting...';
+    } else {
+      statusElement.innerHTML = '<i class="fas fa-circle" style="color: var(--danger-color);"></i> Error';
+      statusElement.title = 'Connection error';
+    }
+  }
+}
+
+// Real-time event handlers
+function handlePredictionUpdate(data) {
+  console.log('Prediction update:', data);
+  // Refresh predictions table with new data
+  loadTopPredictions();
+  
+  // Show notification
+  showNotification(`New prediction: ${data.company_name}`, 'success');
+}
+
+function handleWatchlistUpdate(data) {
+  console.log('Watchlist update:', data);
+  // Refresh watchlist
+  loadWatchlist();
+}
+
+function handleStockPriceUpdate(data) {
+  console.log('Stock price update:', data);
+  // Update specific stock price in the UI
+  updateStockPriceInUI(data);
+}
+
+function handleBackgroundWorkerStatus(data) {
+  console.log('Background worker status:', data);
+  updateBackgroundWorkerStatusUI(data);
+}
+
+function handleSystemStatus(data) {
+  console.log('System status:', data);
+  // Update system status displays
+  if (data.disk_usage) {
+    updateDiskUsageUI(data.disk_usage);
+  }
+}
+
+function handleSystemAlert(data) {
+  console.log('System alert:', data);
+  showNotification(data.message, data.level || 'warning');
+}
+
+function handlePredictionProgress(data) {
+  console.log('Prediction progress:', data);
+  updatePredictionProgressUI(data);
+}
+
+function showNotification(message, type = 'info') {
+  // Simple notification system
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 15px 20px;
+    background: ${type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--danger-color)' : 'var(--warning-color)'};
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    animation: slideIn 0.3s ease-out;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease-out';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+function updateBackgroundWorkerStatusUI(data) {
+  const recent = Array.isArray(data.recent_updates) ? data.recent_updates : (data.type ? [data] : []);
+  const latest = recent.length > 0 ? recent[recent.length - 1] : data;
+
+  // Extract a display name from possible fields
+  const getNameFromUpdate = (u) => {
+    if (!u) return '';
+    if (typeof u === 'string') return u;
+    return u.current_stock || u.stock_name || u.company_name || u.name || u.security_id || '';
+  };
+
+  const displayName = getNameFromUpdate(latest);
+
+  // Update current stock display
+  const currentStockElem = document.getElementById('currentStock');
+  if (currentStockElem) {
+    currentStockElem.textContent = displayName ? `Currently processing: ${displayName}` : 'No active stock';
+  }
+
+  // Update completed and remaining
+  const processed = latest && (latest.processed !== undefined ? latest.processed : (latest.processed_count !== undefined ? latest.processed_count : null));
+  const remaining = latest && (latest.remaining !== undefined ? latest.remaining : (latest.remaining_count !== undefined ? latest.remaining_count : null));
+  const total = latest && (latest.total !== undefined ? latest.total : (latest.total_count !== undefined ? latest.total_count : null));
+
+  const completedElem = document.getElementById('stocksCompleted');
+  const remainingElem = document.getElementById('stocksRemaining');
+  if (completedElem) completedElem.textContent = (processed !== null && processed !== undefined) ? `Completed: ${processed}` : '';
+  if (remainingElem) remainingElem.textContent = (remaining !== null && remaining !== undefined) ? `Remaining: ${remaining}` : (total && processed ? `Remaining: ${total - processed}` : '');
+
+  // Update recent activity log
+  const logElem = document.getElementById('backgroundActivityLog');
+  if (logElem && recent.length > 0) {
+    // Keep existing items and add new ones
+    const existingItems = Array.from(logElem.querySelectorAll('li')).map(li => li.textContent);
+    
+    recent.forEach(update => {
+      const li = document.createElement('li');
+      let timestamp = (update && update.timestamp) ? update.timestamp : (new Date()).toISOString();
+      let itemText = '';
+      
+      if (typeof update === 'string') {
+        itemText = `[${timestamp}] ${update}`;
+      } else {
+        const type = update.type ? `${update.type.toUpperCase()} ` : '';
+        const statusText = update.status || update.message || '';
+        const name = getNameFromUpdate(update);
+        const p = (update.processed !== undefined) ? update.processed : (update.processed_count !== undefined ? update.processed_count : '');
+        const t = (update.total !== undefined) ? update.total : (update.total_count !== undefined ? update.total_count : '');
+        const processedText = p !== '' && t !== '' ? ` (${p}/${t})` : (p !== '' ? ` (${p})` : '');
+        itemText = `[${timestamp}] ${type}${statusText}${name ? ' - ' + name : ''}${processedText}`;
+      }
+      
+      // Only add if not duplicate
+      if (!existingItems.includes(itemText)) {
+        li.textContent = itemText;
+        logElem.insertBefore(li, logElem.firstChild);
+      }
+    });
+    
+    // Keep only last 10 items
+    while (logElem.children.length > 10) {
+      logElem.removeChild(logElem.lastChild);
+    }
+  }
+
+  // Update progress section
+  if (typeof updateProgressSection === 'function') {
+    updateProgressSection(data);
+  }
+}
+
+function updatePredictionProgressUI(data) {
+  const currentOperation = document.getElementById('currentOperation');
+  const systemStatus = document.getElementById('systemStatus');
+  
+  if (data.status === 'started') {
+    systemStatus.textContent = 'Starting Predictions';
+    systemStatus.className = 'status-badge status-predicting';
+    currentOperation.innerHTML = '<i class="fas fa-brain"></i> ' + data.message;
+  } else if (data.status === 'processing') {
+    systemStatus.textContent = 'Running Predictions';
+    systemStatus.className = 'status-badge status-predicting';
+    currentOperation.innerHTML = `<i class="fas fa-brain"></i> ${data.message}`;
+  } else if (data.status === 'completed') {
+    systemStatus.textContent = 'Predictions Complete';
+    systemStatus.className = 'status-badge status-complete';
+    currentOperation.innerHTML = '<i class="fas fa-check"></i> ' + data.message;
+  } else if (data.status === 'error') {
+    systemStatus.textContent = 'Error';
+    systemStatus.className = 'status-badge status-downloading';
+    currentOperation.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + data.message;
+  }
+}
+
+function updateStockPriceInUI(priceData) {
+  // Update stock price in watchlist and predictions tables
+  const symbol = priceData.symbol || priceData.security_id;
+  const newPrice = priceData.price || priceData.current_price;
+  
+  // Update in watchlist
+  const watchlistRows = document.querySelectorAll('#watchlistTable tr');
+  watchlistRows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length > 1 && cells[1].textContent === symbol) {
+      if (cells[2]) cells[2].textContent = `$${parseFloat(newPrice).toFixed(2)}`;
+    }
+  });
+}
+
+function updateDiskUsageUI(diskData) {
+  const diskWarning = document.getElementById('diskWarning');
+  const diskWarningText = document.getElementById('diskWarningText');
+
+  if (diskData && diskData.is_low) {
+    diskWarning.style.display = 'flex';
+    diskWarningText.textContent = `Only ${diskData.percent_free.toFixed(1)}% disk space remaining.`;
+  } else {
+    diskWarning.style.display = 'none';
+  }
+}
 
 // Uptime Monitoring
 async function updateUptime() {
@@ -82,74 +353,22 @@ async function cleanupModels() {
   }
 }
 
-// Background Worker Monitoring
+// Background Worker Monitoring (fallback for non-WebSocket)
 function startBackgroundWorkerMonitoring() {
   setInterval(updateBackgroundWorkerStatus, 5000); // Poll every 5 seconds
   updateBackgroundWorkerStatus(); // Initial fetch
 }
 
 async function updateBackgroundWorkerStatus() {
+  // Skip if WebSocket is connected
+  if (connectionStatus === 'connected') {
+    return;
+  }
+  
   try {
     const response = await fetch('/api/background-status');
     const data = await response.json();
-
-    // Ensure we have a consistent recent updates array
-    const recent = Array.isArray(data.recent_updates) ? data.recent_updates : [];
-    const latest = recent.length > 0 ? recent[recent.length - 1] : null;
-
-    // Extract a display name from possible fields
-    const getNameFromUpdate = (u) => {
-      if (!u) return '';
-      if (typeof u === 'string') return u;
-      return u.current_stock || u.stock_name || u.company_name || u.name || u.security_id || '';
-    };
-
-    const displayName = getNameFromUpdate(latest);
-
-    // Update current stock display
-    const currentStockElem = document.getElementById('currentStock');
-    if (currentStockElem) {
-      currentStockElem.textContent = displayName ? `Currently processing: ${displayName}` : 'No active stock';
-    }
-
-    // Update completed and remaining (support different field names)
-    const processed = latest && (latest.processed !== undefined ? latest.processed : (latest.processed_count !== undefined ? latest.processed_count : null));
-    const remaining = latest && (latest.remaining !== undefined ? latest.remaining : (latest.remaining_count !== undefined ? latest.remaining_count : null));
-    const total = latest && (latest.total !== undefined ? latest.total : (latest.total_count !== undefined ? latest.total_count : null));
-
-    const completedElem = document.getElementById('stocksCompleted');
-    const remainingElem = document.getElementById('stocksRemaining');
-    if (completedElem) completedElem.textContent = (processed !== null && processed !== undefined) ? `Completed: ${processed}` : '';
-    if (remainingElem) remainingElem.textContent = (remaining !== null && remaining !== undefined) ? `Remaining: ${remaining}` : (total && processed ? `Remaining: ${total - processed}` : '');
-
-    // Update recent activity log with richer formatting
-    const logElem = document.getElementById('backgroundActivityLog');
-    if (logElem) {
-      logElem.innerHTML = '';
-      const items = recent.slice(-10).reverse(); // show newest first
-      items.forEach(update => {
-        const li = document.createElement('li');
-        let timestamp = (update && update.timestamp) ? update.timestamp : (new Date()).toISOString();
-        if (typeof update === 'string') {
-          li.textContent = `[${timestamp}] ${update}`;
-        } else {
-          const type = update.type ? `${update.type.toUpperCase()} ` : '';
-          const statusText = update.status || update.message || '';
-          const name = getNameFromUpdate(update);
-          const p = (update.processed !== undefined) ? update.processed : (update.processed_count !== undefined ? update.processed_count : '');
-          const t = (update.total !== undefined) ? update.total : (update.total_count !== undefined ? update.total_count : '');
-          const processedText = p !== '' && t !== '' ? ` (${p}/${t})` : (p !== '' ? ` (${p})` : '');
-          li.textContent = `[${timestamp}] ${type}${statusText}${name ? ' - ' + name : ''}${processedText}`;
-        }
-        logElem.appendChild(li);
-      });
-    }
-
-    // Let the progress section update badge and main operation as well
-    if (typeof updateProgressSection === 'function') {
-      updateProgressSection(data);
-    }
-
+    updateBackgroundWorkerStatusUI(data);
   } catch (error) {
     console.error('Error fetching background worker status:', error);
   }
