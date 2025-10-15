@@ -1,11 +1,14 @@
 """
 User authentication and watchlist management service.
 """
+import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from app.utils.util import get_db_connection
 from typing import Optional, List, Dict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class User(UserMixin):
@@ -68,7 +71,7 @@ class User(UserMixin):
         except Exception as e:
             conn.rollback()
             conn.close()
-            print(f"Error creating user: {e}")
+            logger.error(f"Error creating user: {e}")
             return None
     
     @staticmethod
@@ -105,7 +108,7 @@ class WatchlistService:
         except Exception as e:
             conn.rollback()
             conn.close()
-            print(f"Error adding to watchlist: {e}")
+            logger.error(f"Error adding to watchlist: {e}")
             return False
     
     @staticmethod
@@ -123,7 +126,7 @@ class WatchlistService:
         except Exception as e:
             conn.rollback()
             conn.close()
-            print(f"Error removing from watchlist: {e}")
+            logger.error(f"Error removing from watchlist: {e}")
             return False
     
     @staticmethod
@@ -175,5 +178,5 @@ class WatchlistService:
         except Exception as e:
             conn.rollback()
             conn.close()
-            print(f"Error updating display order: {e}")
+            logger.error(f"Error updating display order: {e}")
             return False
