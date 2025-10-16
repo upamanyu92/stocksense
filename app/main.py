@@ -425,7 +425,7 @@ def handle_subscribe_predictions():
     emit('subscription_confirmed', {'type': 'predictions'})
 
 @socketio.on('subscribe_watchlist')
-def handle_subscribe_watchlist(data):
+def handle_subscribe_watchlist(data=None):
     """Subscribe to real-time watchlist updates"""
     user_id = data.get('user_id') if data else None
     logging.info(f"Client {request.sid} subscribed to watchlist updates for user {user_id}")
@@ -532,4 +532,4 @@ def trigger_watchlist_prediction():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    socketio.run(app, host='0.0.0.0', debug=False, port=port)
+    socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)

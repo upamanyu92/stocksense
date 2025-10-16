@@ -59,10 +59,10 @@ class BackgroundWorker:
         while self.running:
             try:
                 # Download stock quotes
-                # self._download_stocks()
-                #
-                # # Run predictions on active stocks
-                # self._run_predictions()
+                self._download_stocks()
+
+                # Run predictions on active stocks
+                self._run_predictions()
                 
                 # Wait before next cycle
                 time.sleep(self.prediction_interval)
@@ -72,8 +72,8 @@ class BackgroundWorker:
                 time.sleep(60)  # Wait a minute before retrying on error
     
     def _download_stocks(self):
-        """Download stock quotes without timeout handling, with real-time status updates"""
-        logging.info("Starting automated stock download")
+        """Download stock quotes for stocks in user watchlists only, with real-time status updates"""
+        logging.info("Starting automated stock download for watchlist stocks only")
         status_update = {
             'type': 'download',
             'status': 'started',
@@ -84,21 +84,31 @@ class BackgroundWorker:
             websocket_manager.emit_background_worker_status(status_update)
 
         try:
-            b = BSE()
-            b.updateScripCodes()
-            funds = b.getScripCodes()
+            # Get watchlist stocks from all users
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT DISTINCT sq.security_id, sq.company_name
+                FROM stock_quotes sq
+                INNER JOIN user_watchlist uw ON sq.security_id = uw.stock_symbol
+                WHERE sq.stock_status = 'active'
+                ORDER BY sq.company_name
+            ''')
+            watchlist_stocks = cursor.fetchall()
+            conn.close()
 
-            total_stocks = len(funds)
+            total_stocks = len(watchlist_stocks)
             processed = 0
             failed = 0
             remaining = total_stocks
 
             with ThreadPoolExecutor(max_workers=5) as executor:
-                future_to_code = {
-                    executor.submit(self._download_single_stock, code, name, processed, remaining): (code, name) for
-                    code, name in funds.items()}
-                for future in concurrent.futures.as_completed(future_to_code):
-                    code, name = future_to_code[future]
+                future_to_stock = {
+                    executor.submit(self._download_single_stock, stock['security_id'], stock['company_name'], processed, remaining): (stock['security_id'], stock['company_name'])
+                    for stock in watchlist_stocks
+                }
+                for future in concurrent.futures.as_completed(future_to_stock):
+                    code, name = future_to_stock[future]
                     try:
                         future.result()  # Removed timeout
                         processed += 1
@@ -272,7 +282,7 @@ class BackgroundWorker:
         cursor.execute('''
             SELECT DISTINCT sq.* 
             FROM stock_quotes sq
-            INNER JOIN user_watchlist uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
+            INNER JOIN user_watchlist uw ON sq.security_id = uw.stock_symbol
             WHERE sq.stock_status = 'active'
             ORDER BY sq.company_name
         ''')

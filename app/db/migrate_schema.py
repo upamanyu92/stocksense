@@ -37,6 +37,19 @@ def migrate_database():
             )
         ''')
         
+        # Add user_watchlist table for background worker and prediction logic
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                stock_symbol TEXT NOT NULL,
+                added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, stock_symbol)
+            )
+        ''')
+        print("Ensured user_watchlist table exists")
+
         # Check if stock_status column exists in stock_quotes table
         cursor.execute("PRAGMA table_info(stock_quotes)")
         columns = [column[1] for column in cursor.fetchall()]
