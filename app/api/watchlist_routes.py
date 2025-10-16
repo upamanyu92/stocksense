@@ -4,6 +4,7 @@ Watchlist management API routes.
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.services.auth_service import WatchlistService
+from app.utils.websocket_manager import websocket_manager
 
 watchlist_bp = Blueprint('watchlist', __name__, url_prefix='/api/watchlist')
 
@@ -46,6 +47,16 @@ def add_to_watchlist():
     )
     
     if success:
+        # Emit watchlist update via WebSocket
+        watchlist = WatchlistService.get_watchlist(current_user.id)
+        websocket_manager.emit_watchlist_update({
+            'action': 'added',
+            'stock_symbol': stock_symbol,
+            'company_name': company_name,
+            'user_id': current_user.id,
+            'watchlist': watchlist
+        })
+        
         return jsonify({
             'success': True,
             'message': 'Stock added to watchlist'
@@ -76,6 +87,15 @@ def remove_from_watchlist():
     )
     
     if success:
+        # Emit watchlist update via WebSocket
+        watchlist = WatchlistService.get_watchlist(current_user.id)
+        websocket_manager.emit_watchlist_update({
+            'action': 'removed',
+            'stock_symbol': stock_symbol,
+            'user_id': current_user.id,
+            'watchlist': watchlist
+        })
+        
         return jsonify({
             'success': True,
             'message': 'Stock removed from watchlist'

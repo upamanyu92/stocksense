@@ -15,6 +15,14 @@ from bsedata.bse import BSE
 from app.services.prediction_service import prediction_executor
 from app.utils.util import get_db_connection
 
+# Import websocket_manager - will be set from main.py to avoid circular imports
+websocket_manager = None
+
+def set_websocket_manager(manager):
+    """Set the websocket manager instance"""
+    global websocket_manager
+    websocket_manager = manager
+
 
 class BackgroundWorker:
     """Background worker for automated stock processing"""
@@ -66,11 +74,14 @@ class BackgroundWorker:
     def _download_stocks(self):
         """Download stock quotes without timeout handling, with real-time status updates"""
         logging.info("Starting automated stock download")
-        self.status_queue.put({
+        status_update = {
             'type': 'download',
             'status': 'started',
             'timestamp': datetime.now().isoformat()
-        })
+        }
+        self.status_queue.put(status_update)
+        if websocket_manager:
+            websocket_manager.emit_background_worker_status(status_update)
 
         try:
             b = BSE()
@@ -99,7 +110,7 @@ class BackgroundWorker:
                         remaining -= 1
 
                     # Update progress for each stock (use company name)
-                    self.status_queue.put({
+                    progress_update = {
                         'type': 'download',
                         'status': 'progress',
                         'processed': processed,
@@ -108,24 +119,33 @@ class BackgroundWorker:
                         'remaining': remaining,
                         'current_stock': name,  # <-- use company name
                         'timestamp': datetime.now().isoformat()
-                    })
+                    }
+                    self.status_queue.put(progress_update)
+                    if websocket_manager:
+                        websocket_manager.emit_background_worker_status(progress_update)
 
-            self.status_queue.put({
+            completion_update = {
                 'type': 'download',
                 'status': 'completed',
                 'processed': processed,
                 'failed': failed,
                 'timestamp': datetime.now().isoformat()
-            })
+            }
+            self.status_queue.put(completion_update)
+            if websocket_manager:
+                websocket_manager.emit_background_worker_status(completion_update)
 
         except Exception as e:
             logging.error(f"Error in stock download: {e}", exc_info=True)
-            self.status_queue.put({
+            error_update = {
                 'type': 'download',
                 'status': 'error',
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
-            })
+            }
+            self.status_queue.put(error_update)
+            if websocket_manager:
+                websocket_manager.emit_background_worker_status(error_update)
 
     def _download_single_stock(self, code: str, name: str, processed: int = 0, remaining: int = 0):
         """Download data for a single stock, emit status before and after"""
@@ -235,29 +255,36 @@ class BackgroundWorker:
             conn.close()
     
     def _run_predictions(self):
-        """Run predictions on active stocks"""
-        logging.info("Starting automated predictions")
-        self.status_queue.put({
+        """Run predictions on watchlist stocks only"""
+        logging.info("Starting automated predictions on watchlist stocks")
+        start_update = {
             'type': 'prediction',
             'status': 'started',
             'timestamp': datetime.now().isoformat()
-        })
+        }
+        self.status_queue.put(start_update)
+        if websocket_manager:
+            websocket_manager.emit_background_worker_status(start_update)
         
-        # Get active stocks
+        # Get watchlist stocks from all users
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT * FROM stock_quotes 
-            WHERE stock_status = 'active'
-            ORDER BY company_name
+            SELECT DISTINCT sq.* 
+            FROM stock_quotes sq
+            INNER JOIN user_watchlist uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
+            WHERE sq.stock_status = 'active'
+            ORDER BY sq.company_name
         ''')
-        active_stocks = cursor.fetchall()
+        watchlist_stocks = cursor.fetchall()
         conn.close()
         
-        total = len(active_stocks)
+        total = len(watchlist_stocks)
         processed = 0
         
-        for stock in active_stocks:
+        logging.info(f"Found {total} unique stocks in watchlists to process")
+        
+        for stock in watchlist_stocks:
             if not self.running:
                 break
             
@@ -268,25 +295,31 @@ class BackgroundWorker:
                 
                 # Update progress
                 if processed % 5 == 0:
-                    self.status_queue.put({
+                    progress_update = {
                         'type': 'prediction',
                         'status': 'progress',
                         'processed': processed,
                         'total': total,
                         'stock_name': stock['company_name'],
                         'timestamp': datetime.now().isoformat()
-                    })
+                    }
+                    self.status_queue.put(progress_update)
+                    if websocket_manager:
+                        websocket_manager.emit_background_worker_status(progress_update)
                     
             except Exception as e:
                 logging.error(f"Error predicting for {stock['company_name']}: {e}")
         
-        self.status_queue.put({
+        completion_update = {
             'type': 'prediction',
             'status': 'completed',
             'processed': processed,
             'total': total,
             'timestamp': datetime.now().isoformat()
-        })
+        }
+        self.status_queue.put(completion_update)
+        if websocket_manager:
+            websocket_manager.emit_background_worker_status(completion_update)
     
     def get_status(self) -> Dict[str, Any]:
         """Get current worker status"""

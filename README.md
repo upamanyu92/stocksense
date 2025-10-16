@@ -15,6 +15,20 @@ StockSense now features an **intelligent agentic prediction system** that autono
 
 [Read Full Documentation →](docs/AGENTIC_SYSTEM.md)
 
+## ⚡ NEW: Real-time Features
+
+StockSense now includes comprehensive **real-time capabilities** for live stock monitoring and instant updates:
+
+- **🔴 Live WebSocket Communication**: Bidirectional real-time data flow
+- **📊 Real-time Price Streaming**: Live stock price updates every 10 seconds
+- **📈 Interactive Charts**: Auto-updating visualizations with Chart.js
+- **🔔 Smart Notifications**: Toast-style alerts for important events
+- **👁️ Live Prediction Updates**: See predictions as they're generated
+- **⚡ Instant Watchlist Sync**: Multi-device synchronization
+- **📡 Background Operation Monitoring**: Complete visibility into system operations
+
+[Read Real-time Documentation →](docs/REALTIME_FEATURES.md) | [View Enhancements Summary →](docs/REALTIME_ENHANCEMENTS.md)
+
 ## Purpose & Need
 
 Modern financial markets generate vast amounts of data, and actionable insights require advanced analytics, automation, and reliable infrastructure. StockSense addresses these needs by providing:
@@ -27,6 +41,10 @@ Modern financial markets generate vast amounts of data, and actionable insights 
 
 ## Key Features
 - **Flask Web Dashboard:** Interactive dashboard for triggering predictions, fetching quotes, and viewing results.
+- **Real-time Updates:** WebSocket-based live updates for prices, predictions, and background operations.
+- **Live Price Streaming:** Track multiple stocks with auto-updating charts.
+- **Interactive Charts:** Real-time visualizations powered by Chart.js.
+- **Smart Notifications:** Toast-style alerts for important events.
 - **Typeahead Search:** Fast, user-friendly search for stock quotes with autocomplete suggestions.
 - **Batch Prediction:** Parallelized batch processing for efficient model inference.
 - **Model Monitoring:** Track and log model performance and prediction outcomes.

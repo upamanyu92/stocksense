@@ -16,14 +16,33 @@ app = Flask(__name__)
 # Initialize the agentic prediction coordinator
 prediction_coordinator = PredictionCoordinator(min_confidence=0.6)
 
+# WebSocket manager - will be set from main.py
+websocket_manager = None
+
+def set_websocket_manager(manager):
+    """Set the websocket manager instance"""
+    global websocket_manager
+    websocket_manager = manager
+
 
 def prediction_executor(data):
     try:
         stock_symbol = data.get('security_id')
+        company_name = data.get('company_name')
         print(data)
         if stock_symbol:
             stock_symbol_yahoo = stock_symbol + '.BO'
             logging.info(f"prediction_executor: started for {stock_symbol_yahoo} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Emit prediction start event
+            if websocket_manager:
+                websocket_manager.emit_prediction_progress({
+                    'status': 'processing',
+                    'company_name': company_name,
+                    'security_id': stock_symbol,
+                    'message': f'Processing prediction for {company_name}',
+                    'timestamp': datetime.now().isoformat()
+                })
             
             # Use agentic prediction system for improved accuracy
             try:
@@ -68,8 +87,33 @@ def prediction_executor(data):
                                 VALUES (?, ?, ?, ?, ?)
                             ''', (data.get('company_name'), stock_symbol, current_price, predicted_price,
                                   datetime.now().strftime('%Y-%m-%d %H:%M:%S')), commit=True)
+            
+            # Emit prediction complete event with results
+            if websocket_manager:
+                profit_percentage = ((predicted_price - current_price) / current_price) * 100
+                websocket_manager.emit_prediction_update({
+                    'company_name': company_name,
+                    'security_id': stock_symbol,
+                    'current_price': current_price,
+                    'predicted_price': predicted_price,
+                    'profit_percentage': profit_percentage,
+                    'confidence': confidence if 'confidence' in locals() else 0.5,
+                    'decision': decision if 'decision' in locals() else 'fallback',
+                    'prediction_date': datetime.now().isoformat(),
+                    'timestamp': datetime.now().isoformat()
+                })
+                
     except Exception as e:
         logging.error(f"Failed to update predictions: {str(e)}", exc_info=True)
+        # Emit error event
+        if websocket_manager:
+            websocket_manager.emit_prediction_progress({
+                'status': 'error',
+                'company_name': data.get('company_name'),
+                'security_id': data.get('security_id'),
+                'message': f'Error processing prediction: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            })
 
 
 def update_database():
