@@ -425,7 +425,7 @@ def handle_subscribe_predictions():
     emit('subscription_confirmed', {'type': 'predictions'})
 
 @socketio.on('subscribe_watchlist')
-def handle_subscribe_watchlist(data):
+def handle_subscribe_watchlist(data=None):
     """Subscribe to real-time watchlist updates"""
     user_id = data.get('user_id') if data else None
     logging.info(f"Client {request.sid} subscribed to watchlist updates for user {user_id}")
