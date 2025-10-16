@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 
 # Copy all requirements files first to leverage Docker cache
 COPY requirements*.txt ./
-RUN pip install --cache-dir=/root/.cache/pip -r requirements.txt
+#RUN pip install --cache-dir=/root/.cache/pip -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy entrypoint script first and make it executable
 COPY entrypoint.sh /app/
