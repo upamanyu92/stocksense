@@ -532,4 +532,4 @@ def trigger_watchlist_prediction():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    socketio.run(app, host='0.0.0.0', debug=False, port=port)
+    socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)
