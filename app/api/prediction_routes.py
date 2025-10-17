@@ -123,22 +123,26 @@ def trigger_watchlist_prediction():
 
     results = []
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
+        # Create a mapping of futures to quotes
+        future_to_quote = {}
         for quote in watchlist_stocks:
             msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
             logging.info(msg)
             status_queue.put(msg)
-            futures.append(executor.submit(prediction_executor, quote.__dict__))
+            future = executor.submit(prediction_executor, quote.__dict__)
+            future_to_quote[future] = quote
 
-        for future in as_completed(futures):
+        for future in as_completed(future_to_quote):
+            quote = future_to_quote[future]
+            company_name = getattr(quote, 'company_name', 'Unknown')
             try:
                 _ = future.result()  # Result not used, just ensuring completion
-                results.append({'stock': 'completed', 'status': 'done'})
-                status_queue.put("Prediction complete")
+                results.append({'stock': company_name, 'status': 'done'})
+                status_queue.put(f"Prediction complete for {company_name}")
             except Exception as e:
                 err_msg = f"Error during prediction: {str(e)}"
                 logging.error(err_msg, exc_info=True)
-                results.append({'stock': None, 'status': f'error: {err_msg}'})
+                results.append({'stock': company_name, 'status': f'error: {err_msg}'})
                 status_queue.put(err_msg)
 
     status_queue.put("Watchlist predictions triggered and data stored to DB")
