@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from datetime import datetime
 
+
 @dataclass
 class StockQuote:
     company_name: str
@@ -50,6 +51,41 @@ class StockQuote:
     sell_5_quantity: Optional[str] = None
     sell_5_price: Optional[float] = None
     id: Optional[int] = None
+    stock_status: Optional[str] = 'active'
+    download_attempts: Optional[int] = 0
+    last_download_attempt: Optional[str] = None
+
+
+@dataclass
+class Prediction:
+    company_name: str
+    security_id: str
+    current_price: float
+    predicted_price: float
+    prediction_date: str
+    id: Optional[int] = None
+    stock_status: Optional[str] = 'active'
+
+
+@dataclass
+class User:
+    username: str
+    password_hash: str
+    id: Optional[int] = None
+    email: Optional[str] = None
+    created_at: Optional[str] = None
+    is_active: int = 1
+
+
+@dataclass
+class Watchlist:
+    user_id: int
+    stock_symbol: str
+    id: Optional[int] = None
+    company_name: Optional[str] = None
+    added_at: Optional[str] = None
+    display_order: int = 0
+
 
 @dataclass
 class ModelConfiguration:
@@ -64,5 +100,5 @@ class ModelConfiguration:
     epochs: int = 100
     sequence_length: int = 60
     early_stopping_patience: int = 10
-    created_at: datetime = None
-    updated_at: datetime = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
