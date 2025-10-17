@@ -1,11 +1,14 @@
 """
 User authentication and watchlist management service.
 """
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash
 from flask_login import UserMixin
-from app.utils.util import get_db_connection
 from typing import Optional, List, Dict
 from datetime import datetime
+
+from app.db.services.user_service import UserService
+from app.db.services.watchlist_service import WatchlistDBService
+from app.utils.util import get_db_connection
 
 
 class User(UserMixin):
@@ -25,64 +28,31 @@ class User(UserMixin):
     @staticmethod
     def get_by_id(user_id: int) -> Optional['User']:
         """Get user by ID"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, username, email, is_active FROM users WHERE id = ?', (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return User(row['id'], row['username'], row['email'], bool(row['is_active']))
+        user_data = UserService.get_by_id(user_id)
+        if user_data:
+            return User(user_data.id, user_data.username, user_data.email, bool(user_data.is_active))
         return None
     
     @staticmethod
     def get_by_username(username: str) -> Optional['User']:
         """Get user by username"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, username, email, is_active FROM users WHERE username = ?', (username,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return User(row['id'], row['username'], row['email'], bool(row['is_active']))
+        user_data = UserService.get_by_username(username)
+        if user_data:
+            return User(user_data.id, user_data.username, user_data.email, bool(user_data.is_active))
         return None
     
     @staticmethod
     def create_user(username: str, password: str, email: str = None) -> Optional['User']:
         """Create a new user"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        password_hash = generate_password_hash(password)
-        
-        try:
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, email, created_at)
-                VALUES (?, ?, ?, ?)
-            ''', (username, password_hash, email, datetime.now().isoformat()))
-            conn.commit()
-            user_id = cursor.lastrowid
-            conn.close()
+        user_id = UserService.create(username, password, email)
+        if user_id:
             return User.get_by_id(user_id)
-        except Exception as e:
-            conn.rollback()
-            conn.close()
-            print(f"Error creating user: {e}")
-            return None
+        return None
     
     @staticmethod
     def verify_password(username: str, password: str) -> bool:
         """Verify user password"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return check_password_hash(row['password_hash'], password)
-        return False
+        return UserService.verify_password(username, password)
 
 
 class WatchlistService:
@@ -91,40 +61,12 @@ class WatchlistService:
     @staticmethod
     def add_to_watchlist(user_id: int, stock_symbol: str, company_name: str = None) -> bool:
         """Add stock to user's watchlist"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute('''
-                INSERT INTO watchlists (user_id, stock_symbol, company_name, added_at)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, stock_symbol, company_name, datetime.now().isoformat()))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            conn.rollback()
-            conn.close()
-            print(f"Error adding to watchlist: {e}")
-            return False
+        return WatchlistDBService.add(user_id, stock_symbol, company_name)
     
     @staticmethod
     def remove_from_watchlist(user_id: int, stock_symbol: str) -> bool:
         """Remove stock from user's watchlist"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute('DELETE FROM watchlists WHERE user_id = ? AND stock_symbol = ?',
-                          (user_id, stock_symbol))
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            conn.rollback()
-            conn.close()
-            print(f"Error removing from watchlist: {e}")
-            return False
+        return WatchlistDBService.remove(user_id, stock_symbol)
     
     @staticmethod
     def get_watchlist(user_id: int) -> List[Dict]:

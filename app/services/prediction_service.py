@@ -10,6 +10,8 @@ from app.models.keras_model import predict_max_profit
 from app.models.training_script import download_stock_data
 from app.utils.util import predict_algo, check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
+from app.db.services.prediction_service import PredictionService
+from app.db.data_models import Prediction
 
 app = Flask(__name__)
 
@@ -71,22 +73,16 @@ def prediction_executor(data):
                 current_price = float(current_value.replace(',', ''))
             else:
                 current_price = float(current_value)
-            # check and create row if not exists
-            query = 'SELECT * FROM predictions WHERE security_id = ?'
-            row = execute_query(query, (stock_symbol,), fetchone=True)
-            if row:
-                execute_query('''
-                                UPDATE predictions
-                                SET company_name = ?, current_price = ?, predicted_price = ?, prediction_date = ?
-                                WHERE security_id = ?
-                            ''', (data.get('company_name'), current_price, predicted_price,
-                                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'), stock_symbol), commit=True)
-            else:
-                execute_query('''
-                                INSERT INTO predictions (company_name, security_id, current_price, predicted_price, prediction_date)
-                                VALUES (?, ?, ?, ?, ?)
-                            ''', (data.get('company_name'), stock_symbol, current_price, predicted_price,
-                                  datetime.now().strftime('%Y-%m-%d %H:%M:%S')), commit=True)
+            
+            # Create or update prediction using the service layer
+            prediction = Prediction(
+                company_name=data.get('company_name'),
+                security_id=stock_symbol,
+                current_price=current_price,
+                predicted_price=predicted_price,
+                prediction_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            )
+            PredictionService.create(prediction)
             
             # Emit prediction complete event with results
             if websocket_manager:
