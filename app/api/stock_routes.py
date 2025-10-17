@@ -64,10 +64,9 @@ def fetch_stock_quotes():
         fetch_quotes_status_queue.put("Stock quotes fetched and stored to DB")
         return jsonify({'message': 'Stock quotes fetched and stored to DB', 'results': results}), 200
     except Exception as e:
-        err_msg = f"Error fetching stock quotes: {str(e)}"
-        logging.error(err_msg, exc_info=True)
-        fetch_quotes_status_queue.put(err_msg)
-        return jsonify({'error': err_msg}), 500
+        logging.error(f"Error fetching stock quotes: {str(e)}", exc_info=True)
+        fetch_quotes_status_queue.put("Error fetching stock quotes")
+        return jsonify({'error': 'Error fetching stock quotes'}), 500
 
 
 @stock_bp.route('/fetch_status')

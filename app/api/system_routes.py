@@ -2,6 +2,7 @@
 System monitoring and management API routes
 """
 import json
+import logging
 import time
 from datetime import datetime
 
@@ -66,9 +67,10 @@ def cleanup_models():
             'result': result
         }), 200
     except Exception as e:
+        logging.error(f"Error cleaning up models: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to cleanup models'
         }), 500
 
 

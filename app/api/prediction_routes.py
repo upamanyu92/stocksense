@@ -112,9 +112,9 @@ def trigger_watchlist_prediction():
     try:
         watchlist_stocks = get_user_watchlist_stocks(current_user.id)
     except Exception as e:
-        msg = f"Error fetching watchlist: {e}"
-        status_queue.put(msg)
-        return jsonify({'message': msg}), 500
+        logging.error(f"Error fetching watchlist: {str(e)}", exc_info=True)
+        status_queue.put("Error fetching watchlist")
+        return jsonify({'message': 'Error fetching watchlist'}), 500
 
     if not watchlist_stocks:
         msg = "No stocks in watchlist"
@@ -140,10 +140,9 @@ def trigger_watchlist_prediction():
                 results.append({'stock': company_name, 'status': 'done'})
                 status_queue.put(f"Prediction complete for {company_name}")
             except Exception as e:
-                err_msg = f"Error during prediction: {str(e)}"
-                logging.error(err_msg, exc_info=True)
-                results.append({'stock': company_name, 'status': f'error: {err_msg}'})
-                status_queue.put(err_msg)
+                logging.error(f"Error during prediction: {str(e)}", exc_info=True)
+                results.append({'stock': company_name, 'status': 'error'})
+                status_queue.put(f"Error during prediction for {company_name}")
 
     status_queue.put("Watchlist predictions triggered and data stored to DB")
     return jsonify({'message': 'Watchlist predictions triggered and data stored to DB', 'results': results}), 200
