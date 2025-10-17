@@ -90,7 +90,7 @@ class PredictionService:
         total = cursor.fetchone()[0]
         
         cursor.execute('''
-            SELECT company_name, security_id, current_price, predicted_price, 
+            SELECT company_name, security_id, current_price, predicted_price,
                    (predicted_price - current_price) AS profit,
                    prediction_date
             FROM predictions
@@ -103,7 +103,9 @@ class PredictionService:
         predictions = []
         for row in rows:
             stock = dict(row)
-            stock['profit_percentage'] = ((stock['predicted_price'] - stock['current_price']) / stock['current_price']) * 100
+            profit_pct = ((stock['predicted_price'] - stock['current_price']) /
+                          stock['current_price']) * 100
+            stock['profit_percentage'] = profit_pct
             predictions.append(stock)
         
         return {

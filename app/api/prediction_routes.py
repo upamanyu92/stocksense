@@ -79,7 +79,7 @@ def trigger_prediction():
 
             for future in as_completed(futures):
                 try:
-                    result = future.result()
+                    _ = future.result()  # Result not used, just ensuring completion
                     status_queue.put(msg)
                 except Exception as e:
                     err_msg = f"Error during prediction: {str(e)}"
@@ -132,8 +132,8 @@ def trigger_watchlist_prediction():
 
         for future in as_completed(futures):
             try:
-                result = future.result()
-                results.append({'stock': getattr(result, 'company_name', str(result)), 'status': 'done'})
+                _ = future.result()  # Result not used, just ensuring completion
+                results.append({'stock': 'completed', 'status': 'done'})
                 status_queue.put("Prediction complete")
             except Exception as e:
                 err_msg = f"Error during prediction: {str(e)}"

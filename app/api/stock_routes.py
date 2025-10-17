@@ -4,9 +4,8 @@ Stock quotes API routes for stock search and data fetching operations
 import concurrent.futures
 import logging
 import queue
-from datetime import datetime
 
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, jsonify, Response
 
 from app.db.db_executor import fetch_quotes, data_retriever_executor
 
@@ -46,7 +45,7 @@ def fetch_stock_quotes():
             fetch_quotes_status_queue.put(f"Processing stock: {getattr(quote, 'company_name', str(quote))}")
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
                 future = single_executor.submit(data_retriever_executor, fetch_quotes_status_queue, 1)
-                result = future.result(timeout=30)
+                _ = future.result(timeout=30)  # Result not used, just ensuring completion
             fetch_quotes_status_queue.put(f"Done: {getattr(quote, 'company_name', str(quote))}")
             return {'stock': getattr(quote, 'company_name', str(quote)), 'status': 'done'}
         except concurrent.futures.TimeoutError:
