@@ -132,6 +132,46 @@ Outside market hours, waiting for next scheduled run
 - `FLASK_PORT=5005`
 - `TZ=Asia/Kolkata` (model_monitor)
 
+## Docker Hub Deployment
+
+The project includes automated Docker Hub deployment via GitHub Actions.
+
+### Configuration
+
+The workflow is configured in `.github/workflows/docker-publish.yml` and automatically builds and publishes Docker images to Docker Hub.
+
+### Required Secrets
+
+Configure the following secrets in your GitHub repository settings:
+- `DOCKER_USERNAME` - Your Docker Hub username
+- `DOCKER_PASSWORD` - Your Docker Hub password or access token
+
+### Automated Triggers
+
+Images are automatically built and pushed when:
+- **Push to main branch**: Creates images tagged as `main` and `latest`
+- **New release/tag**: Creates images tagged with version numbers (e.g., `v1.0.0`, `1.0`, `1`)
+- **Manual trigger**: Can be triggered manually via GitHub Actions UI
+
+### Multi-Platform Support
+
+Images are built for multiple platforms:
+- `linux/amd64` (x86_64)
+- `linux/arm64` (ARM64/Apple Silicon)
+
+### Pulling Images
+
+```bash
+# Pull latest version
+docker pull upamanyu92/stocksense:latest
+
+# Pull specific version
+docker pull upamanyu92/stocksense:v1.0.0
+
+# Run the image
+docker run -p 5005:5005 upamanyu92/stocksense:latest
+```
+
 ## Next Steps
 
 1. Consider using production WSGI server (e.g., Gunicorn) instead of Flask dev server
