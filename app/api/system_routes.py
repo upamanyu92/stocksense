@@ -22,15 +22,21 @@ app_start_time = datetime.now()
 @login_required
 def system_status():
     """Get system status including background worker and disk space"""
-    worker_status = background_worker.get_status()
-    disk_usage = DiskSpaceMonitor.get_disk_usage()
-    model_stats = DiskSpaceMonitor.get_model_directory_size()
-    
-    return jsonify({
-        'background_worker': worker_status,
-        'disk_usage': disk_usage,
-        'model_stats': model_stats
-    }), 200
+    try:
+        worker_status = background_worker.get_status()
+        disk_usage = DiskSpaceMonitor.get_disk_usage()
+        model_stats = DiskSpaceMonitor.get_model_directory_size()
+
+        return jsonify({
+            'background_worker': worker_status,
+            'disk_usage': disk_usage,
+            'model_stats': model_stats
+        }), 200
+    except Exception as e:
+        logging.error(f"Error getting system status: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to retrieve system status'
+        }), 500
 
 
 @system_bp.route('/uptime')
