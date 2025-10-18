@@ -1,7 +1,7 @@
 import threading
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.services.worker_settings_service import WorkerSettingsService
 from app.utils.util import get_db_connection
 from app.utils.bse_utils import get_quote_with_retry
@@ -52,7 +52,6 @@ class InactiveStockRetryWorker:
                 time.sleep(60)
 
     def _retry_inactive_stocks(self):
-        from datetime import timedelta
         conn = get_db_connection()
         cursor = conn.cursor()
         # Fetch all inactive stocks with their last_download_attempt

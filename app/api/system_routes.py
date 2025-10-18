@@ -19,6 +19,12 @@ system_bp = Blueprint('system', __name__, url_prefix='/api/system')
 # Track application start time for uptime calculation
 app_start_time = datetime.now()
 
+# Worker instance mapping
+WORKER_INSTANCES = {
+    'background_worker': background_worker,
+    'inactive_stock_worker': inactive_stock_worker
+}
+
 
 @system_bp.route('/status')
 @login_required
@@ -147,15 +153,11 @@ def enable_worker(worker_name):
             return jsonify(result), 500
 
         # Start the worker if it's not already running
-        if worker_name == 'background_worker':
-            if not background_worker.running:
-                background_worker.start()
-        elif worker_name == 'inactive_stock_worker':
-            if not inactive_stock_worker.running:
-                inactive_stock_worker.start()
+        worker = WORKER_INSTANCES[worker_name]
+        if not worker.running:
+            worker.start()
 
-        is_running = (background_worker.running if worker_name == 'background_worker'
-                      else inactive_stock_worker.running)
+        is_running = worker.running
         return jsonify({
             'success': True,
             'worker_name': worker_name,
@@ -189,15 +191,11 @@ def disable_worker(worker_name):
             return jsonify(result), 500
 
         # Stop the worker if it's running
-        if worker_name == 'background_worker':
-            if background_worker.running:
-                background_worker.stop()
-        elif worker_name == 'inactive_stock_worker':
-            if inactive_stock_worker.running:
-                inactive_stock_worker.stop()
+        worker = WORKER_INSTANCES[worker_name]
+        if worker.running:
+            worker.stop()
 
-        is_running = (background_worker.running if worker_name == 'background_worker'
-                      else inactive_stock_worker.running)
+        is_running = worker.running
         return jsonify({
             'success': True,
             'worker_name': worker_name,
