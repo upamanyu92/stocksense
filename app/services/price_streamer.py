@@ -92,8 +92,8 @@ class StockPriceStreamer:
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT security_id, company_name FROM stock_quotes 
-                    WHERE stock_symbol = ? OR security_id = ?
+                    SELECT * FROM stock_quotes 
+                    WHERE company_name = ? OR security_id = ?
                     LIMIT 1
                 ''', (symbol, symbol))
                 stock = cursor.fetchone()
@@ -104,7 +104,8 @@ class StockPriceStreamer:
                     continue
                 
                 # Fetch live quote
-                quote = b.getQuote(stock['security_id'])
+                logging.info(f"Fetching price for {stock['scrip_code']}")
+                quote = b.getQuote(stock['scrip_code'])
                 
                 if quote:
                     # Extract price data
@@ -127,7 +128,7 @@ class StockPriceStreamer:
                     logging.debug(f"Streamed price update for {symbol}: {price_data['price']}")
                     
             except Exception as e:
-                logging.error(f"Error fetching price for {symbol}: {e}")
+                logging.error(f"#Error fetching price for {symbol}: {e}")
     
     def fetch_price_once(self, symbol: str) -> Dict[str, Any]:
         """Fetch price for a single symbol immediately"""
@@ -139,7 +140,7 @@ class StockPriceStreamer:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT security_id, company_name FROM stock_quotes 
-                WHERE stock_symbol = ? OR security_id = ?
+                WHERE company_name = ? OR security_id = ?
                 LIMIT 1
             ''', (symbol, symbol))
             stock = cursor.fetchone()
@@ -149,7 +150,8 @@ class StockPriceStreamer:
                 return None
             
             # Fetch live quote
-            quote = b.getQuote(stock['security_id'])
+            logging.info(f"Fetching price for {stock['scrip_code']}")
+            quote = b.getQuote(stock['scrip_code'])
             
             if quote:
                 price_data = {
