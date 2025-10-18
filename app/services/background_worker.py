@@ -7,13 +7,14 @@ import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from bsedata.bse import BSE
 
 from app.services.prediction_service import prediction_executor
 from app.utils.util import get_db_connection
+from app.utils.bse_utils import get_quote_with_retry
 
 # Import websocket_manager - will be set from main.py to avoid circular imports
 websocket_manager = None
@@ -33,7 +34,8 @@ class BackgroundWorker:
         self.status_queue = queue.Queue()
         self.prediction_interval = 300  # Run predictions every 5 minutes
         self.lock = threading.Lock()
-        
+        self.last_run_date = None  # Track last run date for daily job
+
     def start(self):
         """Start the background worker"""
         if self.running:
@@ -58,12 +60,24 @@ class BackgroundWorker:
         
         while self.running:
             try:
+                today = datetime.now().date()
+                if self.last_run_date == today:
+                    logging.info("Background worker already ran today. Sleeping until next day.")
+                    # Sleep until next day (midnight)
+                    now = datetime.now()
+                    next_day = datetime.combine(now.date(), datetime.min.time()) + timedelta(days=1)
+                    sleep_seconds = (next_day - now).total_seconds()
+                    time.sleep(max(sleep_seconds, 60))
+                    continue
+
                 # Download stock quotes
                 self._download_stocks()
 
                 # Run predictions on active stocks
                 self._run_predictions()
                 
+                self.last_run_date = today
+
                 # Wait before next cycle
                 time.sleep(self.prediction_interval)
                 
@@ -154,14 +168,12 @@ class BackgroundWorker:
             'type': 'download',
             'status': 'processing',
             'current_stock': name,  # <-- use company name
-            'stock_name': name,
             'processed': processed,
             'remaining': remaining,
             'timestamp': datetime.now().isoformat()
         })
         try:
-            b = BSE()
-            quote = b.getQuote(code)
+            quote = get_quote_with_retry(code)
 
             if not quote:
                 raise ValueError("No quote data returned")
@@ -177,32 +189,52 @@ class BackgroundWorker:
         except Exception as e:
             logging.error(f"Error downloading single stock {name}: {e}")
             raise
-    
+
     def _store_stock_quote(self, quote: Dict[str, Any]):
         """Store stock quote in database"""
+        import json
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         try:
             cursor.execute('''
                 INSERT OR REPLACE INTO stock_quotes (
-                    company_name, security_id, current_value, change, p_change,
-                    day_high, day_low, stock_status, last_download_attempt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                    company_name, security_id, scrip_code, stock_symbol, current_value, change, p_change,
+                    day_high, day_low, previous_close, previous_open, two_week_avg_quantity, high_52week, low_52week,
+                    face_value, group_name, industry, market_cap_free_float, market_cap_full, total_traded_quantity,
+                    total_traded_value, updated_on, weighted_avg_price, buy, sell, stock_status, last_download_attempt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
             ''', (
                 quote.get('companyName'),
                 quote.get('securityID'),
+                quote.get('scripCode'),
+                quote.get('securityID'),  # stock_symbol fallback
                 float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
                 float(quote.get('change', 0)),
                 float(quote.get('pChange', 0)),
                 float(quote.get('dayHigh', 0)),
                 float(quote.get('dayLow', 0)),
+                float(quote.get('previousClose', 0)),
+                float(quote.get('previousOpen', 0)),
+                quote.get('2WeekAvgQuantity'),
+                float(quote.get('52weekHigh', 0)),
+                float(quote.get('52weekLow', 0)),
+                float(quote.get('faceValue', 0)),
+                quote.get('group'),
+                quote.get('industry'),
+                quote.get('marketCapFreeFloat'),
+                quote.get('marketCapFull'),
+                quote.get('totalTradedQuantity'),
+                quote.get('totalTradedValue'),
+                quote.get('updatedOn'),
+                float(quote.get('weightedAvgPrice', 0)),
+                json.dumps(quote.get('buy', {})),
+                json.dumps(quote.get('sell', {})),
                 datetime.now().isoformat()
             ))
             conn.commit()
         except Exception as e:
             conn.rollback()
-            logging.error(f"Error storing stock quote: {e}")
+            logging.error(f"Error storing stock quote: {e}. Raw quote: {quote}")
             raise
         finally:
             conn.close()
@@ -216,15 +248,15 @@ class BackgroundWorker:
             # Update or insert stock status
             cursor.execute('''
                 INSERT INTO stock_quotes (
-                    company_name, security_id, stock_status, 
+                    company_name, security_id, stock_status, scrip_code,
                     download_attempts, last_download_attempt
                 )
-                VALUES (?, ?, 'inactive', 1, ?)
+                VALUES (?, ?, ?, 'inactive', 1, ?)
                 ON CONFLICT(security_id) DO UPDATE SET
                     stock_status = 'inactive',
                     download_attempts = download_attempts + 1,
                     last_download_attempt = ?
-            ''', (name, code, datetime.now().isoformat(), datetime.now().isoformat()))
+            ''', (name, code, code, datetime.now().isoformat(), datetime.now().isoformat()))
             conn.commit()
             
             logging.warning(f"Marked stock {name} (code: {code}) as inactive. Reason: {reason}")

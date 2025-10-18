@@ -12,6 +12,7 @@ from app.utils.util import predict_algo, check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
 from app.db.data_models import Prediction
+from app.utils.bse_utils import get_quote_with_retry
 
 app = Flask(__name__)
 
@@ -121,7 +122,7 @@ def update_database():
 
     for code, name in funds.items():
         try:
-            quote = b.getQuote(code)
+            quote = get_quote_with_retry(code)
             stock_symbol = quote.get('securityID')
             stock_symbol_yahoo = stock_symbol + '.BO'
             query = 'SELECT active FROM predictions_linear WHERE security_id = ?'

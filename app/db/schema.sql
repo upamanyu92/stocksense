@@ -36,14 +36,34 @@ CREATE TABLE IF NOT EXISTS model_configurations (
 -- StockQuotes table
 CREATE TABLE IF NOT EXISTS stock_quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stock_symbol TEXT NOT NULL,
+    company_name TEXT,
+    security_id TEXT UNIQUE,
+    scrip_code TEXT,
+    stock_symbol TEXT,
     current_value REAL,
     change REAL,
     p_change REAL,
     day_high REAL,
     day_low REAL,
+    previous_close REAL,
+    previous_open REAL,
+    two_week_avg_quantity TEXT,
+    high_52week REAL,
+    low_52week REAL,
+    face_value REAL,
+    group_name TEXT,
+    industry TEXT,
+    market_cap_free_float TEXT,
+    market_cap_full TEXT,
+    total_traded_quantity TEXT,
+    total_traded_value TEXT,
+    updated_on TEXT,
+    weighted_avg_price REAL,
+    buy TEXT,
+    sell TEXT,
     stock_status TEXT,
-    last_updated TEXT
+    download_attempts INTEGER DEFAULT 0,
+    last_download_attempt TEXT
 );
 
 -- Predictions table

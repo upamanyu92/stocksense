@@ -10,6 +10,7 @@ from bsedata.bse import BSE
 from app.db.data_models import StockQuote
 from app.utils.util import get_db_connection
 from app.db.services.stock_quote_service import StockQuoteService
+from app.utils.bse_utils import get_quote_with_retry
 
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
@@ -68,7 +69,7 @@ def data_retriever_executor(status_queue, max_workers=4):
                     # update_stock_quote(quote)
                 else:
                     logging.debug(f"Calling b.getQuote for {name} with code {code}")
-                    quote = b.getQuote(code)
+                    quote = get_quote_with_retry(code)
                     logging.debug(f"Quote received for {name}: {quote}")
                     insert_stock_quote(quote)
                     logging.debug(f"Inserted quote for {name}")

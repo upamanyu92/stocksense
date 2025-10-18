@@ -20,6 +20,7 @@ from app.services.background_worker import background_worker
 from app.services.price_streamer import price_streamer
 from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.websocket_manager import websocket_manager
+from app.services.inactive_stock_worker import inactive_stock_worker
 
 # Configure logging
 logging.basicConfig(
@@ -67,12 +68,6 @@ app.register_blueprint(dashboard_bp)
 @login_manager.user_loader
 def load_user(user_id):
     return User.get_by_id(int(user_id))
-
-# Start background worker when app starts
-@app.before_request
-def start_background_worker():
-    """Start the background worker before every request"""
-    background_worker.start()
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -163,4 +158,6 @@ def handle_system_status_request():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
+    background_worker.start()  # Start only once at app startup
+    inactive_stock_worker.start()  # Start retry worker for inactive stocks
     socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)

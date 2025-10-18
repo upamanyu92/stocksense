@@ -11,6 +11,7 @@ from scripts import create_db
 from app.models.training_script import download_stock_data
 from app.db.db_executor import execute_query
 from app.utils.util import predict_algo, check_index_existence
+from app.utils.bse_utils import get_quote_with_retry
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -31,7 +32,7 @@ def update_database():
 
     for code, name in funds.items():
         try:
-            quote = b.getQuote(code)
+            quote = get_quote_with_retry(code)
             stock_symbol = quote.get('securityID')
             stock_symbol_yahoo = stock_symbol + '.BO'  # Assuming it's a BSE stock
             query = 'SELECT active FROM predictions_linear WHERE security_id = ?'

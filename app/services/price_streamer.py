@@ -8,8 +8,7 @@ import time
 from datetime import datetime
 from typing import List, Dict, Any
 
-from bsedata.bse import BSE
-
+from app.utils.bse_utils import get_quote_with_retry
 from app.utils.util import get_db_connection
 
 
@@ -84,8 +83,7 @@ class StockPriceStreamer:
     
     def _fetch_and_emit_prices(self, symbols: List[str]):
         """Fetch current prices and emit via WebSocket"""
-        b = BSE()
-        
+
         for symbol in symbols:
             try:
                 # Get stock info from database to find BSE code
@@ -105,8 +103,8 @@ class StockPriceStreamer:
                 
                 # Fetch live quote
                 logging.info(f"Fetching price for {stock['scrip_code']}")
-                quote = b.getQuote(stock['scrip_code'])
-                
+                quote = get_quote_with_retry(stock['scrip_code'])
+
                 if quote:
                     # Extract price data
                     price_data = {
@@ -133,8 +131,6 @@ class StockPriceStreamer:
     def fetch_price_once(self, symbol: str) -> Dict[str, Any]:
         """Fetch price for a single symbol immediately"""
         try:
-            b = BSE()
-            
             # Get stock info from database
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -151,8 +147,8 @@ class StockPriceStreamer:
             
             # Fetch live quote
             logging.info(f"Fetching price for {stock['scrip_code']}")
-            quote = b.getQuote(stock['scrip_code'])
-            
+            quote = get_quote_with_retry(stock['scrip_code'])
+
             if quote:
                 price_data = {
                     'symbol': symbol,
