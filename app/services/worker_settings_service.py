@@ -70,7 +70,7 @@ class WorkerSettingsService:
                 'worker_name': worker_name,
                 'enabled': enabled,
                 'success': False,
-                'error': str(e)
+                'error': 'Database error occurred'
             }
         finally:
             conn.close()

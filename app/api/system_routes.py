@@ -169,7 +169,7 @@ def enable_worker(worker_name):
         logging.error(f"Error enabling worker {worker_name}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to enable worker'
         }), 500
 
 
@@ -207,5 +207,5 @@ def disable_worker(worker_name):
         logging.error(f"Error disabling worker {worker_name}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to disable worker'
         }), 500
