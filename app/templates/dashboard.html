@@ -64,6 +64,25 @@
       text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
     }
     
+    .nav-links {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    
+    .nav-link {
+      color: var(--text-light);
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .nav-link:hover {
+      background: rgba(0, 212, 255, 0.1);
+      color: var(--primary-color);
+    }
+    
     .user-info {
       display: flex;
       align-items: center;
@@ -473,6 +492,14 @@
     <div class="header-content">
       <div class="logo">
         <i class="fas fa-chart-line"></i> StockSense
+      </div>
+      <div class="nav-links">
+        <a href="{{ url_for('dashboard.user_dashboard') }}" class="nav-link">
+          <i class="fas fa-home"></i> Dashboard
+        </a>
+        <a href="{{ url_for('dashboard.stocks_list') }}" class="nav-link">
+          <i class="fas fa-list"></i> All Stocks
+        </a>
       </div>
       <div class="user-info">
         <span class="user-name">
