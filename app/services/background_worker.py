@@ -13,6 +13,7 @@ from typing import Dict, Any
 from bsedata.bse import BSE
 
 from app.services.prediction_service import prediction_executor
+from app.services.worker_settings_service import WorkerSettingsService
 from app.utils.util import get_db_connection
 from app.utils.bse_utils import get_quote_with_retry
 
@@ -38,6 +39,11 @@ class BackgroundWorker:
 
     def start(self):
         """Start the background worker"""
+        # Check if worker is enabled in database configuration
+        if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.BACKGROUND_WORKER):
+            logging.info("Background worker is disabled in configuration, not starting")
+            return
+        
         if self.running:
             # logging.warning("Background worker already running")
             return
@@ -60,6 +66,12 @@ class BackgroundWorker:
         
         while self.running:
             try:
+                # Check if worker is still enabled
+                if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.BACKGROUND_WORKER):
+                    logging.info("Background worker disabled in configuration, stopping")
+                    self.running = False
+                    break
+                
                 today = datetime.now().date()
                 if self.last_run_date == today:
                     logging.info("Background worker already ran today. Sleeping until next day.")

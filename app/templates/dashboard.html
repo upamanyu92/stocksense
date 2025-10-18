@@ -506,6 +506,55 @@
       </button>
     </div>
 
+    <!-- Worker Controls Section -->
+    <div class="card">
+      <div class="card-header">
+        <span><i class="fas fa-cogs"></i> Background Worker Controls</span>
+      </div>
+      <div class="progress-section">
+        <div class="progress-item">
+          <div class="progress-label">
+            <i class="fas fa-robot"></i>
+            <div>
+              <strong>Background Worker</strong>
+              <p class="mb-0" style="font-size: 0.85rem; color: var(--text-muted);">
+                Automated stock downloads and predictions
+              </p>
+            </div>
+          </div>
+          <div class="progress-status" style="gap: 10px;">
+            <span class="status-badge" id="bgWorkerStatus">Loading...</span>
+            <button class="btn-success-custom btn-sm" id="bgWorkerEnableBtn" onclick="enableWorker('background_worker')" style="display: none;">
+              <i class="fas fa-play"></i> Enable
+            </button>
+            <button class="btn-danger-custom btn-sm" id="bgWorkerDisableBtn" onclick="disableWorker('background_worker')" style="display: none;">
+              <i class="fas fa-stop"></i> Disable
+            </button>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-label">
+            <i class="fas fa-sync-alt"></i>
+            <div>
+              <strong>Inactive Stock Retry Worker</strong>
+              <p class="mb-0" style="font-size: 0.85rem; color: var(--text-muted);">
+                Retries downloads for inactive stocks
+              </p>
+            </div>
+          </div>
+          <div class="progress-status" style="gap: 10px;">
+            <span class="status-badge" id="inactiveWorkerStatus">Loading...</span>
+            <button class="btn-success-custom btn-sm" id="inactiveWorkerEnableBtn" onclick="enableWorker('inactive_stock_worker')" style="display: none;">
+              <i class="fas fa-play"></i> Enable
+            </button>
+            <button class="btn-danger-custom btn-sm" id="inactiveWorkerDisableBtn" onclick="disableWorker('inactive_stock_worker')" style="display: none;">
+              <i class="fas fa-stop"></i> Disable
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Current Progress Section -->
     <div class="card">
       <div class="card-header">

@@ -10,6 +10,8 @@ from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required
 
 from app.services.background_worker import background_worker
+from app.services.inactive_stock_worker import inactive_stock_worker
+from app.services.worker_settings_service import WorkerSettingsService
 from app.utils.disk_monitor import DiskSpaceMonitor
 
 system_bp = Blueprint('system', __name__, url_prefix='/api/system')
@@ -96,3 +98,112 @@ def background_worker_status():
 def background_status():
     """Return real-time status of background worker"""
     return jsonify(background_worker.get_status())
+
+
+@system_bp.route('/workers/settings', methods=['GET'])
+@login_required
+def get_worker_settings():
+    """Get settings for all workers"""
+    try:
+        settings = WorkerSettingsService.get_all_worker_settings()
+        
+        # Add runtime status
+        result = {
+            'background_worker': {
+                'enabled': settings.get('background_worker', {}).get('enabled', True),
+                'running': background_worker.running,
+                'updated_at': settings.get('background_worker', {}).get('updated_at')
+            },
+            'inactive_stock_worker': {
+                'enabled': settings.get('inactive_stock_worker', {}).get('enabled', True),
+                'running': inactive_stock_worker.running,
+                'updated_at': settings.get('inactive_stock_worker', {}).get('updated_at')
+            }
+        }
+        
+        return jsonify(result), 200
+    except Exception as e:
+        logging.error(f"Error getting worker settings: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to retrieve worker settings'
+        }), 500
+
+
+@system_bp.route('/workers/<worker_name>/enable', methods=['POST'])
+@login_required
+def enable_worker(worker_name):
+    """Enable a background worker"""
+    try:
+        if worker_name not in ['background_worker', 'inactive_stock_worker']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid worker name'
+            }), 400
+        
+        # Update database configuration
+        result = WorkerSettingsService.set_worker_enabled(worker_name, True)
+        
+        if not result.get('success'):
+            return jsonify(result), 500
+        
+        # Start the worker if it's not already running
+        if worker_name == 'background_worker':
+            if not background_worker.running:
+                background_worker.start()
+        elif worker_name == 'inactive_stock_worker':
+            if not inactive_stock_worker.running:
+                inactive_stock_worker.start()
+        
+        return jsonify({
+            'success': True,
+            'worker_name': worker_name,
+            'enabled': True,
+            'running': background_worker.running if worker_name == 'background_worker' else inactive_stock_worker.running
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error enabling worker {worker_name}: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@system_bp.route('/workers/<worker_name>/disable', methods=['POST'])
+@login_required
+def disable_worker(worker_name):
+    """Disable a background worker"""
+    try:
+        if worker_name not in ['background_worker', 'inactive_stock_worker']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid worker name'
+            }), 400
+        
+        # Update database configuration
+        result = WorkerSettingsService.set_worker_enabled(worker_name, False)
+        
+        if not result.get('success'):
+            return jsonify(result), 500
+        
+        # Stop the worker if it's running
+        if worker_name == 'background_worker':
+            if background_worker.running:
+                background_worker.stop()
+        elif worker_name == 'inactive_stock_worker':
+            if inactive_stock_worker.running:
+                inactive_stock_worker.stop()
+        
+        return jsonify({
+            'success': True,
+            'worker_name': worker_name,
+            'enabled': False,
+            'running': background_worker.running if worker_name == 'background_worker' else inactive_stock_worker.running
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error disabling worker {worker_name}: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

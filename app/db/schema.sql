@@ -75,3 +75,11 @@ CREATE TABLE IF NOT EXISTS predictions (
     user_id INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
+
+-- Worker Settings table
+CREATE TABLE IF NOT EXISTS worker_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_name TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    updated_at TEXT
+);

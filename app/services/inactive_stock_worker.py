@@ -2,6 +2,7 @@ import threading
 import time
 import logging
 from datetime import datetime, timedelta
+from app.services.worker_settings_service import WorkerSettingsService
 from app.utils.util import get_db_connection
 from app.utils.bse_utils import get_quote_with_retry
 
@@ -15,6 +16,11 @@ class InactiveStockRetryWorker:
         self.lock = threading.Lock()
 
     def start(self):
+        # Check if worker is enabled in database configuration
+        if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.INACTIVE_STOCK_WORKER):
+            logging.info("InactiveStockRetryWorker is disabled in configuration, not starting")
+            return
+        
         if self.running:
             return
         self.running = True
@@ -32,6 +38,12 @@ class InactiveStockRetryWorker:
         logging.info("InactiveStockRetryWorker loop started")
         while self.running:
             try:
+                # Check if worker is still enabled
+                if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.INACTIVE_STOCK_WORKER):
+                    logging.info("InactiveStockRetryWorker disabled in configuration, stopping")
+                    self.running = False
+                    break
+                
                 self._retry_inactive_stocks()
                 time.sleep(self.interval)
             except Exception as e:
