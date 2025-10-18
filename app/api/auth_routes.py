@@ -12,8 +12,8 @@ auth_bp = Blueprint('auth', __name__)
 def login():
     """Login page and handler"""
     if current_user.is_authenticated:
-        return redirect(url_for('user_dashboard'))
-    
+        return redirect(url_for('dashboard.user_dashboard'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -30,7 +30,7 @@ def login():
                 
                 # Redirect to next page or dashboard
                 next_page = request.args.get('next')
-                return redirect(next_page if next_page else url_for('user_dashboard'))
+                return redirect(next_page if next_page else url_for('dashboard.user_dashboard'))
             else:
                 flash('User account is inactive', 'error')
         else:

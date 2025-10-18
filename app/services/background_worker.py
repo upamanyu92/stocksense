@@ -59,10 +59,10 @@ class BackgroundWorker:
         while self.running:
             try:
                 # Download stock quotes
-                # self._download_stocks()
-                #
-                # # Run predictions on active stocks
-                # self._run_predictions()
+                self._download_stocks()
+
+                # Run predictions on active stocks
+                self._run_predictions()
                 
                 # Wait before next cycle
                 time.sleep(self.prediction_interval)
