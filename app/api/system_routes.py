@@ -49,14 +49,14 @@ def get_uptime():
     days = int(uptime_seconds // 86400)
     hours = int((uptime_seconds % 86400) // 3600)
     minutes = int((uptime_seconds % 3600) // 60)
-    
+
     uptime_str = ""
     if days > 0:
         uptime_str += f"{days}d "
     if hours > 0 or days > 0:
         uptime_str += f"{hours}h "
     uptime_str += f"{minutes}m"
-    
+
     return jsonify({
         'uptime': uptime_str,
         'uptime_seconds': int(uptime_seconds)
@@ -106,7 +106,7 @@ def get_worker_settings():
     """Get settings for all workers"""
     try:
         settings = WorkerSettingsService.get_all_worker_settings()
-        
+
         # Add runtime status
         result = {
             'background_worker': {
@@ -120,7 +120,7 @@ def get_worker_settings():
                 'updated_at': settings.get('inactive_stock_worker', {}).get('updated_at')
             }
         }
-        
+
         return jsonify(result), 200
     except Exception as e:
         logging.error(f"Error getting worker settings: {str(e)}", exc_info=True)
@@ -139,13 +139,13 @@ def enable_worker(worker_name):
                 'success': False,
                 'error': 'Invalid worker name'
             }), 400
-        
+
         # Update database configuration
         result = WorkerSettingsService.set_worker_enabled(worker_name, True)
-        
+
         if not result.get('success'):
             return jsonify(result), 500
-        
+
         # Start the worker if it's not already running
         if worker_name == 'background_worker':
             if not background_worker.running:
@@ -153,14 +153,16 @@ def enable_worker(worker_name):
         elif worker_name == 'inactive_stock_worker':
             if not inactive_stock_worker.running:
                 inactive_stock_worker.start()
-        
+
+        is_running = (background_worker.running if worker_name == 'background_worker'
+                      else inactive_stock_worker.running)
         return jsonify({
             'success': True,
             'worker_name': worker_name,
             'enabled': True,
-            'running': background_worker.running if worker_name == 'background_worker' else inactive_stock_worker.running
+            'running': is_running
         }), 200
-        
+
     except Exception as e:
         logging.error(f"Error enabling worker {worker_name}: {str(e)}", exc_info=True)
         return jsonify({
@@ -179,13 +181,13 @@ def disable_worker(worker_name):
                 'success': False,
                 'error': 'Invalid worker name'
             }), 400
-        
+
         # Update database configuration
         result = WorkerSettingsService.set_worker_enabled(worker_name, False)
-        
+
         if not result.get('success'):
             return jsonify(result), 500
-        
+
         # Stop the worker if it's running
         if worker_name == 'background_worker':
             if background_worker.running:
@@ -193,14 +195,16 @@ def disable_worker(worker_name):
         elif worker_name == 'inactive_stock_worker':
             if inactive_stock_worker.running:
                 inactive_stock_worker.stop()
-        
+
+        is_running = (background_worker.running if worker_name == 'background_worker'
+                      else inactive_stock_worker.running)
         return jsonify({
             'success': True,
             'worker_name': worker_name,
             'enabled': False,
-            'running': background_worker.running if worker_name == 'background_worker' else inactive_stock_worker.running
+            'running': is_running
         }), 200
-        
+
     except Exception as e:
         logging.error(f"Error disabling worker {worker_name}: {str(e)}", exc_info=True)
         return jsonify({

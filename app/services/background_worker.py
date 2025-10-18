@@ -20,6 +20,7 @@ from app.utils.bse_utils import get_quote_with_retry
 # Import websocket_manager - will be set from main.py to avoid circular imports
 websocket_manager = None
 
+
 def set_websocket_manager(manager):
     """Set the websocket manager instance"""
     global websocket_manager
@@ -28,7 +29,7 @@ def set_websocket_manager(manager):
 
 class BackgroundWorker:
     """Background worker for automated stock processing"""
-    
+
     def __init__(self):
         self.running = False
         self.worker_thread = None
@@ -43,27 +44,27 @@ class BackgroundWorker:
         if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.BACKGROUND_WORKER):
             logging.info("Background worker is disabled in configuration, not starting")
             return
-        
+
         if self.running:
             # logging.warning("Background worker already running")
             return
-        
+
         self.running = True
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
         logging.info("Background worker started")
-    
+
     def stop(self):
         """Stop the background worker"""
         self.running = False
         if self.worker_thread:
             self.worker_thread.join(timeout=5)
         logging.info("Background worker stopped")
-    
+
     def _worker_loop(self):
         """Main worker loop"""
         logging.info("Background worker loop started")
-        
+
         while self.running:
             try:
                 # Check if worker is still enabled
@@ -71,7 +72,7 @@ class BackgroundWorker:
                     logging.info("Background worker disabled in configuration, stopping")
                     self.running = False
                     break
-                
+
                 today = datetime.now().date()
                 if self.last_run_date == today:
                     logging.info("Background worker already ran today. Sleeping until next day.")
@@ -87,16 +88,16 @@ class BackgroundWorker:
 
                 # Run predictions on active stocks
                 self._run_predictions()
-                
+
                 self.last_run_date = today
 
                 # Wait before next cycle
                 time.sleep(self.prediction_interval)
-                
+
             except Exception as e:
                 logging.error(f"Error in background worker loop: {e}", exc_info=True)
                 time.sleep(60)  # Wait a minute before retrying on error
-    
+
     def _download_stocks(self):
         """Download stock quotes without timeout handling, with real-time status updates"""
         logging.info("Starting automated stock download")
@@ -220,7 +221,8 @@ class BackgroundWorker:
                 quote.get('securityID'),
                 quote.get('scripCode'),
                 quote.get('securityID'),  # stock_symbol fallback
-                float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
+                float(quote.get('currentValue', 0).replace(',', '') if isinstance(
+                    quote.get('currentValue'), str) else quote.get('currentValue', 0)),
                 float(quote.get('change', 0)),
                 float(quote.get('pChange', 0)),
                 float(quote.get('dayHigh', 0)),
@@ -250,12 +252,12 @@ class BackgroundWorker:
             raise
         finally:
             conn.close()
-    
+
     def _mark_stock_inactive(self, code: str, name: str, reason: str):
         """Mark a stock as inactive after download failure"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             # Update or insert stock status
             cursor.execute('''
@@ -270,23 +272,23 @@ class BackgroundWorker:
                     last_download_attempt = ?
             ''', (name, code, code, datetime.now().isoformat(), datetime.now().isoformat()))
             conn.commit()
-            
+
             logging.warning(f"Marked stock {name} (code: {code}) as inactive. Reason: {reason}")
-            
+
         except Exception as e:
             conn.rollback()
             logging.error(f"Error marking stock inactive: {e}")
         finally:
             conn.close()
-    
+
     def _reset_download_attempts(self, security_id: str):
         """Reset download attempts counter on successful download"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute('''
-                UPDATE stock_quotes 
+                UPDATE stock_quotes
                 SET download_attempts = 0,
                     stock_status = 'active'
                 WHERE security_id = ?
@@ -297,7 +299,7 @@ class BackgroundWorker:
             logging.error(f"Error resetting download attempts: {e}")
         finally:
             conn.close()
-    
+
     def _run_predictions(self):
         """Run predictions on watchlist stocks only"""
         logging.info("Starting automated predictions on watchlist stocks")
@@ -309,12 +311,12 @@ class BackgroundWorker:
         self.status_queue.put(start_update)
         if websocket_manager:
             websocket_manager.emit_background_worker_status(start_update)
-        
+
         # Get watchlist stocks from all users
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT DISTINCT sq.* 
+            SELECT DISTINCT sq.*
             FROM stock_quotes sq
             INNER JOIN user_watchlist uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
             WHERE sq.stock_status = 'active'
@@ -322,21 +324,21 @@ class BackgroundWorker:
         ''')
         watchlist_stocks = cursor.fetchall()
         conn.close()
-        
+
         total = len(watchlist_stocks)
         processed = 0
-        
+
         logging.info(f"Found {total} unique stocks in watchlists to process")
-        
+
         for stock in watchlist_stocks:
             if not self.running:
                 break
-            
+
             try:
                 # Run prediction
                 prediction_executor(dict(stock))
                 processed += 1
-                
+
                 # Update progress
                 if processed % 5 == 0:
                     progress_update = {
@@ -350,10 +352,10 @@ class BackgroundWorker:
                     self.status_queue.put(progress_update)
                     if websocket_manager:
                         websocket_manager.emit_background_worker_status(progress_update)
-                    
+
             except Exception as e:
                 logging.error(f"Error predicting for {stock['company_name']}: {e}")
-        
+
         completion_update = {
             'type': 'prediction',
             'status': 'completed',
@@ -364,7 +366,7 @@ class BackgroundWorker:
         self.status_queue.put(completion_update)
         if websocket_manager:
             websocket_manager.emit_background_worker_status(completion_update)
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current worker status"""
         statuses = []
@@ -373,7 +375,7 @@ class BackgroundWorker:
                 statuses.append(self.status_queue.get_nowait())
             except queue.Empty:
                 break
-        
+
         return {
             'running': self.running,
             'recent_updates': statuses[-10:] if statuses else []
