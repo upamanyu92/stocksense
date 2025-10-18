@@ -889,3 +889,112 @@ async function stopPriceTracking() {
     showNotification('Error stopping price tracking', 'error');
   }
 }
+
+// Worker Control Functions
+async function loadWorkerSettings() {
+  try {
+    const response = await fetch('/api/system/workers/settings');
+    const data = await response.json();
+    
+    if (data) {
+      updateWorkerUI('background_worker', data.background_worker);
+      updateWorkerUI('inactive_stock_worker', data.inactive_stock_worker);
+    }
+  } catch (error) {
+    console.error('Error loading worker settings:', error);
+  }
+}
+
+function updateWorkerUI(workerName, workerData) {
+  const prefix = workerName === 'background_worker' ? 'bgWorker' : 'inactiveWorker';
+  const statusEl = document.getElementById(`${prefix}Status`);
+  const enableBtn = document.getElementById(`${prefix}EnableBtn`);
+  const disableBtn = document.getElementById(`${prefix}DisableBtn`);
+  
+  if (!statusEl || !enableBtn || !disableBtn) return;
+  
+  const enabled = workerData.enabled;
+  const running = workerData.running;
+  
+  // Update status badge
+  if (enabled && running) {
+    statusEl.textContent = 'Running';
+    statusEl.className = 'status-badge status-complete';
+  } else if (enabled && !running) {
+    statusEl.textContent = 'Enabled (Starting...)';
+    statusEl.className = 'status-badge status-downloading';
+  } else {
+    statusEl.textContent = 'Disabled';
+    statusEl.className = 'status-badge';
+    statusEl.style.background = 'linear-gradient(90deg, #666 0%, #999 100%)';
+  }
+  
+  // Update buttons
+  if (enabled) {
+    enableBtn.style.display = 'none';
+    disableBtn.style.display = 'inline-block';
+  } else {
+    enableBtn.style.display = 'inline-block';
+    disableBtn.style.display = 'none';
+  }
+}
+
+async function enableWorker(workerName) {
+  try {
+    const response = await fetch(`/api/system/workers/${workerName}/enable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification(`${formatWorkerName(workerName)} enabled successfully`, 'success');
+      // Reload worker settings to update UI
+      setTimeout(() => loadWorkerSettings(), 1000);
+    } else {
+      showNotification(`Failed to enable ${formatWorkerName(workerName)}: ${data.error}`, 'error');
+    }
+  } catch (error) {
+    console.error(`Error enabling worker ${workerName}:`, error);
+    showNotification(`Error enabling ${formatWorkerName(workerName)}`, 'error');
+  }
+}
+
+async function disableWorker(workerName) {
+  try {
+    const response = await fetch(`/api/system/workers/${workerName}/disable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification(`${formatWorkerName(workerName)} disabled successfully`, 'success');
+      // Reload worker settings to update UI
+      setTimeout(() => loadWorkerSettings(), 1000);
+    } else {
+      showNotification(`Failed to disable ${formatWorkerName(workerName)}: ${data.error}`, 'error');
+    }
+  } catch (error) {
+    console.error(`Error disabling worker ${workerName}:`, error);
+    showNotification(`Error disabling ${formatWorkerName(workerName)}`, 'error');
+  }
+}
+
+function formatWorkerName(workerName) {
+  if (workerName === 'background_worker') {
+    return 'Background Worker';
+  } else if (workerName === 'inactive_stock_worker') {
+    return 'Inactive Stock Retry Worker';
+  }
+  return workerName;
+}
+
+// Load worker settings on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadWorkerSettings();
+  // Refresh worker settings every 10 seconds
+  setInterval(loadWorkerSettings, 10000);
+});

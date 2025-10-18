@@ -2,8 +2,10 @@ import threading
 import time
 import logging
 from datetime import datetime, timedelta
+from app.services.worker_settings_service import WorkerSettingsService
 from app.utils.util import get_db_connection
 from app.utils.bse_utils import get_quote_with_retry
+
 
 class InactiveStockRetryWorker:
     """Worker to retry downloads for stocks marked as inactive."""
@@ -15,6 +17,11 @@ class InactiveStockRetryWorker:
         self.lock = threading.Lock()
 
     def start(self):
+        # Check if worker is enabled in database configuration
+        if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.INACTIVE_STOCK_WORKER):
+            logging.info("InactiveStockRetryWorker is disabled in configuration, not starting")
+            return
+
         if self.running:
             return
         self.running = True
@@ -32,6 +39,12 @@ class InactiveStockRetryWorker:
         logging.info("InactiveStockRetryWorker loop started")
         while self.running:
             try:
+                # Check if worker is still enabled
+                if not WorkerSettingsService.is_worker_enabled(WorkerSettingsService.INACTIVE_STOCK_WORKER):
+                    logging.info("InactiveStockRetryWorker disabled in configuration, stopping")
+                    self.running = False
+                    break
+
                 self._retry_inactive_stocks()
                 time.sleep(self.interval)
             except Exception as e:
@@ -39,11 +52,13 @@ class InactiveStockRetryWorker:
                 time.sleep(60)
 
     def _retry_inactive_stocks(self):
-        from datetime import datetime, timedelta
         conn = get_db_connection()
         cursor = conn.cursor()
         # Fetch all inactive stocks with their last_download_attempt
-        cursor.execute("SELECT security_id, company_name, scrip_code, last_download_attempt FROM stock_quotes WHERE stock_status = 'inactive'")
+        cursor.execute(
+            "SELECT security_id, company_name, scrip_code, "
+            "last_download_attempt FROM stock_quotes "
+            "WHERE stock_status = 'inactive'")
         inactive_stocks = cursor.fetchall()
         conn.close()
         logging.info(f"Retrying download for {len(inactive_stocks)} inactive stocks")
@@ -63,7 +78,10 @@ class InactiveStockRetryWorker:
             else:
                 last_attempt_dt = None
             if last_attempt_dt and last_attempt_dt > retry_threshold:
-                logging.info(f"Skipping retry for {company_name} ({security_id}): last attempt at {last_attempt_dt.isoformat()} (threshold: {retry_threshold.isoformat()})")
+                logging.info(
+                    f"Skipping retry for {company_name} ({security_id}): "
+                    f"last attempt at {last_attempt_dt.isoformat()} "
+                    f"(threshold: {retry_threshold.isoformat()})")
                 continue
             if not scrip_code:
                 logging.warning(f"Skipping inactive stock {company_name} ({security_id}): missing scrip_code")
@@ -113,7 +131,8 @@ class InactiveStockRetryWorker:
                 WHERE security_id = ?
             ''', (
                 quote.get('companyName'),
-                float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
+                float(quote.get('currentValue', 0).replace(',', '') if isinstance(
+                    quote.get('currentValue'), str) else quote.get('currentValue', 0)),
                 float(quote.get('change', 0)),
                 float(quote.get('pChange', 0)),
                 float(quote.get('dayHigh', 0)),
@@ -143,6 +162,7 @@ class InactiveStockRetryWorker:
             logging.error(f"Error updating stock to active: {e}. Raw quote: {quote}")
         finally:
             conn.close()
+
 
 # Global instance
 inactive_stock_worker = InactiveStockRetryWorker()
