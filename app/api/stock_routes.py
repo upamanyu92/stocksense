@@ -95,17 +95,31 @@ def list_stocks():
     per_page = min(max(per_page, 10), 100)  # Between 10 and 100
     page = max(page, 1)
 
-    # Allowed sort columns
-    allowed_sort_columns = [
-        'company_name', 'security_id', 'current_value', 'change', 'p_change',
-        'day_high', 'day_low', 'previous_close', 'industry', 'updated_on'
-    ]
+    # Allowed sort columns - using a mapping to prevent SQL injection
+    allowed_sort_columns = {
+        'company_name': 'company_name',
+        'security_id': 'security_id',
+        'current_value': 'current_value',
+        'change': 'change',
+        'p_change': 'p_change',
+        'day_high': 'day_high',
+        'day_low': 'day_low',
+        'previous_close': 'previous_close',
+        'industry': 'industry',
+        'updated_on': 'updated_on'
+    }
 
+    # Validate and sanitize sort column
     if sort_by not in allowed_sort_columns:
         sort_by = 'company_name'
+    else:
+        sort_by = allowed_sort_columns[sort_by]
 
+    # Validate and sanitize sort order
     if sort_order.lower() not in ['asc', 'desc']:
         sort_order = 'asc'
+    else:
+        sort_order = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
 
     try:
         conn = get_db_connection()
@@ -118,7 +132,8 @@ def list_stocks():
         # Calculate offset
         offset = (page - 1) * per_page
 
-        # Build query with sorting
+        # Build query with safe sorting using validated column and order
+        # sort_by and sort_order are now guaranteed to be safe values from our whitelist
         query = f'''
             SELECT
                 id, company_name, security_id, scrip_code, current_value,
@@ -126,7 +141,7 @@ def list_stocks():
                 previous_open, high_52week, low_52week, industry,
                 market_cap_full, total_traded_value, updated_on, stock_status
             FROM stock_quotes
-            ORDER BY {sort_by} {sort_order.upper()}
+            ORDER BY {sort_by} {sort_order}
             LIMIT ? OFFSET ?
         '''
 
