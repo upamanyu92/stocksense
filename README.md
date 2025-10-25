@@ -45,6 +45,7 @@ Modern financial markets generate vast amounts of data, and actionable insights 
 - **Live Price Streaming:** Track multiple stocks with auto-updating charts.
 - **Interactive Charts:** Real-time visualizations powered by Chart.js.
 - **Smart Notifications:** Toast-style alerts for important events.
+- **Responsive Design:** Optimized UI for mobile, tablet, and desktop devices with cross-browser compatibility.
 - **Typeahead Search:** Fast, user-friendly search for stock quotes with autocomplete suggestions.
 - **Batch Prediction:** Parallelized batch processing for efficient model inference.
 - **Model Monitoring:** Track and log model performance and prediction outcomes.
@@ -80,10 +81,18 @@ Modern financial markets generate vast amounts of data, and actionable insights 
 5. **Access the dashboard:**
    - Visit `http://localhost:5005` (or your configured port).
 
+## Documentation
+
+- **[Responsive Design Guide](docs/RESPONSIVE_DESIGN.md)** - Comprehensive guide to responsive features and mobile optimization
+- **[Browser Compatibility](docs/BROWSER_COMPATIBILITY.md)** - Cross-browser support details and testing checklist
+- **[Real-time Features](docs/REALTIME_FEATURES.md)** - WebSocket and live update documentation
+- **[Agentic System](docs/AGENTIC_SYSTEM.md)** - AI-powered prediction system details
+
 ## Extending StockSense
 - **Add new models:** Place model code in `app/models/` and update the prediction pipeline.
 - **Integrate new data sources:** Extend `app/db/` and `app/features/` as needed.
 - **Customize the dashboard:** Edit templates in `app/templates/` and static assets in `app/static/`.
+- **Responsive Design:** Follow the [Responsive Design Guide](docs/RESPONSIVE_DESIGN.md) for best practices.
 
 ## Contributing
 Pull requests are welcome! Please follow the code style (PEP8) and project structure. For major changes, open an issue first to discuss your ideas.
