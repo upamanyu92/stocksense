@@ -129,9 +129,26 @@ function addChatMessage(type, message, intent = null) {
 }
 
 /**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Format chat message with basic markdown-like syntax
+ * Only allows specific formatting - all HTML is escaped first
  */
 function formatChatMessage(message) {
+  // First, escape all HTML to prevent XSS
+  message = escapeHtml(message);
+  
+  // Now apply our safe formatting
   // Convert **bold** to <strong>
   message = message.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   
@@ -142,7 +159,9 @@ function formatChatMessage(message) {
   message = message.replace(/^• (.+)$/gm, '<li>$1</li>');
   
   // Wrap consecutive list items in <ul>
-  message = message.replace(/(<li>.*<\/li>)/s, '<ul style="margin: 10px 0; padding-left: 20px;">$1</ul>');
+  message = message.replace(/(<li>.*?<\/li>\s*)+/g, function(match) {
+    return '<ul style="margin: 10px 0; padding-left: 20px;">' + match + '</ul>';
+  });
   
   return message;
 }

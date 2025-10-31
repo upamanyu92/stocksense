@@ -148,32 +148,32 @@ class ChatService:
         updated_at = datetime.now().isoformat()
         
         if exists:
-            # Update existing preferences - use whitelist for field names
-            updates = []
+            # Update existing preferences - use explicit field names to prevent SQL injection
             params = []
+            update_clauses = []
             
-            # Whitelist of allowed fields to prevent SQL injection
-            allowed_fields = {
-                'preferred_stocks': preferred_stocks,
-                'interaction_style': interaction_style,
-                'topics_of_interest': topics_of_interest,
-                'learning_data': learning_data
-            }
+            # Only update fields that are provided (not None)
+            if preferred_stocks is not None:
+                update_clauses.append('preferred_stocks = ?')
+                params.append(json.dumps(preferred_stocks))
+            if interaction_style is not None:
+                update_clauses.append('interaction_style = ?')
+                params.append(interaction_style)
+            if topics_of_interest is not None:
+                update_clauses.append('topics_of_interest = ?')
+                params.append(json.dumps(topics_of_interest))
+            if learning_data is not None:
+                update_clauses.append('learning_data = ?')
+                params.append(json.dumps(learning_data))
             
-            for field_name, value in allowed_fields.items():
-                if value is not None:
-                    updates.append(f'{field_name} = ?')
-                    if field_name in ('preferred_stocks', 'topics_of_interest', 'learning_data'):
-                        params.append(json.dumps(value))
-                    else:
-                        params.append(value)
-            
-            if updates:
-                updates.append('updated_at = ?')
+            if update_clauses:
+                # Add updated_at timestamp
+                update_clauses.append('updated_at = ?')
                 params.append(updated_at)
                 params.append(user_id)
                 
-                query = f'UPDATE chat_user_preferences SET {", ".join(updates)} WHERE user_id = ?'
+                # Use explicit field names - safe from SQL injection
+                query = 'UPDATE chat_user_preferences SET ' + ', '.join(update_clauses) + ' WHERE user_id = ?'
                 cursor.execute(query, params)
         else:
             # Insert new preferences
