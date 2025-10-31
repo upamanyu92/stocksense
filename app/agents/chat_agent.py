@@ -13,6 +13,7 @@ from app.db.services.chat_service import ChatService
 from app.db.services.stock_quote_service import StockQuoteService
 from app.db.services.prediction_service import PredictionService
 from app.db.services.watchlist_service import WatchlistDBService
+from app.utils.util import get_db_connection
 
 
 logger = logging.getLogger(__name__)
@@ -269,7 +270,6 @@ class ChatAgent(BaseAgent):
         
         try:
             # Get stock data directly from database
-            from app.utils.util import get_db_connection
             conn = get_db_connection()
             cursor = conn.cursor()
             
@@ -286,7 +286,19 @@ class ChatAgent(BaseAgent):
             conn.close()
             
             if row:
-                quote_data = dict(row)
+                # Explicit field mapping for safety
+                quote_data = {
+                    'security_id': row[0],
+                    'company_name': row[1],
+                    'current_value': row[2],
+                    'change': row[3],
+                    'p_change': row[4],
+                    'day_high': row[5],
+                    'day_low': row[6],
+                    'high_52week': row[7],
+                    'low_52week': row[8],
+                    'updated_on': row[9]
+                }
                 response = f"📊 **{quote_data['company_name']}** ({quote_data['security_id']})\n\n"
                 response += f"Current Price: ₹{quote_data['current_value']:.2f}\n"
                 response += f"Change: ₹{quote_data['change']:.2f} ({quote_data['p_change']:.2f}%)\n"

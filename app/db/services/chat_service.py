@@ -148,31 +148,33 @@ class ChatService:
         updated_at = datetime.now().isoformat()
         
         if exists:
-            # Update existing preferences
+            # Update existing preferences - use whitelist for field names
             updates = []
             params = []
             
-            if preferred_stocks is not None:
-                updates.append('preferred_stocks = ?')
-                params.append(json.dumps(preferred_stocks))
-            if interaction_style is not None:
-                updates.append('interaction_style = ?')
-                params.append(interaction_style)
-            if topics_of_interest is not None:
-                updates.append('topics_of_interest = ?')
-                params.append(json.dumps(topics_of_interest))
-            if learning_data is not None:
-                updates.append('learning_data = ?')
-                params.append(json.dumps(learning_data))
+            # Whitelist of allowed fields to prevent SQL injection
+            allowed_fields = {
+                'preferred_stocks': preferred_stocks,
+                'interaction_style': interaction_style,
+                'topics_of_interest': topics_of_interest,
+                'learning_data': learning_data
+            }
             
-            updates.append('updated_at = ?')
-            params.append(updated_at)
-            params.append(user_id)
+            for field_name, value in allowed_fields.items():
+                if value is not None:
+                    updates.append(f'{field_name} = ?')
+                    if field_name in ('preferred_stocks', 'topics_of_interest', 'learning_data'):
+                        params.append(json.dumps(value))
+                    else:
+                        params.append(value)
             
-            cursor.execute(
-                f'UPDATE chat_user_preferences SET {", ".join(updates)} WHERE user_id = ?',
-                params
-            )
+            if updates:
+                updates.append('updated_at = ?')
+                params.append(updated_at)
+                params.append(user_id)
+                
+                query = f'UPDATE chat_user_preferences SET {", ".join(updates)} WHERE user_id = ?'
+                cursor.execute(query, params)
         else:
             # Insert new preferences
             cursor.execute('''
@@ -244,14 +246,23 @@ class ChatService:
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Safely determine which field to increment
         field = 'success_count' if success else 'failure_count'
         last_used = datetime.now().isoformat()
         
-        cursor.execute(f'''
-            UPDATE chat_agent_learning
-            SET {field} = {field} + 1, last_used = ?
-            WHERE id = ?
-        ''', (last_used, pattern_id))
+        # Use parameterized query with field selection
+        if success:
+            cursor.execute('''
+                UPDATE chat_agent_learning
+                SET success_count = success_count + 1, last_used = ?
+                WHERE id = ?
+            ''', (last_used, pattern_id))
+        else:
+            cursor.execute('''
+                UPDATE chat_agent_learning
+                SET failure_count = failure_count + 1, last_used = ?
+                WHERE id = ?
+            ''', (last_used, pattern_id))
         
         conn.commit()
         conn.close()
