@@ -268,24 +268,39 @@ class ChatAgent(BaseAgent):
         symbol = symbols[0]
         
         try:
-            # Get stock quote
-            quote = StockQuoteService.get_stock_by_symbol(symbol)
+            # Get stock data directly from database
+            from app.utils.util import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
             
-            if quote:
-                response = f"📊 **{quote.company_name}** ({symbol})\n\n"
-                response += f"Current Price: ₹{quote.current_value:.2f}\n"
-                response += f"Change: ₹{quote.change:.2f} ({quote.p_change:.2f}%)\n"
-                response += f"Day High: ₹{quote.day_high:.2f} | Day Low: ₹{quote.day_low:.2f}\n"
-                response += f"52-Week High: ₹{quote.week_52_high:.2f} | 52-Week Low: ₹{quote.week_52_low:.2f}\n"
-                response += f"\nUpdated: {quote.updated_on}"
+            # Try to find by security_id first
+            cursor.execute('''
+                SELECT security_id, company_name, current_value, change, p_change, 
+                       day_high, day_low, high_52week, low_52week, updated_on
+                FROM stock_quotes 
+                WHERE UPPER(security_id) = UPPER(?) OR UPPER(company_name) LIKE UPPER(?)
+                LIMIT 1
+            ''', (symbol, f'%{symbol}%'))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                quote_data = dict(row)
+                response = f"📊 **{quote_data['company_name']}** ({quote_data['security_id']})\n\n"
+                response += f"Current Price: ₹{quote_data['current_value']:.2f}\n"
+                response += f"Change: ₹{quote_data['change']:.2f} ({quote_data['p_change']:.2f}%)\n"
+                response += f"Day High: ₹{quote_data['day_high']:.2f} | Day Low: ₹{quote_data['day_low']:.2f}\n"
+                response += f"52-Week High: ₹{quote_data['high_52week']:.2f} | 52-Week Low: ₹{quote_data['low_52week']:.2f}\n"
+                response += f"\nUpdated: {quote_data['updated_on']}"
                 
                 # Add to user's preferred stocks for learning
-                self._update_stock_preference(user_id, symbol)
+                self._update_stock_preference(user_id, quote_data['security_id'])
                 
                 return {
                     'message': response,
                     'intent': 'stock_price',
-                    'context': {'symbol': symbol, 'price': quote.current_value}
+                    'context': {'symbol': quote_data['security_id'], 'price': quote_data['current_value']}
                 }
             else:
                 return {
@@ -316,8 +331,13 @@ class ChatAgent(BaseAgent):
         symbol = symbols[0]
         
         try:
-            # Get latest prediction
-            predictions = PredictionService.get_predictions_by_symbol(symbol, limit=1)
+            # Get all predictions and filter by symbol (security_id)
+            all_predictions = PredictionService.get_all(limit=100)
+            predictions = [p for p in all_predictions if p.stock_symbol and p.stock_symbol.upper() == symbol.upper()]
+            
+            # If no exact match, try by security_id in the database
+            if not predictions:
+                predictions = [p for p in all_predictions if symbol.upper() in (p.company_name or '').upper()]
             
             if predictions:
                 pred = predictions[0]
@@ -357,7 +377,7 @@ class ChatAgent(BaseAgent):
                          history: List, context: Dict) -> Dict[str, Any]:
         """Handle watchlist queries"""
         try:
-            watchlist = WatchlistDBService.get_user_watchlist(user_id)
+            watchlist = WatchlistDBService.get_by_user(user_id)
             
             if watchlist:
                 response = f"📋 **Your Watchlist** ({len(watchlist)} stocks)\n\n"
