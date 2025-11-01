@@ -1,5 +1,6 @@
 import time
 import logging
+import os
 import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Optional, List
@@ -110,24 +111,32 @@ def get_indian_stocks() -> Dict[str, str]:
     Returns:
         Dictionary mapping stock symbols to company names
     """
-    # This is a simplified version. In production, you might want to:
-    # 1. Download from a reliable source (e.g., NSE/BSE website)
-    # 2. Cache the results
-    # 3. Use a pre-built list of Indian stocks
-    
     logging.info("Fetching Indian stock list...")
     
-    # Common Indian stocks as a starting point
-    # In a real implementation, you would fetch this from a comprehensive source
-    stocks = {}
+    # Try to load from the existing stk.json file
+    # First check in the root directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.join(current_dir, '..', '..')
+    stock_file_path = os.path.join(base_dir, 'stk.json')
     
-    # You can enhance this by:
-    # - Downloading NIFTY 50, NIFTY 100, NIFTY 500 constituents
-    # - Using BSE/NSE equity list
-    # - Caching the results
+    if os.path.exists(stock_file_path):
+        stocks = download_stock_list_from_file(stock_file_path)
+        logging.info(f"Loaded {len(stocks)} Indian stocks from {stock_file_path}")
+        return stocks
     
-    # For now, return empty dict to be populated from existing database or file
-    return stocks
+    # Fallback: try app/static/stk.json
+    stock_file_path = os.path.join(base_dir, 'app', 'static', 'stk.json')
+    if os.path.exists(stock_file_path):
+        stocks = download_stock_list_from_file(stock_file_path)
+        logging.info(f"Loaded {len(stocks)} Indian stocks from {stock_file_path}")
+        return stocks
+    
+    # If no file found, return empty dict
+    logging.warning(
+        "Stock list file not found. Ensure stk.json exists in the project root "
+        "or app/static directory."
+    )
+    return {}
 
 
 def verify_symbol(symbol: str) -> Optional[str]:
