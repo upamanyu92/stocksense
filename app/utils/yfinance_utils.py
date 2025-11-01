@@ -54,7 +54,8 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
                     'sell': {}
                 }
                 
-                if quote:
+                # Check if we got meaningful data
+                if quote.get('currentValue'):
                     return quote
             except Exception as e:
                 logging.warning(f"Failed to get fast_info for {symbol}, trying info only: {e}")

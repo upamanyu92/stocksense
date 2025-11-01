@@ -61,6 +61,10 @@ def update_database():
                 
                 # Get current price from yfinance
                 quote = get_quote_with_retry(stock_symbol_yahoo)
+                if not quote:
+                    logger.warning(f"Failed to get quote for {stock_symbol_yahoo}, skipping")
+                    continue
+                
                 current_price = float(quote['currentValue']) if isinstance(quote['currentValue'], (int, float)) else float(str(quote['currentValue']).replace(',', ''))
                 
                 logger.info(f"Predicted price: {predicted_price}, Current price: {current_price} for {quote.get('companyName')}")
@@ -81,7 +85,7 @@ def update_database():
 
         except Exception as e:
             logger.error(f"Error predicting for {stock_symbol}: {str(e)}")
-            if e is not None or str(e) == "Inactive stock":
+            if str(e) == "Inactive stock":
                 query = 'UPDATE predictions_linear SET active = 0 WHERE security_id = ?'
                 execute_query(query, (stock_symbol.replace('.BO', '').replace('.NS', '') if stock_symbol else code,), commit=True)
 

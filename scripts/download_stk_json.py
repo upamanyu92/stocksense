@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Script to download and save stock list data to a JSON file.
-This file will be used for autocomplete in the watchlist input.
+Script to manage stock list data in JSON format.
+This file is used for autocomplete in the watchlist input.
 
-Since yfinance doesn't provide a direct equivalent to BSE's getScripCodes(),
-this script now loads from existing stk.json or creates a minimal list.
-For a comprehensive Indian stock list, consider downloading from NSE/BSE websites.
+Note: yfinance doesn't provide a bulk stock list API like BSE did.
+This script manages existing stock list files rather than downloading from an API.
+For a comprehensive Indian stock list, download from NSE/BSE official websites.
 """
 import json
 import logging
