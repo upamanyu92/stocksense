@@ -15,6 +15,7 @@ from app.api.stock_routes import stock_bp
 from app.api.system_routes import system_bp
 from app.api.price_stream_routes import price_stream_bp
 from app.api.dashboard_routes import dashboard_bp
+from app.api.chat_routes import chat_bp
 from app.services.auth_service import User
 from app.services.background_worker import background_worker
 from app.services.price_streamer import price_streamer
@@ -64,6 +65,7 @@ app.register_blueprint(stock_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(price_stream_bp)
 app.register_blueprint(dashboard_bp)
+app.register_blueprint(chat_bp)
 
 @login_manager.user_loader
 def load_user(user_id):
