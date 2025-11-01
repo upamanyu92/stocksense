@@ -1,6 +1,5 @@
 yfinance
 scikit-learn
-bsedata
 Flask
 Flask-Login
 numpy

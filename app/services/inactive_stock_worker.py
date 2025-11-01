@@ -3,7 +3,7 @@ import time
 import logging
 from datetime import datetime, timedelta
 from app.utils.util import get_db_connection
-from app.utils.bse_utils import get_quote_with_retry
+from app.utils.yfinance_utils import get_quote_with_retry
 
 class InactiveStockRetryWorker:
     """Worker to retry downloads for stocks marked as inactive."""
@@ -42,8 +42,8 @@ class InactiveStockRetryWorker:
         from datetime import datetime, timedelta
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Fetch all inactive stocks with their last_download_attempt
-        cursor.execute("SELECT security_id, company_name, scrip_code, last_download_attempt FROM stock_quotes WHERE stock_status = 'inactive'")
+        # Fetch all inactive stocks with their last_download_attempt and stock_symbol
+        cursor.execute("SELECT security_id, company_name, scrip_code, stock_symbol, last_download_attempt FROM stock_quotes WHERE stock_status = 'inactive'")
         inactive_stocks = cursor.fetchall()
         conn.close()
         logging.info(f"Retrying download for {len(inactive_stocks)} inactive stocks")
@@ -53,6 +53,7 @@ class InactiveStockRetryWorker:
             security_id = stock['security_id']
             company_name = stock['company_name']
             scrip_code = stock['scrip_code']
+            stock_symbol = stock.get('stock_symbol')
             last_attempt = stock['last_download_attempt']
             # Only retry if last_download_attempt is None or older than threshold
             if last_attempt:
@@ -65,11 +66,18 @@ class InactiveStockRetryWorker:
             if last_attempt_dt and last_attempt_dt > retry_threshold:
                 logging.info(f"Skipping retry for {company_name} ({security_id}): last attempt at {last_attempt_dt.isoformat()} (threshold: {retry_threshold.isoformat()})")
                 continue
-            if not scrip_code:
-                logging.warning(f"Skipping inactive stock {company_name} ({security_id}): missing scrip_code")
+            
+            # Prefer stock_symbol, fallback to security_id with .BO
+            if stock_symbol:
+                symbol = stock_symbol
+            elif security_id:
+                symbol = security_id + '.BO'
+            else:
+                logging.warning(f"Skipping inactive stock {company_name} ({security_id}): no symbol available")
                 continue
+            
             try:
-                quote = get_quote_with_retry(scrip_code)
+                quote = get_quote_with_retry(symbol)
                 if quote:
                     self._update_stock_to_active(quote)
                     logging.info(f"Successfully reactivated stock {company_name} ({security_id})")
@@ -83,6 +91,7 @@ class InactiveStockRetryWorker:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
+            current_value = quote.get('currentValue', 0)
             cursor.execute('''
                 UPDATE stock_quotes SET
                     company_name = ?,
@@ -113,7 +122,7 @@ class InactiveStockRetryWorker:
                 WHERE security_id = ?
             ''', (
                 quote.get('companyName'),
-                float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
+                float(current_value) if isinstance(current_value, (int, float)) else float(str(current_value).replace(',', '')),
                 float(quote.get('change', 0)),
                 float(quote.get('pChange', 0)),
                 float(quote.get('dayHigh', 0)),

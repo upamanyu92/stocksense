@@ -389,7 +389,7 @@ docker-compose up --build
 
 ## Known Limitations
 
-1. **Price Updates:** Limited by BSE API rate limits
+1. **Price Updates:** Limited by yfinance API rate limits
 2. **Concurrent Users:** Threading mode (can upgrade to async)
 3. **Chart Data:** Limited to configurable points (default 30)
 4. **Browser Support:** Requires WebSocket support

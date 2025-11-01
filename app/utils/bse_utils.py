@@ -1,22 +1,12 @@
 import time
 import logging
-from bsedata.bse import BSE
+import yfinance as yf
+import pandas as pd
+from typing import Dict, Any, Optional
 
-def get_quote_with_retry(code, max_retries=3, delay=1):
-    """Get BSE quote with retry logic."""
-    last_exception = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            b = BSE()
-            quote = b.getQuote(code)
-            if quote:
-                return quote
-        except Exception as e:
-            last_exception = e
-            logging.warning(f"Attempt {attempt} failed for getQuote({code}): {e}")
-        time.sleep(delay)
-    logging.error(f"All {max_retries} attempts failed for getQuote({code})")
-    if last_exception:
-        raise last_exception
-    return None
+def get_quote_with_retry(symbol, max_retries=3, delay=1):
+    """Get stock quote using yfinance with retry logic."""
+    # Import from new yfinance utils
+    from app.utils.yfinance_utils import get_quote_with_retry as yf_get_quote
+    return yf_get_quote(symbol, max_retries, delay)
 

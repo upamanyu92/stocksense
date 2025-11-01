@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import List, Dict, Any
 
-from app.utils.bse_utils import get_quote_with_retry
+from app.utils.yfinance_utils import get_quote_with_retry
 from app.utils.util import get_db_connection
 
 
@@ -86,14 +86,14 @@ class StockPriceStreamer:
 
         for symbol in symbols:
             try:
-                # Get stock info from database to find BSE code
+                # Get stock info from database to find stock symbol
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT * FROM stock_quotes 
-                    WHERE company_name = ? OR security_id = ?
+                    WHERE company_name = ? OR security_id = ? OR stock_symbol = ?
                     LIMIT 1
-                ''', (symbol, symbol))
+                ''', (symbol, symbol, symbol))
                 stock = cursor.fetchone()
                 conn.close()
                 
@@ -101,17 +101,23 @@ class StockPriceStreamer:
                     logging.warning(f"Stock not found in database: {symbol}")
                     continue
                 
+                # Get stock symbol (prefer stock_symbol, fallback to security_id with .BO)
+                stock_symbol = stock.get('stock_symbol')
+                if not stock_symbol:
+                    stock_symbol = stock['security_id'] + '.BO'
+                
                 # Fetch live quote
-                logging.info(f"Fetching price for {stock['scrip_code']}")
-                quote = get_quote_with_retry(stock['scrip_code'])
+                logging.info(f"Fetching price for {stock_symbol}")
+                quote = get_quote_with_retry(stock_symbol)
 
                 if quote:
                     # Extract price data
+                    current_value = quote.get('currentValue', 0)
                     price_data = {
                         'symbol': symbol,
                         'security_id': stock['security_id'],
                         'company_name': quote.get('companyName', stock['company_name']),
-                        'price': float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
+                        'price': float(current_value) if isinstance(current_value, (int, float)) else float(str(current_value).replace(',', '')),
                         'change': float(quote.get('change', 0)),
                         'pChange': float(quote.get('pChange', 0)),
                         'dayHigh': float(quote.get('dayHigh', 0)),
@@ -135,26 +141,32 @@ class StockPriceStreamer:
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT security_id, company_name FROM stock_quotes 
-                WHERE company_name = ? OR security_id = ?
+                SELECT security_id, company_name, stock_symbol FROM stock_quotes 
+                WHERE company_name = ? OR security_id = ? OR stock_symbol = ?
                 LIMIT 1
-            ''', (symbol, symbol))
+            ''', (symbol, symbol, symbol))
             stock = cursor.fetchone()
             conn.close()
             
             if not stock:
                 return None
             
+            # Get stock symbol (prefer stock_symbol, fallback to security_id with .BO)
+            stock_symbol = stock.get('stock_symbol')
+            if not stock_symbol:
+                stock_symbol = stock['security_id'] + '.BO'
+            
             # Fetch live quote
-            logging.info(f"Fetching price for {stock['scrip_code']}")
-            quote = get_quote_with_retry(stock['scrip_code'])
+            logging.info(f"Fetching price for {stock_symbol}")
+            quote = get_quote_with_retry(stock_symbol)
 
             if quote:
+                current_value = quote.get('currentValue', 0)
                 price_data = {
                     'symbol': symbol,
                     'security_id': stock['security_id'],
                     'company_name': quote.get('companyName', stock['company_name']),
-                    'price': float(quote.get('currentValue', 0).replace(',', '') if isinstance(quote.get('currentValue'), str) else quote.get('currentValue', 0)),
+                    'price': float(current_value) if isinstance(current_value, (int, float)) else float(str(current_value).replace(',', '')),
                     'change': float(quote.get('change', 0)),
                     'pChange': float(quote.get('pChange', 0)),
                     'dayHigh': float(quote.get('dayHigh', 0)),
