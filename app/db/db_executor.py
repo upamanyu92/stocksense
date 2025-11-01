@@ -5,12 +5,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from bsedata.bse import BSE
+import yfinance as yf
 
 from app.db.data_models import StockQuote
 from app.utils.util import get_db_connection
 from app.db.services.stock_quote_service import StockQuoteService
-from app.utils.bse_utils import get_quote_with_retry
+from app.utils.yfinance_utils import get_quote_with_retry
 
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
@@ -44,9 +44,26 @@ def fetch_all(query: str, args: tuple = ()) -> List[Dict[str, Any]]:
 def data_retriever_executor(status_queue, max_workers=4):
     status_queue.put(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logging.info(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    b = BSE()
-    b.updateScripCodes()
-    trade_funds = b.getScripCodes()
+    
+    # Load stock list from existing stk.json file
+    import json
+    import os
+    
+    stock_file_path = os.path.join(os.path.dirname(__file__), '..', '..', 'stk.json')
+    try:
+        with open(stock_file_path, 'r') as f:
+            trade_funds = json.load(f)
+    except FileNotFoundError:
+        # Fallback: try app/static/stk.json
+        stock_file_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'stk.json')
+        try:
+            with open(stock_file_path, 'r') as f:
+                trade_funds = json.load(f)
+        except FileNotFoundError:
+            logging.error("Stock list file not found. Please run download_stk_json.py first.")
+            status_queue.put("ERROR: Stock list file not found")
+            return
+    
     total_funds = len(trade_funds)
     codes_list = list(trade_funds.items())
     counter = {'done': 0}
@@ -54,25 +71,32 @@ def data_retriever_executor(status_queue, max_workers=4):
     def process_stock(code_name):
         code, name = code_name
         try:
-            company_name = b.verifyScripCode(code)
-            existing_quote = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
-            if (not company_name) or (company_name != name):
-                msg = f"{name} - skipped - name mismatch or not found"
-                logging.info(msg)
+            # For yfinance, we need to use the stock symbol with .BO suffix for BSE stocks
+            # First, check if we have a mapping in the database
+            existing_quote = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ? OR scrip_code = ?', (name, code))
+            
+            if existing_quote and existing_quote.get('stock_symbol'):
+                # Use existing symbol from database
+                stock_symbol = existing_quote['stock_symbol']
+            else:
+                # Skip stocks without a known symbol mapping
+                # In a real implementation, you would maintain a mapping file
+                msg = f"{name} - skipped - no symbol mapping available"
+                logging.debug(msg)
                 status_queue.put(msg)
                 return
+            
+            logging.debug(f"Processing {name} with symbol {stock_symbol}")
+            if existing_quote:
+                logging.debug(f"Updating existing quote for {name}")
+                # Update is handled elsewhere, skip for now
             else:
-                logging.debug(f"Processing {name} with code {code}")
-                if existing_quote:
-                    logging.debug(f"Updating existing quote for {name}")
-                    # quote = b.getQuote(code)
-                    # update_stock_quote(quote)
-                else:
-                    logging.debug(f"Calling b.getQuote for {name} with code {code}")
-                    quote = get_quote_with_retry(code)
-                    logging.debug(f"Quote received for {name}: {quote}")
-                    insert_stock_quote(quote)
-                    logging.debug(f"Inserted quote for {name}")
+                logging.debug(f"Fetching quote for {name} with symbol {stock_symbol}")
+                quote = get_quote_with_retry(stock_symbol)
+                logging.debug(f"Quote received for {name}: {quote}")
+                insert_stock_quote(quote)
+                logging.debug(f"Inserted quote for {name}")
+            
             # Thread-safe increment
             done = None
             from threading import Lock

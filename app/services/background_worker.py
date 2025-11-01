@@ -10,11 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from bsedata.bse import BSE
+import yfinance as yf
 
 from app.services.prediction_service import prediction_executor
 from app.utils.util import get_db_connection
-from app.utils.bse_utils import get_quote_with_retry
+from app.utils.yfinance_utils import get_quote_with_retry
 
 # Import websocket_manager - will be set from main.py to avoid circular imports
 websocket_manager = None
@@ -98,9 +98,23 @@ class BackgroundWorker:
             websocket_manager.emit_background_worker_status(status_update)
 
         try:
-            b = BSE()
-            b.updateScripCodes()
-            funds = b.getScripCodes()
+            # Load stock list from existing stk.json or database
+            import json
+            import os
+            
+            stock_file_path = os.path.join(os.path.dirname(__file__), '..', '..', 'stk.json')
+            try:
+                with open(stock_file_path, 'r') as f:
+                    funds = json.load(f)
+            except FileNotFoundError:
+                # Fallback: get stocks from database that already have symbols
+                logging.warning("stk.json not found, loading stocks from database")
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute('SELECT scrip_code, company_name FROM stock_quotes WHERE stock_symbol IS NOT NULL')
+                rows = cursor.fetchall()
+                conn.close()
+                funds = {row['scrip_code']: row['company_name'] for row in rows}
 
             total_stocks = len(funds)
             processed = 0
@@ -173,7 +187,21 @@ class BackgroundWorker:
             'timestamp': datetime.now().isoformat()
         })
         try:
-            quote = get_quote_with_retry(code)
+            # Get stock symbol from database if it exists
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT stock_symbol FROM stock_quotes WHERE scrip_code = ? OR company_name = ?', (code, name))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row and row['stock_symbol']:
+                stock_symbol = row['stock_symbol']
+            else:
+                # Skip stocks without symbol mapping
+                logging.debug(f"Skipping {name} - no symbol mapping")
+                return
+            
+            quote = get_quote_with_retry(stock_symbol)
 
             if not quote:
                 raise ValueError("No quote data returned")
