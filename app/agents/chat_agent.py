@@ -2,15 +2,12 @@
 Intelligent Chat Agent with self-awareness and learning capabilities
 """
 import re
-import json
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import random
 
 from app.agents.base_agent import BaseAgent
 from app.db.services.chat_service import ChatService
-from app.db.services.stock_quote_service import StockQuoteService
 from app.db.services.prediction_service import PredictionService
 from app.db.services.watchlist_service import WatchlistDBService
 from app.utils.util import get_db_connection
@@ -36,12 +33,14 @@ class ChatAgent(BaseAgent):
         
         # Self-awareness metadata
         self.capabilities = [
-            "stock price queries",
-            "prediction insights",
-            "watchlist management",
-            "market analysis",
-            "learning from your preferences",
-            "contextual conversations"
+            "stock price queries with real-time data",
+            "AI-powered prediction insights and analysis",
+            "automatic watchlist management and tracking",
+            "market trend analysis and recommendations",
+            "proactive alerts and suggestions",
+            "stock comparisons and portfolio insights",
+            "learning from your preferences and behavior",
+            "contextual conversations with actionable advice"
         ]
         
         self.limitations = [
@@ -55,15 +54,22 @@ class ChatAgent(BaseAgent):
         self.positive_keywords = ['good', 'great', 'excellent', 'thanks', 'helpful', 'perfect', 'awesome']
         self.negative_keywords = ['bad', 'wrong', 'poor', 'unhelpful', 'incorrect', 'useless']
         
-        # Intent patterns
+        # Intent patterns - expanded for more actions
         self.intent_patterns = {
             'greeting': [r'\b(hi|hello|hey|greetings)\b'],
             'goodbye': [r'\b(bye|goodbye|see you|farewell)\b'],
             'thanks': [r'\b(thank|thanks|appreciate)\b'],
-            'stock_price': [r'\b(price|value|quote)\b.*\b(of|for)?\b.*\b([A-Z]{2,})\b', 
+            'stock_price': [r'\b(price|value|quote|current)\b.*\b(of|for)?\b.*\b([A-Z]{2,})\b',
                            r'\b([A-Z]{2,})\b.*\b(price|value|quote)\b'],
-            'prediction': [r'\b(predict|forecast|future)\b', r'\bwill\b.*\b(go|move|be)\b'],
-            'watchlist': [r'\b(watchlist|watch|track|follow)\b'],
+            'prediction': [r'\b(predict|forecast|future|will.*go|expected|outlook)\b'],
+            'analysis': [r'\b(analyze|analysis|insights?|trends?|performance)\b'],
+            'compare': [r'\b(compare|versus|vs|difference between)\b', r'\bor\b.*\bbetter\b'],
+            'recommend': [r'\b(recommend|suggest|advice|should i|what.*buy)\b'],
+            'watchlist_add': [r'\b(add|track|monitor|watch)\b.*\b(to|in)?\s*(watchlist|portfolio)?\b',
+                             r'\b(track|follow|monitor)\b'],
+            'watchlist_remove': [r'\b(remove|delete|untrack|unwatch)\b.*\bfrom\b.*\b(watchlist|portfolio)\b'],
+            'watchlist_view': [r'\b(show|view|display|list|get)\b.*\b(watchlist|portfolio|tracked)\b',
+                              r'\b(my )?watchlist\b', r'\b(my )?portfolio\b'],
             'help': [r'\b(help|what can you|capabilities|can you)\b'],
             'about': [r'\b(who are you|what are you|about you)\b'],
             'learning': [r'\b(learn|remember|preference)\b']
@@ -178,7 +184,12 @@ class ChatAgent(BaseAgent):
             'thanks': self._handle_thanks,
             'stock_price': self._handle_stock_price,
             'prediction': self._handle_prediction,
-            'watchlist': self._handle_watchlist,
+            'watchlist_add': self._handle_watchlist_add,
+            'watchlist_remove': self._handle_watchlist_remove,
+            'watchlist_view': self._handle_watchlist_view,
+            'compare': self._handle_compare,
+            'recommend': self._handle_recommend,
+            'analysis': self._handle_analysis,
             'help': self._handle_help,
             'about': self._handle_about,
             'learning': self._handle_learning,
@@ -304,7 +315,19 @@ class ChatAgent(BaseAgent):
                 response += f"Change: ₹{quote_data['change']:.2f} ({quote_data['p_change']:.2f}%)\n"
                 response += f"Day High: ₹{quote_data['day_high']:.2f} | Day Low: ₹{quote_data['day_low']:.2f}\n"
                 response += f"52-Week High: ₹{quote_data['high_52week']:.2f} | 52-Week Low: ₹{quote_data['low_52week']:.2f}\n"
-                response += f"\nUpdated: {quote_data['updated_on']}"
+                response += f"\nUpdated: {quote_data['updated_on']}\n"
+                
+                # Add actionable insights
+                insights = self._generate_price_insights(quote_data)
+                if insights:
+                    response += f"\n💡 **Insights:**\n{insights}\n"
+                
+                # Proactive action: Check if stock should be added to watchlist
+                watchlist = WatchlistDBService.get_by_user(user_id)
+                is_in_watchlist = any(item.stock_symbol == quote_data['security_id'] for item in watchlist) if watchlist else False
+                
+                if not is_in_watchlist:
+                    response += f"\n➕ Would you like me to add {quote_data['security_id']} to your watchlist? (Just say 'add to watchlist')"
                 
                 # Add to user's preferred stocks for learning
                 self._update_stock_preference(user_id, quote_data['security_id'])
@@ -312,7 +335,9 @@ class ChatAgent(BaseAgent):
                 return {
                     'message': response,
                     'intent': 'stock_price',
-                    'context': {'symbol': quote_data['security_id'], 'price': quote_data['current_value']}
+                    'context': {'symbol': quote_data['security_id'], 'price': quote_data['current_value']},
+                    'actions_taken': ['updated_preferences'],
+                    'suggested_actions': [] if is_in_watchlist else ['add_to_watchlist']
                 }
             else:
                 return {
@@ -362,6 +387,10 @@ class ChatAgent(BaseAgent):
                 response += f"Expected Change: {abs(change_pct):.2f}% {direction}\n"
                 response += f"Prediction Date: {pred.prediction_date}\n\n"
                 
+                # Add actionable recommendation
+                recommendation = self._generate_prediction_recommendation(change_pct, pred)
+                response += f"💡 **Recommendation:** {recommendation}\n\n"
+                
                 response += "⚠️ **Important**: This is an AI-generated prediction based on historical data. "
                 response += "I'm learning to improve accuracy, but please don't rely solely on this for investment decisions. "
                 response += "Always do your own research!"
@@ -369,7 +398,9 @@ class ChatAgent(BaseAgent):
                 return {
                     'message': response,
                     'intent': 'prediction',
-                    'context': {'symbol': symbol, 'predicted_price': pred.predicted_price}
+                    'context': {'symbol': symbol, 'predicted_price': pred.predicted_price, 'change_pct': change_pct},
+                    'actions_taken': ['provided_prediction'],
+                    'suggested_actions': ['view_analysis', 'add_to_watchlist']
                 }
             else:
                 return {
@@ -385,35 +416,147 @@ class ChatAgent(BaseAgent):
                 'context': {'symbol': symbol, 'error': str(e)}
             }
     
-    def _handle_watchlist(self, user_id: int, message: str, preferences: Dict,
+    def _handle_watchlist_add(self, user_id: int, message: str, preferences: Dict,
                          history: List, context: Dict) -> Dict[str, Any]:
-        """Handle watchlist queries"""
+        """Handle adding stocks to watchlist"""
+        # Extract stock symbol from message
+        symbols = re.findall(r'\b([A-Z]{2,})\b', message)
+        
+        if not symbols:
+            return {
+                'message': "I'd be happy to add a stock to your watchlist! Please specify a stock symbol (e.g., 'add RELIANCE to watchlist').",
+                'intent': 'watchlist_add',
+                'context': {}
+            }
+        
+        symbol = symbols[0]
+        
+        try:
+            # Get stock data to verify it exists
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT security_id, company_name
+                FROM stock_quotes 
+                WHERE UPPER(security_id) = UPPER(?) OR UPPER(company_name) LIKE UPPER(?)
+                LIMIT 1
+            ''', (symbol, f'%{symbol}%'))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                stock_symbol = row[0]
+                company_name = row[1]
+
+                # Add to watchlist
+                WatchlistDBService.add(user_id, stock_symbol, company_name)
+
+                # Update preferences
+                self._update_stock_preference(user_id, stock_symbol)
+
+                response = f"✅ **Action Taken:** Added **{company_name}** ({stock_symbol}) to your watchlist!\n\n"
+                response += "I'll keep track of this stock for you. You can ask me about it anytime, and I'll learn your preferences to provide better insights!"
+                
+                return {
+                    'message': response,
+                    'intent': 'watchlist_add',
+                    'context': {'symbol': stock_symbol, 'action': 'added'},
+                    'actions_taken': ['added_to_watchlist', 'updated_preferences']
+                }
+            else:
+                return {
+                    'message': f"I couldn't find a stock matching '{symbol}'. Please verify the symbol and try again.",
+                    'intent': 'watchlist_add',
+                    'context': {'symbol': symbol, 'error': 'not_found'}
+                }
+        except Exception as e:
+            logger.error(f"Error adding to watchlist: {e}")
+            return {
+                'message': f"I encountered an issue while adding {symbol} to your watchlist. Let me try to fix this! Please try again.",
+                'intent': 'watchlist_add',
+                'context': {'symbol': symbol, 'error': str(e)}
+            }
+    
+    def _handle_watchlist_remove(self, user_id: int, message: str, preferences: Dict,
+                                 history: List, context: Dict) -> Dict[str, Any]:
+        """Handle removing stocks from watchlist"""
+        symbols = re.findall(r'\b([A-Z]{2,})\b', message)
+        
+        if not symbols:
+            return {
+                'message': "Which stock would you like to remove from your watchlist? Please specify a symbol.",
+                'intent': 'watchlist_remove',
+                'context': {}
+            }
+        
+        symbol = symbols[0]
+
+        try:
+            # Remove from watchlist
+            WatchlistDBService.remove(user_id, symbol)
+
+            response = f"✅ **Action Taken:** Removed {symbol} from your watchlist.\n\n"
+            response += "I've updated your preferences accordingly. You can always add it back if you change your mind!"
+
+            return {
+                'message': response,
+                'intent': 'watchlist_remove',
+                'context': {'symbol': symbol, 'action': 'removed'},
+                'actions_taken': ['removed_from_watchlist']
+            }
+        except Exception as e:
+            logger.error(f"Error removing from watchlist: {e}")
+            return {
+                'message': f"I had trouble removing {symbol}. It might not be in your watchlist. Try 'show watchlist' to see what's tracked.",
+                'intent': 'watchlist_remove',
+                'context': {'symbol': symbol, 'error': str(e)}
+            }
+    
+    def _handle_watchlist_view(self, user_id: int, message: str, preferences: Dict,
+                         history: List, context: Dict) -> Dict[str, Any]:
+        """Handle viewing watchlist"""
         try:
             watchlist = WatchlistDBService.get_by_user(user_id)
             
             if watchlist:
                 response = f"📋 **Your Watchlist** ({len(watchlist)} stocks)\n\n"
-                for item in watchlist[:5]:  # Show top 5
+                for item in watchlist[:10]:  # Show top 10
                     response += f"• {item.company_name} ({item.stock_symbol})\n"
                 
-                if len(watchlist) > 5:
-                    response += f"\n... and {len(watchlist) - 5} more stocks"
+                if len(watchlist) > 10:
+                    response += f"\n... and {len(watchlist) - 10} more stocks"
                 
-                response += "\n\nI'm learning your preferences from your watchlist to provide better recommendations!"
+                response += "\n\n💡 **Quick Actions:**\n"
+                response += "• Ask 'analyze my watchlist' for insights\n"
+                response += "• Say 'remove [SYMBOL]' to untrack a stock\n"
+                response += "• Request 'predict [SYMBOL]' for forecasts"
+                
+                return {
+                    'message': response,
+                    'intent': 'watchlist_view',
+                    'context': {'watchlist_count': len(watchlist)},
+                    'suggested_actions': ['analyze_watchlist', 'get_predictions']
+                }
             else:
-                response = "Your watchlist is empty. Would you like me to suggest some stocks based on market trends? "
-                response += "I learn from your choices to provide personalized recommendations!"
-            
-            return {
-                'message': response,
-                'intent': 'watchlist',
-                'context': {'watchlist_count': len(watchlist) if watchlist else 0}
-            }
+                response = "📋 Your watchlist is empty.\n\n"
+                response += "💡 **Let me help you get started:**\n"
+                response += "• Say 'add [SYMBOL] to watchlist' to track stocks\n"
+                response += "• Ask 'recommend stocks' for suggestions\n"
+                response += "• Try 'what's the price of [SYMBOL]' to explore stocks"
+                
+                return {
+                    'message': response,
+                    'intent': 'watchlist_view',
+                    'context': {'watchlist_count': 0},
+                    'suggested_actions': ['get_recommendations', 'explore_stocks']
+                }
         except Exception as e:
             logger.error(f"Error fetching watchlist: {e}")
             return {
                 'message': "I had trouble accessing your watchlist. I'm learning from these issues to improve reliability!",
-                'intent': 'watchlist',
+                'intent': 'watchlist_view',
                 'context': {'error': str(e)}
             }
     
@@ -432,8 +575,10 @@ class ChatAgent(BaseAgent):
         response += "\n**Examples:**\n"
         response += "• 'What's the price of RELIANCE?'\n"
         response += "• 'Predict TCS stock'\n"
-        response += "• 'Show my watchlist'\n"
-        response += "• 'Tell me about yourself'\n"
+        response += "• 'Add INFY to watchlist'\n"
+        response += "• 'Compare TCS vs INFY'\n"
+        response += "• 'Analyze my portfolio'\n"
+        response += "• 'Recommend some stocks'\n"
         
         response += "\n💡 I learn from every interaction to serve you better!"
         
@@ -442,6 +587,292 @@ class ChatAgent(BaseAgent):
             'intent': 'help',
             'context': {'capabilities_shown': True}
         }
+    
+    def _handle_compare(self, user_id: int, message: str, preferences: Dict,
+                       history: List, context: Dict) -> Dict[str, Any]:
+        """Handle stock comparison queries"""
+        # Extract stock symbols from message
+        symbols = re.findall(r'\b([A-Z]{2,})\b', message)
+        
+        if len(symbols) < 2:
+            return {
+                'message': "I'd love to compare stocks for you! Please specify two stock symbols (e.g., 'compare RELIANCE vs TCS').",
+                'intent': 'compare',
+                'context': {}
+            }
+        
+        symbol1, symbol2 = symbols[0], symbols[1]
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Get data for both stocks
+            stocks_data = []
+            for symbol in [symbol1, symbol2]:
+                cursor.execute('''
+                    SELECT security_id, company_name, current_value, change, p_change, 
+                           day_high, day_low, high_52week, low_52week
+                    FROM stock_quotes 
+                    WHERE UPPER(security_id) = UPPER(?)
+                    LIMIT 1
+                ''', (symbol,))
+                row = cursor.fetchone()
+                if row:
+                    stocks_data.append({
+                        'security_id': row[0],
+                        'company_name': row[1],
+                        'current_value': row[2],
+                        'change': row[3],
+                        'p_change': row[4],
+                        'day_high': row[5],
+                        'day_low': row[6],
+                        'high_52week': row[7],
+                        'low_52week': row[8]
+                    })
+            
+            conn.close()
+            
+            if len(stocks_data) == 2:
+                stock1, stock2 = stocks_data[0], stocks_data[1]
+                
+                response = f"📊 **Comparing {stock1['company_name']} vs {stock2['company_name']}**\n\n"
+                
+                response += f"**{stock1['security_id']}:**\n"
+                response += f"• Price: ₹{stock1['current_value']:.2f} ({stock1['p_change']:+.2f}%)\n"
+                response += f"• 52W Range: ₹{stock1['low_52week']:.2f} - ₹{stock1['high_52week']:.2f}\n\n"
+                
+                response += f"**{stock2['security_id']}:**\n"
+                response += f"• Price: ₹{stock2['current_value']:.2f} ({stock2['p_change']:+.2f}%)\n"
+                response += f"• 52W Range: ₹{stock2['low_52week']:.2f} - ₹{stock2['high_52week']:.2f}\n\n"
+                
+                # Add comparison insights
+                comparison_insights = self._generate_comparison_insights(stock1, stock2)
+                response += f"💡 **Insights:**\n{comparison_insights}"
+                
+                return {
+                    'message': response,
+                    'intent': 'compare',
+                    'context': {'symbols': [symbol1, symbol2]},
+                    'actions_taken': ['compared_stocks']
+                }
+            else:
+                return {
+                    'message': "I couldn't find data for one or both stocks. Please verify the symbols and try again.",
+                    'intent': 'compare',
+                    'context': {'symbols': [symbol1, symbol2]}
+                }
+        except Exception as e:
+            logger.error(f"Error comparing stocks: {e}")
+            return {
+                'message': "I encountered an issue while comparing stocks. Let me learn from this and improve!",
+                'intent': 'compare',
+                'context': {'error': str(e)}
+            }
+    
+    def _handle_recommend(self, user_id: int, message: str, preferences: Dict,
+                         history: List, context: Dict) -> Dict[str, Any]:
+        """Handle stock recommendation requests"""
+        try:
+            # Get user's watchlist to understand preferences
+            watchlist = WatchlistDBService.get_by_user(user_id)
+            watched_symbols = [item.stock_symbol for item in watchlist] if watchlist else []
+
+            # Get top performing stocks from database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Get stocks with positive performance not in watchlist
+            if watched_symbols:
+                placeholders = ','.join(['?' for _ in watched_symbols])
+                query = '''
+                    SELECT security_id, company_name, current_value, p_change
+                    FROM stock_quotes
+                    WHERE p_change > 0
+                    AND security_id NOT IN (''' + placeholders + ''')
+                    ORDER BY p_change DESC
+                    LIMIT 5
+                '''
+                cursor.execute(query, watched_symbols)
+            else:
+                query = '''
+                    SELECT security_id, company_name, current_value, p_change
+                    FROM stock_quotes
+                    WHERE p_change > 0
+                    ORDER BY p_change DESC
+                    LIMIT 5
+                '''
+                cursor.execute(query)
+
+            rows = cursor.fetchall()
+            conn.close()
+            
+            if rows:
+                response = "💎 **Stock Recommendations** (Based on current performance)\n\n"
+                for row in rows:
+                    response += f"• **{row[1]}** ({row[0]}): ₹{row[2]:.2f} ({row[3]:+.2f}%)\n"
+                
+                response += "\n💡 **Why these?**\n"
+                response += "• Showing positive momentum today\n"
+                response += "• Not currently in your watchlist\n"
+                response += "• Sorted by performance\n\n"
+                
+                response += "Would you like me to add any of these to your watchlist? Just say 'add [SYMBOL] to watchlist'!"
+                
+                return {
+                    'message': response,
+                    'intent': 'recommend',
+                    'context': {'recommendations': [row[0] for row in rows]},
+                    'actions_taken': ['generated_recommendations'],
+                    'suggested_actions': ['add_to_watchlist']
+                }
+            else:
+                response = "I'm analyzing market data to find good opportunities for you. "
+                response += "Based on your interests, I'll provide personalized recommendations. "
+                response += "Try asking about specific stocks or sectors you're interested in!"
+                
+                return {
+                    'message': response,
+                    'intent': 'recommend',
+                    'context': {}
+                }
+        except Exception as e:
+            logger.error(f"Error generating recommendations: {e}")
+            return {
+                'message': "I'm having trouble generating recommendations right now. Let me improve this feature!",
+                'intent': 'recommend',
+                'context': {'error': str(e)}
+            }
+    
+    def _handle_analysis(self, user_id: int, message: str, preferences: Dict,
+                        history: List, context: Dict) -> Dict[str, Any]:
+        """Handle portfolio/stock analysis requests"""
+        # Check if analyzing specific stock or watchlist
+        symbols = re.findall(r'\b([A-Z]{2,})\b', message)
+        
+        if symbols:
+            # Analyze specific stock
+            symbol = symbols[0]
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT security_id, company_name, current_value, change, p_change,
+                           day_high, day_low, high_52week, low_52week
+                    FROM stock_quotes 
+                    WHERE UPPER(security_id) = UPPER(?)
+                    LIMIT 1
+                ''', (symbol,))
+                
+                row = cursor.fetchone()
+                conn.close()
+                
+                if row:
+                    stock_data = {
+                        'security_id': row[0],
+                        'company_name': row[1],
+                        'current_value': row[2],
+                        'change': row[3],
+                        'p_change': row[4],
+                        'day_high': row[5],
+                        'day_low': row[6],
+                        'high_52week': row[7],
+                        'low_52week': row[8]
+                    }
+                    
+                    response = f"📈 **Analysis: {stock_data['company_name']}** ({stock_data['security_id']})\n\n"
+                    
+                    # Technical analysis
+                    analysis = self._generate_technical_analysis(stock_data)
+                    response += analysis
+                    
+                    return {
+                        'message': response,
+                        'intent': 'analysis',
+                        'context': {'symbol': symbol, 'analysis_type': 'stock'},
+                        'actions_taken': ['generated_analysis']
+                    }
+                else:
+                    return {
+                        'message': f"I couldn't find data for {symbol}. Please verify the symbol.",
+                        'intent': 'analysis',
+                        'context': {}
+                    }
+            except Exception as e:
+                logger.error(f"Error analyzing stock: {e}")
+                return {
+                    'message': "I encountered an issue during analysis. I'm learning to improve this!",
+                    'intent': 'analysis',
+                    'context': {'error': str(e)}
+                }
+        else:
+            # Analyze watchlist/portfolio
+            try:
+                watchlist = WatchlistDBService.get_by_user(user_id)
+                
+                if not watchlist:
+                    return {
+                        'message': "Your watchlist is empty. Add some stocks to get portfolio analysis! Try 'add [SYMBOL] to watchlist'.",
+                        'intent': 'analysis',
+                        'context': {}
+                    }
+
+                # Get stats for watchlist
+                conn = get_db_connection()
+                cursor = conn.cursor()
+
+                symbols = [item.stock_symbol for item in watchlist]
+                placeholders = ','.join(['?' for _ in symbols])
+
+                query = '''
+                    SELECT COUNT(*), AVG(p_change),
+                           SUM(CASE WHEN p_change > 0 THEN 1 ELSE 0 END),
+                           SUM(CASE WHEN p_change < 0 THEN 1 ELSE 0 END)
+                    FROM stock_quotes
+                    WHERE security_id IN (''' + placeholders + ''')
+                '''
+
+                cursor.execute(query, symbols)
+                
+                stats = cursor.fetchone()
+                conn.close()
+                
+                total_stocks = stats[0]
+                avg_change = stats[1] or 0
+                gainers = stats[2] or 0
+                losers = stats[3] or 0
+
+                response = "📊 **Watchlist Analysis**\n\n"
+                response += "**Portfolio Summary:**\n"
+                response += f"• Total Stocks: {total_stocks}\n"
+                response += f"• Average Change: {avg_change:+.2f}%\n"
+                response += f"• Gainers: {gainers} | Losers: {losers}\n\n"
+                
+                # Add insights
+                if avg_change > 2:
+                    response += "💡 Your portfolio is performing well! Consider taking profits on strong gainers.\n"
+                elif avg_change < -2:
+                    response += "💡 Your portfolio is down. Review fundamentals and consider rebalancing.\n"
+                else:
+                    response += "💡 Your portfolio is stable. Look for growth opportunities.\n"
+                
+                response += "\nWant detailed analysis of a specific stock? Just ask 'analyze [SYMBOL]'!"
+                
+                return {
+                    'message': response,
+                    'intent': 'analysis',
+                    'context': {'analysis_type': 'portfolio', 'avg_change': avg_change},
+                    'actions_taken': ['analyzed_portfolio']
+                }
+            except Exception as e:
+                logger.error(f"Error analyzing watchlist: {e}")
+                return {
+                    'message': "I had trouble analyzing your watchlist. Let me improve this feature!",
+                    'intent': 'analysis',
+                    'context': {'error': str(e)}
+                }
+    
     
     def _handle_about(self, user_id: int, message: str, preferences: Dict,
                      history: List, context: Dict) -> Dict[str, Any]:
@@ -453,8 +884,8 @@ class ChatAgent(BaseAgent):
         response += "**Context-Aware**: I remember our conversations and your preferences\n"
         response += "**Honest**: I tell you when I'm uncertain or when I make mistakes\n"
         response += "**Helpful**: My goal is to help you make informed decisions\n\n"
-        
-        response += f"**My Stats:**\n"
+
+        response += "**My Stats:**\n"
         response += f"• Conversations with you: {len(history)}\n"
         response += f"• Total predictions made: {self.metadata['predictions_made']}\n"
         response += f"• Success rate: {self.get_accuracy():.1%}\n\n"
@@ -571,3 +1002,112 @@ class ChatAgent(BaseAgent):
                 user_id=user_id,
                 preferred_stocks=preferred
             )
+    
+    def _generate_price_insights(self, quote_data: Dict) -> str:
+        """Generate actionable insights from price data"""
+        insights = []
+        
+        current = quote_data['current_value']
+        day_high = quote_data['day_high']
+        day_low = quote_data['day_low']
+        week_52_high = quote_data['high_52week']
+        week_52_low = quote_data['low_52week']
+        p_change = quote_data['p_change']
+        
+        # Performance insight
+        if p_change > 3:
+            insights.append(f"• Strong upward momentum ({p_change:+.2f}% today)")
+        elif p_change < -3:
+            insights.append(f"• Significant decline ({p_change:+.2f}% today) - potential buying opportunity?")
+        
+        # 52-week position
+        range_position = (current - week_52_low) / (week_52_high - week_52_low) * 100 if week_52_high != week_52_low else 50
+        if range_position > 80:
+            insights.append(f"• Trading near 52-week high ({range_position:.0f}% of range)")
+        elif range_position < 20:
+            insights.append(f"• Trading near 52-week low ({range_position:.0f}% of range) - possible value play")
+        
+        # Daily range
+        if current == day_high:
+            insights.append("• Currently at day's high - strong buying pressure")
+        elif current == day_low:
+            insights.append("• Currently at day's low - watch for support")
+        
+        return '\n'.join(insights) if insights else "• Stock showing normal trading behavior"
+    
+    def _generate_prediction_recommendation(self, change_pct: float, pred: Any) -> str:
+        """Generate actionable recommendation from prediction"""
+        if abs(change_pct) < 2:
+            return "HOLD - Prediction shows minimal movement. Consider waiting for clearer signals."
+        elif change_pct > 5:
+            return f"POSITIVE OUTLOOK - Prediction suggests {change_pct:.1f}% upside. Consider buying if fundamentals align."
+        elif change_pct > 2:
+            return f"CAUTIOUSLY POSITIVE - Moderate {change_pct:.1f}% upside predicted. Monitor closely."
+        elif change_pct < -5:
+            return f"CAUTION - Prediction shows {abs(change_pct):.1f}% downside risk. Consider defensive positioning."
+        else:
+            return f"NEUTRAL TO NEGATIVE - Slight {abs(change_pct):.1f}% downside. Watch for trend reversal."
+    
+    def _generate_comparison_insights(self, stock1: Dict, stock2: Dict) -> str:
+        """Generate insights from stock comparison"""
+        insights = []
+        
+        # Performance comparison
+        if stock1['p_change'] > stock2['p_change']:
+            insights.append(f"• {stock1['security_id']} is outperforming ({stock1['p_change']:+.2f}% vs {stock2['p_change']:+.2f}%)")
+        else:
+            insights.append(f"• {stock2['security_id']} is outperforming ({stock2['p_change']:+.2f}% vs {stock1['p_change']:+.2f}%)")
+        
+        # Volatility comparison (using 52-week range as proxy)
+        vol1 = (stock1['high_52week'] - stock1['low_52week']) / stock1['low_52week'] * 100
+        vol2 = (stock2['high_52week'] - stock2['low_52week']) / stock2['low_52week'] * 100
+        
+        if vol1 > vol2 * 1.2:
+            insights.append(f"• {stock1['security_id']} shows higher volatility ({vol1:.0f}% vs {vol2:.0f}%)")
+        elif vol2 > vol1 * 1.2:
+            insights.append(f"• {stock2['security_id']} shows higher volatility ({vol2:.0f}% vs {vol1:.0f}%)")
+        else:
+            insights.append("• Both stocks show similar volatility")
+        
+        return '\n'.join(insights)
+    
+    def _generate_technical_analysis(self, stock_data: Dict) -> str:
+        """Generate technical analysis for a stock"""
+        analysis = []
+        
+        current = stock_data['current_value']
+        p_change = stock_data['p_change']
+        high_52w = stock_data['high_52week']
+        low_52w = stock_data['low_52week']
+        
+        # Trend
+        analysis.append("**Trend Analysis:**")
+        if p_change > 2:
+            analysis.append("• Bullish trend - positive momentum")
+        elif p_change < -2:
+            analysis.append("• Bearish trend - negative pressure")
+        else:
+            analysis.append("• Neutral trend - consolidation phase")
+        
+        # Position in range
+        range_pos = (current - low_52w) / (high_52w - low_52w) * 100 if high_52w != low_52w else 50
+        analysis.append(f"\n**Position:** {range_pos:.1f}% of 52-week range")
+        
+        if range_pos > 75:
+            analysis.append("• Near resistance - watch for breakout or reversal")
+        elif range_pos < 25:
+            analysis.append("• Near support - potential bounce opportunity")
+        else:
+            analysis.append("• Mid-range - direction unclear, wait for confirmation")
+        
+        # Risk assessment
+        analysis.append("\n**Risk Level:**")
+        volatility = (high_52w - low_52w) / low_52w * 100
+        if volatility > 50:
+            analysis.append("• HIGH - Large price swings, suitable for risk-tolerant traders")
+        elif volatility > 25:
+            analysis.append("• MODERATE - Normal market volatility")
+        else:
+            analysis.append("• LOW - Stable price action, conservative play")
+        
+        return '\n'.join(analysis)
