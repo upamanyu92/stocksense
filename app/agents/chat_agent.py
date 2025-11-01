@@ -677,25 +677,33 @@ class ChatAgent(BaseAgent):
             # Get user's watchlist to understand preferences
             watchlist = WatchlistDBService.get_by_user(user_id)
             watched_symbols = [item.stock_symbol for item in watchlist] if watchlist else []
-            
+
             # Get top performing stocks from database
             conn = get_db_connection()
             cursor = conn.cursor()
-            
+
             # Get stocks with positive performance not in watchlist
-            placeholders = ','.join(['?' for _ in watched_symbols]) if watched_symbols else ''
-            exclude_clause = f"AND security_id NOT IN ({placeholders})" if watched_symbols else ""
-            
-            query = f'''
-                SELECT security_id, company_name, current_value, p_change
-                FROM stock_quotes 
-                WHERE p_change > 0
-                {exclude_clause}
-                ORDER BY p_change DESC
-                LIMIT 5
-            '''
-            
-            cursor.execute(query, watched_symbols)
+            if watched_symbols:
+                placeholders = ','.join(['?' for _ in watched_symbols])
+                query = '''
+                    SELECT security_id, company_name, current_value, p_change
+                    FROM stock_quotes
+                    WHERE p_change > 0
+                    AND security_id NOT IN (''' + placeholders + ''')
+                    ORDER BY p_change DESC
+                    LIMIT 5
+                '''
+                cursor.execute(query, watched_symbols)
+            else:
+                query = '''
+                    SELECT security_id, company_name, current_value, p_change
+                    FROM stock_quotes
+                    WHERE p_change > 0
+                    ORDER BY p_change DESC
+                    LIMIT 5
+                '''
+                cursor.execute(query)
+
             rows = cursor.fetchall()
             conn.close()
             
@@ -809,21 +817,23 @@ class ChatAgent(BaseAgent):
                         'intent': 'analysis',
                         'context': {}
                     }
-                
+
                 # Get stats for watchlist
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                
+
                 symbols = [item.stock_symbol for item in watchlist]
                 placeholders = ','.join(['?' for _ in symbols])
-                
-                cursor.execute(f'''
-                    SELECT COUNT(*), AVG(p_change), 
+
+                query = '''
+                    SELECT COUNT(*), AVG(p_change),
                            SUM(CASE WHEN p_change > 0 THEN 1 ELSE 0 END),
                            SUM(CASE WHEN p_change < 0 THEN 1 ELSE 0 END)
-                    FROM stock_quotes 
-                    WHERE security_id IN ({placeholders})
-                ''', symbols)
+                    FROM stock_quotes
+                    WHERE security_id IN (''' + placeholders + ''')
+                '''
+
+                cursor.execute(query, symbols)
                 
                 stats = cursor.fetchone()
                 conn.close()
