@@ -59,17 +59,17 @@ class ChatAgent(BaseAgent):
             'greeting': [r'\b(hi|hello|hey|greetings)\b'],
             'goodbye': [r'\b(bye|goodbye|see you|farewell)\b'],
             'thanks': [r'\b(thank|thanks|appreciate)\b'],
-            'stock_price': [r'\b(price|value|quote|current)\b.*\b(of|for)?\b.*\b([A-Z]{2,})\b', 
+            'stock_price': [r'\b(price|value|quote|current)\b.*\b(of|for)?\b.*\b([A-Z]{2,})\b',
                            r'\b([A-Z]{2,})\b.*\b(price|value|quote)\b'],
             'prediction': [r'\b(predict|forecast|future|will.*go|expected|outlook)\b'],
-            'watchlist_add': [r'\b(add|track|monitor|watch)\b.*\b(to|in)?\s*(watchlist|portfolio)?\b', 
+            'analysis': [r'\b(analyze|analysis|insights?|trends?|performance)\b'],
+            'compare': [r'\b(compare|versus|vs|difference between)\b', r'\bor\b.*\bbetter\b'],
+            'recommend': [r'\b(recommend|suggest|advice|should i|what.*buy)\b'],
+            'watchlist_add': [r'\b(add|track|monitor|watch)\b.*\b(to|in)?\s*(watchlist|portfolio)?\b',
                              r'\b(track|follow|monitor)\b'],
             'watchlist_remove': [r'\b(remove|delete|untrack|unwatch)\b.*\bfrom\b.*\b(watchlist|portfolio)\b'],
             'watchlist_view': [r'\b(show|view|display|list|get)\b.*\b(watchlist|portfolio|tracked)\b',
-                              r'\b(watchlist|portfolio)\b'],
-            'compare': [r'\b(compare|versus|vs|difference between)\b', r'\bor\b.*\bbetter\b'],
-            'recommend': [r'\b(recommend|suggest|advice|should i|what.*buy)\b'],
-            'analysis': [r'\b(analyze|analysis|insights?|trends?|performance)\b'],
+                              r'\b(my )?watchlist\b', r'\b(my )?portfolio\b'],
             'help': [r'\b(help|what can you|capabilities|can you)\b'],
             'about': [r'\b(who are you|what are you|about you)\b'],
             'learning': [r'\b(learn|remember|preference)\b']
@@ -449,13 +449,13 @@ class ChatAgent(BaseAgent):
             if row:
                 stock_symbol = row[0]
                 company_name = row[1]
-                
+
                 # Add to watchlist
-                WatchlistDBService.add_to_watchlist(user_id, stock_symbol)
-                
+                WatchlistDBService.add(user_id, stock_symbol, company_name)
+
                 # Update preferences
                 self._update_stock_preference(user_id, stock_symbol)
-                
+
                 response = f"✅ **Action Taken:** Added **{company_name}** ({stock_symbol}) to your watchlist!\n\n"
                 response += "I'll keep track of this stock for you. You can ask me about it anytime, and I'll learn your preferences to provide better insights!"
                 
@@ -492,14 +492,14 @@ class ChatAgent(BaseAgent):
             }
         
         symbol = symbols[0]
-        
+
         try:
             # Remove from watchlist
-            WatchlistDBService.remove_from_watchlist(user_id, symbol)
-            
+            WatchlistDBService.remove(user_id, symbol)
+
             response = f"✅ **Action Taken:** Removed {symbol} from your watchlist.\n\n"
             response += "I've updated your preferences accordingly. You can always add it back if you change your mind!"
-            
+
             return {
                 'message': response,
                 'intent': 'watchlist_remove',
