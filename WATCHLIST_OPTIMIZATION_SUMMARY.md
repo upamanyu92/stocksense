@@ -10,9 +10,10 @@ User (@upamanyu92) requested:
 ### 1. Scripcode File Management ✅
 
 **What was done:**
-- Updated `scripts/download_stk_json.py` to download BSE scripcode data
+- Updated `scripts/download_stk_json.py` to manage stock data files
 - Saves stock symbols and company names to `app/static/stk.json`
 - File contains mapping of security_id → company_name
+- Now uses yfinance approach instead of BSE API
 
 **File location:**
 ```
