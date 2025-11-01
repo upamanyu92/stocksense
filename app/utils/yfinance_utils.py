@@ -1,5 +1,6 @@
 import time
 import logging
+import os
 import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Optional, List
@@ -110,14 +111,12 @@ def get_indian_stocks() -> Dict[str, str]:
     Returns:
         Dictionary mapping stock symbols to company names
     """
-    import os
-    
     logging.info("Fetching Indian stock list...")
     
     # Try to load from the existing stk.json file
     # First check in the root directory
-    current_file = os.path.abspath(__file__)
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.join(current_dir, '..', '..')
     stock_file_path = os.path.join(base_dir, 'stk.json')
     
     if os.path.exists(stock_file_path):
@@ -134,7 +133,8 @@ def get_indian_stocks() -> Dict[str, str]:
     
     # If no file found, return empty dict
     logging.warning(
-        "No stock list file found. Please run scripts/download_stk_json.py first."
+        "Stock list file not found. Ensure stk.json exists in the project root "
+        "or app/static directory."
     )
     return {}
 
