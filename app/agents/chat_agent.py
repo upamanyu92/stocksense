@@ -2,15 +2,12 @@
 Intelligent Chat Agent with self-awareness and learning capabilities
 """
 import re
-import json
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import random
 
 from app.agents.base_agent import BaseAgent
 from app.db.services.chat_service import ChatService
-from app.db.services.stock_quote_service import StockQuoteService
 from app.db.services.prediction_service import PredictionService
 from app.db.services.watchlist_service import WatchlistDBService
 from app.utils.util import get_db_connection
@@ -661,7 +658,7 @@ class ChatAgent(BaseAgent):
                 }
             else:
                 return {
-                    'message': f"I couldn't find data for one or both stocks. Please verify the symbols and try again.",
+                    'message': "I couldn't find data for one or both stocks. Please verify the symbols and try again.",
                     'intent': 'compare',
                     'context': {'symbols': [symbol1, symbol2]}
                 }
@@ -835,9 +832,9 @@ class ChatAgent(BaseAgent):
                 avg_change = stats[1] or 0
                 gainers = stats[2] or 0
                 losers = stats[3] or 0
-                
-                response = f"📊 **Watchlist Analysis**\n\n"
-                response += f"**Portfolio Summary:**\n"
+
+                response = "📊 **Watchlist Analysis**\n\n"
+                response += "**Portfolio Summary:**\n"
                 response += f"• Total Stocks: {total_stocks}\n"
                 response += f"• Average Change: {avg_change:+.2f}%\n"
                 response += f"• Gainers: {gainers} | Losers: {losers}\n\n"
@@ -877,8 +874,8 @@ class ChatAgent(BaseAgent):
         response += "**Context-Aware**: I remember our conversations and your preferences\n"
         response += "**Honest**: I tell you when I'm uncertain or when I make mistakes\n"
         response += "**Helpful**: My goal is to help you make informed decisions\n\n"
-        
-        response += f"**My Stats:**\n"
+
+        response += "**My Stats:**\n"
         response += f"• Conversations with you: {len(history)}\n"
         response += f"• Total predictions made: {self.metadata['predictions_made']}\n"
         response += f"• Success rate: {self.get_accuracy():.1%}\n\n"
