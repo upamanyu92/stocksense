@@ -102,50 +102,51 @@ def trigger_prediction():
     return jsonify({'message': 'Predictions triggered and data stored to DB'}), 200
 
 
-@prediction_bp.route('/trigger_watchlist', methods=['POST'])
-@login_required
-def trigger_watchlist_prediction():
-    """Trigger predictions for user's watchlist stocks"""
-    logging.info("Starting prediction for watchlist stocks")
-    status_queue.put("Starting prediction for watchlist stocks...")
-    
-    try:
-        watchlist_stocks = get_user_watchlist_stocks(current_user.id)
-    except Exception as e:
-        logging.error(f"Error fetching watchlist: {str(e)}", exc_info=True)
-        status_queue.put("Error fetching watchlist")
-        return jsonify({'message': 'Error fetching watchlist'}), 500
-
-    if not watchlist_stocks:
-        msg = "No stocks in watchlist"
-        status_queue.put(msg)
-        return jsonify({'message': msg}), 404
-
-    results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        # Create a mapping of futures to quotes
-        future_to_quote = {}
-        for quote in watchlist_stocks:
-            msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
-            logging.info(msg)
-            status_queue.put(msg)
-            future = executor.submit(prediction_executor, quote.__dict__)
-            future_to_quote[future] = quote
-
-        for future in as_completed(future_to_quote):
-            quote = future_to_quote[future]
-            company_name = getattr(quote, 'company_name', 'Unknown')
-            try:
-                _ = future.result()  # Result not used, just ensuring completion
-                results.append({'stock': company_name, 'status': 'done'})
-                status_queue.put(f"Prediction complete for {company_name}")
-            except Exception as e:
-                logging.error(f"Error during prediction: {str(e)}", exc_info=True)
-                results.append({'stock': company_name, 'status': 'error'})
-                status_queue.put(f"Error during prediction for {company_name}")
-
-    status_queue.put("Watchlist predictions triggered and data stored to DB")
-    return jsonify({'message': 'Watchlist predictions triggered and data stored to DB', 'results': results}), 200
+# COMMENTED OUT - Not actively used, single stock prediction is now available
+# @prediction_bp.route('/trigger_watchlist', methods=['POST'])
+# @login_required
+# def trigger_watchlist_prediction():
+#     """Trigger predictions for user's watchlist stocks"""
+#     logging.info("Starting prediction for watchlist stocks")
+#     status_queue.put("Starting prediction for watchlist stocks...")
+#     
+#     try:
+#         watchlist_stocks = get_user_watchlist_stocks(current_user.id)
+#     except Exception as e:
+#         logging.error(f"Error fetching watchlist: {str(e)}", exc_info=True)
+#         status_queue.put("Error fetching watchlist")
+#         return jsonify({'message': 'Error fetching watchlist'}), 500
+# 
+#     if not watchlist_stocks:
+#         msg = "No stocks in watchlist"
+#         status_queue.put(msg)
+#         return jsonify({'message': msg}), 404
+# 
+#     results = []
+#     with ThreadPoolExecutor(max_workers=4) as executor:
+#         # Create a mapping of futures to quotes
+#         future_to_quote = {}
+#         for quote in watchlist_stocks:
+#             msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
+#             logging.info(msg)
+#             status_queue.put(msg)
+#             future = executor.submit(prediction_executor, quote.__dict__)
+#             future_to_quote[future] = quote
+# 
+#         for future in as_completed(future_to_quote):
+#             quote = future_to_quote[future]
+#             company_name = getattr(quote, 'company_name', 'Unknown')
+#             try:
+#                 _ = future.result()  # Result not used, just ensuring completion
+#                 results.append({'stock': company_name, 'status': 'done'})
+#                 status_queue.put(f"Prediction complete for {company_name}")
+#             except Exception as e:
+#                 logging.error(f"Error during prediction: {str(e)}", exc_info=True)
+#                 results.append({'stock': company_name, 'status': 'error'})
+#                 status_queue.put(f"Error during prediction for {company_name}")
+# 
+#     status_queue.put("Watchlist predictions triggered and data stored to DB")
+#     return jsonify({'message': 'Watchlist predictions triggered and data stored to DB', 'results': results}), 200
 
 
 @prediction_bp.route('/stock/<security_id>', methods=['GET'])

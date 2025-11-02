@@ -84,54 +84,55 @@ def search_quote(company_name):
         return jsonify(clean_quotes)
 
 
-@stock_bp.route('/fetch', methods=['POST'])
-def fetch_stock_quotes():
-    """Fetch and update stock quotes from external source"""
-    logging.info("Starting stock quotes fetching process")
-    fetch_quotes_status_queue.put("Starting stock quotes fetching process...")
-    logging.info("fetch_stock_quotes endpoint triggered")
-    fetch_quotes_status_queue.put("fetch_stock_quotes endpoint triggered")
-
-    stock_list = fetch_quotes("")  # Fetch all stocks
-    results = []
-
-    def retrieve_and_store(quote):
-        try:
-            fetch_quotes_status_queue.put(f"Processing stock: {getattr(quote, 'company_name', str(quote))}")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
-                future = single_executor.submit(data_retriever_executor, fetch_quotes_status_queue, 1)
-                _ = future.result(timeout=30)  # Result not used, just ensuring completion
-            fetch_quotes_status_queue.put(f"Done: {getattr(quote, 'company_name', str(quote))}")
-            return {'stock': getattr(quote, 'company_name', str(quote)), 'status': 'done'}
-        except concurrent.futures.TimeoutError:
-            fetch_quotes_status_queue.put(f"Timeout: {getattr(quote, 'company_name', str(quote))}")
-            return {'stock': getattr(quote, 'company_name', str(quote)), 'status': 'timeout'}
-        except Exception as e:
-            fetch_quotes_status_queue.put(f"Error: {getattr(quote, 'company_name', str(quote))}: {e}")
-            return {'stock': getattr(quote, 'company_name', str(quote)), 'status': f'error: {e}'}
-
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(retrieve_and_store, quote) for quote in stock_list]
-            for future in concurrent.futures.as_completed(futures):
-                results.append(future.result())
-
-        fetch_quotes_status_queue.put("Stock quotes fetched and stored to DB")
-        return jsonify({'message': 'Stock quotes fetched and stored to DB', 'results': results}), 200
-    except Exception as e:
-        logging.error(f"Error fetching stock quotes: {str(e)}", exc_info=True)
-        fetch_quotes_status_queue.put("Error fetching stock quotes")
-        return jsonify({'error': 'Error fetching stock quotes'}), 500
-
-
-@stock_bp.route('/fetch_status')
-def fetch_quotes_status():
-    """Server-sent events stream for fetch quotes status"""
-    def event_stream():
-        while True:
-            msg = fetch_quotes_status_queue.get()
-            yield f"data: {msg}\n\n"
-    return Response(event_stream(), mimetype="text/event-stream")
+# COMMENTED OUT - Not actively used, background worker handles stock downloads
+# @stock_bp.route('/fetch', methods=['POST'])
+# def fetch_stock_quotes():
+#     """Fetch and update stock quotes from external source"""
+#     logging.info("Starting stock quotes fetching process")
+#     fetch_quotes_status_queue.put("Starting stock quotes fetching process...")
+#     logging.info("fetch_stock_quotes endpoint triggered")
+#     fetch_quotes_status_queue.put("fetch_stock_quotes endpoint triggered")
+# 
+#     stock_list = fetch_quotes("")  # Fetch all stocks
+#     results = []
+# 
+#     def retrieve_and_store(quote):
+#         try:
+#             fetch_quotes_status_queue.put(f"Processing stock: {getattr(quote, 'company_name', str(quote))}")
+#             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
+#                 future = single_executor.submit(data_retriever_executor, fetch_quotes_status_queue, 1)
+#                 _ = future.result(timeout=30)  # Result not used, just ensuring completion
+#             fetch_quotes_status_queue.put(f"Done: {getattr(quote, 'company_name', str(quote))}")
+#             return {'stock': getattr(quote, 'company_name', str(quote)), 'status': 'done'}
+#         except concurrent.futures.TimeoutError:
+#             fetch_quotes_status_queue.put(f"Timeout: {getattr(quote, 'company_name', str(quote))}")
+#             return {'stock': getattr(quote, 'company_name', str(quote)), 'status': 'timeout'}
+#         except Exception as e:
+#             fetch_quotes_status_queue.put(f"Error: {getattr(quote, 'company_name', str(quote))}: {e}")
+#             return {'stock': getattr(quote, 'company_name', str(quote)), 'status': f'error: {e}'}
+# 
+#     try:
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+#             futures = [executor.submit(retrieve_and_store, quote) for quote in stock_list]
+#             for future in concurrent.futures.as_completed(futures):
+#                 results.append(future.result())
+# 
+#         fetch_quotes_status_queue.put("Stock quotes fetched and stored to DB")
+#         return jsonify({'message': 'Stock quotes fetched and stored to DB', 'results': results}), 200
+#     except Exception as e:
+#         logging.error(f"Error fetching stock quotes: {str(e)}", exc_info=True)
+#         fetch_quotes_status_queue.put("Error fetching stock quotes")
+#         return jsonify({'error': 'Error fetching stock quotes'}), 500
+# 
+# 
+# @stock_bp.route('/fetch_status')
+# def fetch_quotes_status():
+#     """Server-sent events stream for fetch quotes status"""
+#     def event_stream():
+#         while True:
+#             msg = fetch_quotes_status_queue.get()
+#             yield f"data: {msg}\n\n"
+#     return Response(event_stream(), mimetype="text/event-stream")
 
 
 @stock_bp.route('/list', methods=['GET'])
