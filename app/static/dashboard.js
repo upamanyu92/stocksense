@@ -673,8 +673,8 @@ async function confirmAddToWatchlist() {
   }
 }
 
-/* COMMENTED OUT - Replaced with modal-based approach
-async function showAddToWatchlist() {
+async function showAddToWatchlistOld() {
+  // Old implementation using prompt dialogs - kept for reference
   const symbol = prompt('Enter stock symbol (e.g., RELIANCE, TCS):');
   if (!symbol) return;
   
@@ -703,7 +703,7 @@ async function showAddToWatchlist() {
     alert('Failed to add stock: ' + error.message);
   }
 }
-*/
+
 
 
 async function removeFromWatchlist(symbol) {
@@ -779,12 +779,11 @@ async function runPrediction(symbol, name) {
   }
 }
 
-/* COMMENTED OUT - Replaced with actual prediction trigger
-async function rerunPrediction(symbol) {
-  // This would trigger a prediction for a specific stock
+async function rerunPredictionOld(symbol) {
+  // Old implementation - kept for reference  
   alert(`Prediction for ${symbol} will be run in the next batch cycle.`);
 }
-*/
+
 
 // Stock Search with Autocomplete using stock_quote table
 let stocksData = [];
