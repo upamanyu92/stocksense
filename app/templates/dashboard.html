@@ -1008,7 +1008,15 @@
     <div class="card">
       <div class="card-header">
         <span><i class="fas fa-tasks"></i> Current Operations</span>
-        <span class="status-badge status-complete" id="systemStatus">System Ready</span>
+        <div>
+          <span class="status-badge status-complete" id="systemStatus">System Ready</span>
+          <button class="btn-success-custom btn-sm" onclick="startBackgroundWorker()" style="margin-left: 10px;">
+            <i class="fas fa-play"></i> Start Worker
+          </button>
+          <button class="btn-danger-custom btn-sm" onclick="stopBackgroundWorker()">
+            <i class="fas fa-stop"></i> Stop Worker
+          </button>
+        </div>
       </div>
       <div class="progress-section" id="progressSection">
         <div class="progress-item">

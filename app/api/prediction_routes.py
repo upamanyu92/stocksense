@@ -148,6 +148,99 @@ def trigger_watchlist_prediction():
     return jsonify({'message': 'Watchlist predictions triggered and data stored to DB', 'results': results}), 200
 
 
+@prediction_bp.route('/stock/<security_id>', methods=['GET'])
+def get_stock_prediction(security_id):
+    """Get prediction for a specific stock"""
+    try:
+        result = PredictionService.get_prediction_by_security_id(security_id)
+        if result:
+            return jsonify({'success': True, 'prediction': result}), 200
+        else:
+            return jsonify({'success': False, 'message': 'No prediction found'}), 404
+    except Exception as e:
+        logging.error(f"Error fetching prediction: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@prediction_bp.route('/trigger_single', methods=['POST'])
+@login_required
+def trigger_single_prediction():
+    """Trigger prediction for a single stock by symbol or company name"""
+    data = request.get_json()
+    stock_symbol = data.get('stock_symbol')
+    company_name = data.get('company_name')
+    
+    if not stock_symbol and not company_name:
+        return jsonify({'success': False, 'error': 'Stock symbol or company name required'}), 400
+    
+    logging.info(f"Starting single stock prediction for: {stock_symbol or company_name}")
+    
+    try:
+        # Find the stock in the database
+        from app.utils.util import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if stock_symbol:
+            cursor.execute('SELECT * FROM stock_quotes WHERE security_id = ? OR scrip_code = ?', 
+                         (stock_symbol, stock_symbol))
+        else:
+            cursor.execute('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({'success': False, 'error': 'Stock not found'}), 404
+        
+        quote_dict = dict(row)
+        
+        # Emit start status
+        websocket_manager.emit_prediction_progress({
+            'status': 'started',
+            'company_name': quote_dict.get('company_name'),
+            'security_id': quote_dict.get('security_id'),
+            'message': f"Starting prediction for {quote_dict.get('company_name')}",
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # Run prediction in background thread
+        def run_prediction():
+            try:
+                prediction_executor(quote_dict)
+                websocket_manager.emit_prediction_progress({
+                    'status': 'completed',
+                    'company_name': quote_dict.get('company_name'),
+                    'security_id': quote_dict.get('security_id'),
+                    'message': f"Prediction completed for {quote_dict.get('company_name')}",
+                    'timestamp': datetime.now().isoformat()
+                })
+            except Exception as e:
+                logging.error(f"Error in prediction: {str(e)}", exc_info=True)
+                websocket_manager.emit_prediction_progress({
+                    'status': 'error',
+                    'company_name': quote_dict.get('company_name'),
+                    'security_id': quote_dict.get('security_id'),
+                    'message': f"Error: {str(e)}",
+                    'timestamp': datetime.now().isoformat()
+                })
+        
+        import threading
+        thread = threading.Thread(target=run_prediction, daemon=True)
+        thread.start()
+        
+        return jsonify({
+            'success': True, 
+            'message': f"Prediction started for {quote_dict.get('company_name')}",
+            'company_name': quote_dict.get('company_name'),
+            'security_id': quote_dict.get('security_id')
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error triggering prediction: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @prediction_bp.route('/status')
 def prediction_status():
     """Server-sent events stream for prediction status"""

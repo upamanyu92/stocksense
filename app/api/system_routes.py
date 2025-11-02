@@ -3,6 +3,7 @@ System monitoring and management API routes
 """
 import json
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -16,6 +17,9 @@ system_bp = Blueprint('system', __name__, url_prefix='/api/system')
 
 # Track application start time for uptime calculation
 app_start_time = datetime.now()
+
+# Configuration file path
+WORKER_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'worker_config.json')
 
 
 @system_bp.route('/status')
@@ -78,6 +82,89 @@ def cleanup_models():
             'success': False,
             'error': 'Failed to cleanup models'
         }), 500
+
+
+@system_bp.route('/background_worker/start', methods=['POST'])
+@login_required
+def start_background_worker():
+    """Start the background worker (admin only)"""
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+    
+    # Check if user is admin
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({
+            'success': False,
+            'error': 'Admin privileges required'
+        }), 403
+    
+    try:
+        background_worker.start()
+        # Save worker state to config
+        _save_worker_state(True)
+        return jsonify({
+            'success': True,
+            'message': 'Background worker started'
+        }), 200
+    except Exception as e:
+        logging.error(f"Error starting background worker: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@system_bp.route('/background_worker/stop', methods=['POST'])
+@login_required
+def stop_background_worker():
+    """Stop the background worker (admin only)"""
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+    
+    # Check if user is admin
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({
+            'success': False,
+            'error': 'Admin privileges required'
+        }), 403
+    
+    try:
+        background_worker.stop()
+        # Save worker state to config
+        _save_worker_state(False)
+        return jsonify({
+            'success': True,
+            'message': 'Background worker stopped'
+        }), 200
+    except Exception as e:
+        logging.error(f"Error stopping background worker: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def _save_worker_state(enabled: bool):
+    """Save background worker state to configuration file"""
+    os.makedirs(os.path.dirname(WORKER_CONFIG_PATH), exist_ok=True)
+    
+    with open(WORKER_CONFIG_PATH, 'w') as f:
+        json.dump({'background_worker_enabled': enabled}, f)
+
+
+def _load_worker_state() -> bool:
+    """Load background worker state from configuration file"""
+    if os.path.exists(WORKER_CONFIG_PATH):
+        try:
+            with open(WORKER_CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+                return config.get('background_worker_enabled', False)
+        except Exception as e:
+            logging.error(f"Error loading worker config: {str(e)}")
+    
+    return False  # Default to disabled
 
 
 @system_bp.route('/background_worker/status')

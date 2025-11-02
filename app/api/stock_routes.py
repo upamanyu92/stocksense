@@ -15,9 +15,58 @@ stock_bp = Blueprint('stock', __name__, url_prefix='/api/stocks')
 fetch_quotes_status_queue = queue.Queue()
 
 
+@stock_bp.route('/suggestions', methods=['GET'])
+def get_stock_suggestions():
+    """Get stock name suggestions from stock_quote table for autocomplete"""
+    from flask import request
+    query = request.args.get('q', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+    
+    if not query or len(query) < 2:
+        return jsonify([]), 200
+    
+    try:
+        from app.utils.util import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Search in company_name and security_id fields, even if other columns are null
+        cursor.execute('''
+            SELECT DISTINCT 
+                company_name, 
+                security_id,
+                scrip_code,
+                current_value,
+                industry
+            FROM stock_quotes 
+            WHERE (company_name LIKE ? OR security_id LIKE ? OR scrip_code LIKE ?)
+            AND company_name IS NOT NULL
+            ORDER BY company_name
+            LIMIT ?
+        ''', (f'%{query}%', f'%{query}%', f'%{query}%', limit))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        suggestions = []
+        for row in rows:
+            suggestions.append({
+                'company_name': row[0] or '',
+                'security_id': row[1] or '',
+                'scrip_code': row[2] or '',
+                'current_value': row[3] if row[3] is not None else 0,
+                'industry': row[4] or ''
+            })
+        
+        return jsonify(suggestions), 200
+    except Exception as e:
+        logging.error(f"Error fetching stock suggestions: {str(e)}", exc_info=True)
+        return jsonify([]), 500
+
+
 @stock_bp.route('/search/<company_name>', methods=['GET'])
 def search_quote(company_name):
-    """Search for stock quotes by company name"""
+    """Search for stock quotes by company name - handles null columns gracefully"""
     logging.info(f"Searching for quote: {company_name}")
     data = fetch_quotes(company_name)
     logging.info(data)
@@ -25,8 +74,14 @@ def search_quote(company_name):
     if not data or "quotes" not in data or len(data["quotes"]) == 0:
         return jsonify({"quotes": [], "message": "No data found"}), 404
     else:
-        logging.info(f"Found {len(data['quotes'])} quotes")
-        return jsonify(data["quotes"])
+        # Filter out None/null values from each quote to ensure clean data
+        clean_quotes = []
+        for quote in data["quotes"]:
+            clean_quote = {k: (v if v is not None else '') for k, v in quote.items()}
+            clean_quotes.append(clean_quote)
+        
+        logging.info(f"Found {len(clean_quotes)} quotes")
+        return jsonify(clean_quotes)
 
 
 @stock_bp.route('/fetch', methods=['POST'])
