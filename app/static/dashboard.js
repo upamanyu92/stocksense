@@ -503,6 +503,178 @@ function getChangePercent(current, predicted) {
 }
 
 async function showAddToWatchlist() {
+  // Create modal for adding stock to watchlist with autocomplete
+  const modal = document.createElement('div');
+  modal.id = 'addWatchlistModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      background: var(--bg-card);
+      border-radius: 15px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+    ">
+      <h3 style="color: var(--primary-color); margin-bottom: 20px;">
+        <i class="fas fa-plus-circle"></i> Add Stock to Watchlist
+      </h3>
+      
+      <div class="search-container" style="position: relative;">
+        <input 
+          type="text" 
+          class="search-input" 
+          id="watchlistStockSearch" 
+          placeholder="Search for stock by name or symbol..."
+          autocomplete="off"
+          style="width: 100%; margin-bottom: 10px;"
+        >
+        <div class="autocomplete-dropdown" id="watchlistAutocomplete" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1001;"></div>
+      </div>
+      
+      <div id="selectedStockInfo" style="margin-top: 15px; padding: 10px; background: rgba(0, 212, 255, 0.1); border-radius: 8px; display: none;">
+        <p style="margin: 0; color: var(--text-light);">
+          <strong>Selected:</strong> <span id="selectedStockName"></span>
+        </p>
+      </div>
+      
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn-danger-custom" onclick="closeAddWatchlistModal()">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+        <button class="btn-custom" id="confirmAddBtn" onclick="confirmAddToWatchlist()" disabled>
+          <i class="fas fa-plus"></i> Add to Watchlist
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Initialize autocomplete for modal
+  const searchInput = document.getElementById('watchlistStockSearch');
+  const dropdown = document.getElementById('watchlistAutocomplete');
+  let selectedStock = null;
+  
+  searchInput.addEventListener('input', async (e) => {
+    const query = e.target.value.trim();
+    
+    if (query.length < 2) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
+      const suggestions = await response.json();
+      
+      if (suggestions.length > 0) {
+        dropdown.innerHTML = suggestions.map(stock => `
+          <div class="autocomplete-item" data-symbol="${stock.security_id}" data-name="${stock.company_name}">
+            <strong>${stock.company_name}</strong>
+            <br><small style="color: var(--text-muted);">${stock.security_id || stock.scrip_code} ${stock.industry ? '- ' + stock.industry : ''}</small>
+          </div>
+        `).join('');
+        
+        dropdown.style.display = 'block';
+        
+        // Add click handlers
+        dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+          item.addEventListener('click', () => {
+            selectedStock = {
+              symbol: item.dataset.symbol,
+              name: item.dataset.name
+            };
+            document.getElementById('selectedStockName').textContent = `${item.dataset.name} (${item.dataset.symbol})`;
+            document.getElementById('selectedStockInfo').style.display = 'block';
+            document.getElementById('confirmAddBtn').disabled = false;
+            searchInput.value = '';
+            dropdown.style.display = 'none';
+          });
+        });
+      } else {
+        dropdown.innerHTML = '<div class="autocomplete-item" style="text-align: center; color: var(--text-muted);">No stocks found</div>';
+        dropdown.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+    }
+  });
+  
+  // Store selected stock globally for confirmation
+  window.modalSelectedStock = null;
+  searchInput.addEventListener('stockSelected', (e) => {
+    window.modalSelectedStock = e.detail;
+  });
+  
+  searchInput.focus();
+}
+
+function closeAddWatchlistModal() {
+  const modal = document.getElementById('addWatchlistModal');
+  if (modal) {
+    modal.remove();
+  }
+  window.modalSelectedStock = null;
+}
+
+async function confirmAddToWatchlist() {
+  const selectedStockName = document.getElementById('selectedStockName').textContent;
+  if (!selectedStockName) {
+    alert('Please select a stock first');
+    return;
+  }
+  
+  // Extract symbol from the selected text (format: "Name (SYMBOL)")
+  const matches = selectedStockName.match(/\(([^)]+)\)$/);
+  if (!matches) {
+    alert('Invalid stock selection');
+    return;
+  }
+  
+  const symbol = matches[1];
+  const name = selectedStockName.replace(/\s*\([^)]+\)$/, '');
+  
+  try {
+    const response = await fetch('/api/watchlist/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stock_symbol: symbol,
+        company_name: name
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification('Stock added to watchlist!', 'success');
+      loadWatchlist();
+      closeAddWatchlistModal();
+    } else {
+      alert('Failed to add stock: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error adding to watchlist:', error);
+    alert('Failed to add stock: ' + error.message);
+  }
+}
+
+/* COMMENTED OUT - Replaced with modal-based approach
+async function showAddToWatchlist() {
   const symbol = prompt('Enter stock symbol (e.g., RELIANCE, TCS):');
   if (!symbol) return;
   
@@ -531,6 +703,8 @@ async function showAddToWatchlist() {
     alert('Failed to add stock: ' + error.message);
   }
 }
+*/
+
 
 async function removeFromWatchlist(symbol) {
   if (!confirm(`Remove ${symbol} from watchlist?`)) return;
@@ -555,67 +729,82 @@ async function removeFromWatchlist(symbol) {
 }
 
 async function rerunPrediction(symbol) {
+  // Trigger prediction for a specific stock
+  runPrediction(symbol, null);
+}
+
+async function runPrediction(symbol, name) {
+  try {
+    showNotification('Starting prediction...', 'info');
+    
+    const response = await fetch('/api/predictions/trigger_single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stock_symbol: symbol,
+        company_name: name
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification(`Prediction started for ${data.company_name}. Please wait...`, 'success');
+      
+      // Listen for prediction progress updates via WebSocket
+      if (socket) {
+        socket.once('prediction_progress', (progress) => {
+          if (progress.status === 'completed' && progress.security_id === symbol) {
+            showNotification(`Prediction completed for ${progress.company_name}!`, 'success');
+            
+            // Reload the stock search results or watchlist to show updated prediction
+            if (name) {
+              // Reload search results
+              setTimeout(() => searchStock(symbol, name), 1000);
+            } else {
+              // Reload watchlist
+              setTimeout(() => loadWatchlist(), 1000);
+            }
+          } else if (progress.status === 'error' && progress.security_id === symbol) {
+            showNotification(`Prediction failed: ${progress.message}`, 'error');
+          }
+        });
+      }
+    } else {
+      showNotification('Failed to start prediction: ' + data.error, 'error');
+    }
+  } catch (error) {
+    console.error('Error running prediction:', error);
+    showNotification('Failed to start prediction: ' + error.message, 'error');
+  }
+}
+
+/* COMMENTED OUT - Replaced with actual prediction trigger
+async function rerunPrediction(symbol) {
   // This would trigger a prediction for a specific stock
   alert(`Prediction for ${symbol} will be run in the next batch cycle.`);
 }
+*/
 
-// Stock Search with Autocomplete
+// Stock Search with Autocomplete using stock_quote table
 let stocksData = [];
+let searchTimeout = null;
 
 async function initStockSearch() {
-  // Load stock data
-  try {
-    const response = await fetch('/static/stk.json');
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) {
-      stocksData = Object.entries(data).map(([security_id, company_name]) => ({
-        security_id,
-        company_name
-      }));
-    } else {
-      stocksData = data;
-    }
-  } catch (error) {
-    console.error('Error loading stocks data:', error);
-  }
-  
   const searchInput = document.getElementById('stockSearch');
   const dropdown = document.getElementById('autocompleteDropdown');
   
   searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim().toLowerCase();
+    const query = e.target.value.trim();
     
     if (query.length < 2) {
       dropdown.style.display = 'none';
       return;
     }
     
-    const matches = stocksData.filter(stock =>
-      stock.company_name.toLowerCase().includes(query) ||
-      (stock.security_id && stock.security_id.toLowerCase().includes(query))
-    ).slice(0, 10);
-    
-    if (matches.length > 0) {
-      dropdown.innerHTML = matches.map(stock => `
-        <div class="autocomplete-item" data-symbol="${stock.security_id}" data-name="${stock.company_name}">
-          <strong>${stock.security_id}</strong> - ${stock.company_name}
-        </div>
-      `).join('');
-      
-      dropdown.style.display = 'block';
-      
-      // Add click handlers
-      dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-        item.addEventListener('click', () => {
-          searchStock(item.dataset.symbol, item.dataset.name);
-          searchInput.value = '';
-          dropdown.style.display = 'none';
-        });
-      });
-    } else {
-      dropdown.style.display = 'none';
-    }
+    // Debounce the search
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => fetchSuggestions(query, dropdown), 300);
   });
   
   // Close dropdown on outside click
@@ -626,20 +815,59 @@ async function initStockSearch() {
   });
 }
 
+async function fetchSuggestions(query, dropdown) {
+  try {
+    const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
+    const suggestions = await response.json();
+    
+    if (suggestions.length > 0) {
+      dropdown.innerHTML = suggestions.map(stock => `
+        <div class="autocomplete-item" data-symbol="${stock.security_id}" data-name="${stock.company_name}">
+          <strong>${stock.company_name}</strong>
+          <br><small style="color: var(--text-muted);">${stock.security_id || stock.scrip_code} ${stock.industry ? '- ' + stock.industry : ''}</small>
+        </div>
+      `).join('');
+      
+      dropdown.style.display = 'block';
+      
+      // Add click handlers
+      dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          searchStock(item.dataset.symbol, item.dataset.name);
+          document.getElementById('stockSearch').value = '';
+          dropdown.style.display = 'none';
+        });
+      });
+    } else {
+      dropdown.innerHTML = '<div class="autocomplete-item" style="text-align: center; color: var(--text-muted);">No stocks found</div>';
+      dropdown.style.display = 'block';
+    }
+  } catch (error) {
+    console.error('Error fetching suggestions:', error);
+    dropdown.style.display = 'none';
+  }
+}
+
 async function searchStock(symbol, name) {
   const searchResults = document.getElementById('searchResults');
   searchResults.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div> Loading...</div>';
   
   try {
     // Get stock quote
-    const quoteResponse = await fetch(`/search_quote/${encodeURIComponent(name)}`);
+    const quoteResponse = await fetch(`/api/stocks/search/${encodeURIComponent(name)}`);
     const quotes = await quoteResponse.json();
     
     // Get prediction if available
-    const predResponse = await fetch('/get_predictions');
-    const predictions = await predResponse.json();
-    
-    const prediction = predictions.find(p => p.security_id === symbol);
+    let prediction = null;
+    try {
+      const predResponse = await fetch(`/api/predictions/stock/${encodeURIComponent(symbol)}`);
+      const predData = await predResponse.json();
+      if (predData.success) {
+        prediction = predData.prediction;
+      }
+    } catch (e) {
+      console.log('No prediction available yet');
+    }
     
     if (quotes && quotes.length > 0) {
       const quote = quotes[0];
@@ -647,12 +875,17 @@ async function searchStock(symbol, name) {
       searchResults.innerHTML = `
         <div class="card" style="background: rgba(0, 212, 255, 0.05); margin-top: 15px;">
           <div class="card-header">
-            <h4>${quote.company_name} (${quote.security_id || symbol})</h4>
+            <h4>${quote.company_name || name} (${quote.security_id || symbol})</h4>
+            <div>
+              <button class="btn-custom btn-sm" onclick="addToWatchlistFromSearch('${quote.security_id || symbol}', '${quote.company_name || name}')">
+                <i class="fas fa-star"></i> Add to Watchlist
+              </button>
+            </div>
           </div>
           <table class="custom-table">
             <tr>
               <th>Current Price</th>
-              <td>₹${quote.current_value || quote.current_price}</td>
+              <td>₹${quote.current_value || quote.current_price || 'N/A'}</td>
               <th>Day High</th>
               <td>₹${quote.day_high || 'N/A'}</td>
             </tr>
@@ -660,25 +893,49 @@ async function searchStock(symbol, name) {
               <th>Day Low</th>
               <td>₹${quote.day_low || 'N/A'}</td>
               <th>Change</th>
-              <td class="${quote.change < 0 ? 'profit-negative' : 'profit-positive'}">
+              <td class="${(quote.change || 0) < 0 ? 'profit-negative' : 'profit-positive'}">
                 ${quote.change || 'N/A'} (${quote.p_change || 'N/A'}%)
               </td>
             </tr>
-            ${prediction ? `
-              <tr>
-                <th>Predicted Price</th>
-                <td class="profit-positive">₹${prediction.predicted_price.toFixed(2)}</td>
-                <th>Potential Profit</th>
-                <td class="${prediction.profit_percentage > 0 ? 'profit-positive' : 'profit-negative'}">
-                  ${prediction.profit_percentage.toFixed(2)}%
-                </td>
-              </tr>
-            ` : '<tr><td colspan="4" style="text-align: center;">No prediction available yet</td></tr>'}
+            <tr>
+              <th>Industry</th>
+              <td colspan="3">${quote.industry || 'N/A'}</td>
+            </tr>
           </table>
-          <div style="margin-top: 15px;">
-            <button class="btn-custom" onclick="addToWatchlistFromSearch('${symbol}', '${quote.company_name}')">
-              <i class="fas fa-star"></i> Add to Watchlist
-            </button>
+          
+          <div style="margin-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px;">
+            <h5 style="color: var(--primary-color); margin-bottom: 15px;">
+              <i class="fas fa-brain"></i> Prediction Engineering
+            </h5>
+            
+            <div id="predictionStatus-${quote.security_id || symbol}">
+              ${prediction ? `
+                <table class="custom-table">
+                  <tr>
+                    <th>Predicted Price</th>
+                    <td class="profit-positive">₹${prediction.predicted_price ? prediction.predicted_price.toFixed(2) : 'N/A'}</td>
+                    <th>Potential Profit</th>
+                    <td class="${(prediction.profit_percentage || 0) > 0 ? 'profit-positive' : 'profit-negative'}">
+                      ${prediction.profit_percentage ? prediction.profit_percentage.toFixed(2) : '0.00'}%
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Prediction Date</th>
+                    <td colspan="3">${prediction.prediction_date || 'N/A'}</td>
+                  </tr>
+                </table>
+                <div style="margin-top: 10px;">
+                  <button class="btn-custom" onclick="runPrediction('${quote.security_id || symbol}', '${quote.company_name || name}')">
+                    <i class="fas fa-sync-alt"></i> Update Prediction
+                  </button>
+                </div>
+              ` : `
+                <p style="color: var(--text-muted); margin-bottom: 10px;">No prediction available yet. Run prediction to analyze this stock.</p>
+                <button class="btn-custom" onclick="runPrediction('${quote.security_id || symbol}', '${quote.company_name || name}')">
+                  <i class="fas fa-brain"></i> Run Prediction
+                </button>
+              `}
+            </div>
           </div>
         </div>
       `;
@@ -887,5 +1144,64 @@ async function stopPriceTracking() {
   } catch (error) {
     console.error('Error stopping price tracking:', error);
     showNotification('Error stopping price tracking', 'error');
+  }
+}
+
+// Background Worker Control Functions (Admin only)
+async function startBackgroundWorker() {
+  if (!confirm('Start the background worker? This will automatically download stocks and run predictions.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/system/background_worker/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification('Background worker started successfully', 'success');
+      updateBackgroundWorkerUI(true);
+    } else {
+      alert('Failed to start worker: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error starting background worker:', error);
+    alert('Failed to start worker: ' + error.message);
+  }
+}
+
+async function stopBackgroundWorker() {
+  if (!confirm('Stop the background worker? Automated tasks will not run.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/system/background_worker/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showNotification('Background worker stopped successfully', 'success');
+      updateBackgroundWorkerUI(false);
+    } else {
+      alert('Failed to stop worker: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error stopping background worker:', error);
+    alert('Failed to stop worker: ' + error.message);
+  }
+}
+
+function updateBackgroundWorkerUI(isRunning) {
+  const systemStatus = document.getElementById('systemStatus');
+  if (systemStatus && !isRunning) {
+    systemStatus.textContent = 'Background Worker Disabled';
+    systemStatus.className = 'status-badge status-downloading';
   }
 }

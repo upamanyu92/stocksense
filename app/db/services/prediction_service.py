@@ -64,6 +64,32 @@ class PredictionService:
         return None
     
     @staticmethod
+    def get_prediction_by_security_id(security_id: str) -> Optional[Dict[str, Any]]:
+        """Get prediction by security ID as dictionary"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT company_name, security_id, current_price, predicted_price,
+                   (predicted_price - current_price) AS profit,
+                   prediction_date, stock_status
+            FROM predictions 
+            WHERE security_id = ?
+        ''', (security_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            stock = dict(row)
+            if stock['current_price'] and stock['predicted_price']:
+                profit_pct = ((stock['predicted_price'] - stock['current_price']) /
+                              stock['current_price']) * 100
+                stock['profit_percentage'] = profit_pct
+            else:
+                stock['profit_percentage'] = 0
+            return stock
+        return None
+    
+    @staticmethod
     def get_all(limit: int = None, offset: int = 0, order_by: str = 'prediction_date DESC') -> List[Prediction]:
         """Get all predictions with optional pagination"""
         conn = get_db_connection()

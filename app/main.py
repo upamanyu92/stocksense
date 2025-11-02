@@ -160,6 +160,14 @@ def handle_system_status_request():
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5005))
     logging.info(f"Starting StockSense application on port {port}")
-    background_worker.start()  # Start only once at app startup
+    
+    # Load background worker configuration and start only if enabled
+    from app.api.system_routes import _load_worker_state
+    if _load_worker_state():
+        logging.info("Background worker enabled from config - starting")
+        background_worker.start()
+    else:
+        logging.info("Background worker disabled by default - use admin UI to enable")
+    
     inactive_stock_worker.start()  # Start retry worker for inactive stocks
     socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)

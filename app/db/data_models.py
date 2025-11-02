@@ -75,6 +75,7 @@ class User:
     email: Optional[str] = None
     created_at: Optional[str] = None
     is_active: int = 1
+    is_admin: int = 0
 
 
 @dataclass
