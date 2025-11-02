@@ -22,12 +22,21 @@ from app.services.price_streamer import price_streamer
 from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.websocket_manager import websocket_manager
 from app.services.inactive_stock_worker import inactive_stock_worker
+from app.db.schema_init import initialize_schema
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+# Initialize database schema on application startup
+try:
+    initialize_schema()
+    logging.info("Database schema initialization completed")
+except Exception as e:
+    logging.error(f"Failed to initialize database schema: {e}", exc_info=True)
+    raise
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
