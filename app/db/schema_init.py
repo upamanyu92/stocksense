@@ -5,16 +5,18 @@ This module creates all required tables when the application starts.
 import sqlite3
 import os
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 def get_db_path():
     """Get the database path"""
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    db_path = os.path.join(BASE_DIR, 'app', 'db', 'stock_predictions.db')
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    return db_path
+    # Use pathlib for more robust path resolution
+    base_dir = Path(__file__).parent.parent.parent
+    db_path = base_dir / 'app' / 'db' / 'stock_predictions.db'
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return str(db_path)
 
 
 def initialize_schema():
@@ -25,10 +27,11 @@ def initialize_schema():
     db_path = get_db_path()
     logger.info(f"Initializing database schema at {db_path}")
     
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
+    conn = None
     try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
         # Create predictions table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS predictions (
@@ -195,11 +198,13 @@ def initialize_schema():
         logger.info("Database schema initialized successfully")
         
     except Exception as e:
-        conn.rollback()
+        if conn:
+            conn.rollback()
         logger.error(f"Error initializing database schema: {e}", exc_info=True)
         raise
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 if __name__ == '__main__':
