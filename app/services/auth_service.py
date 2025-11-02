@@ -89,7 +89,7 @@ class WatchlistService:
                 p.prediction_date
             FROM watchlists w
             LEFT JOIN stock_quotes sq ON w.stock_symbol = sq.security_id
-            LEFT JOIN predictions p ON w.stock_symbol = p.security_id
+            LEFT JOIN predictions p ON w.stock_symbol = p.stock_symbol
             WHERE w.user_id = ?
             ORDER BY w.display_order, w.added_at DESC
         ''', (user_id,))

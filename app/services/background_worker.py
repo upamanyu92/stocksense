@@ -35,6 +35,7 @@ class BackgroundWorker:
         self.prediction_interval = 300  # Run predictions every 5 minutes
         self.lock = threading.Lock()
         self.last_run_date = None  # Track last run date for daily job
+        self.stop_event = threading.Event()  # Add stop event for interruptible sleep
 
     def start(self):
         """Start the background worker"""
@@ -43,6 +44,7 @@ class BackgroundWorker:
             return
         
         self.running = True
+        self.stop_event.clear()  # Clear stop event
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
         logging.info("Background worker started")
@@ -50,10 +52,16 @@ class BackgroundWorker:
     def stop(self):
         """Stop the background worker"""
         self.running = False
+        self.stop_event.set()  # Signal the thread to wake up
         if self.worker_thread:
-            self.worker_thread.join(timeout=5)
+            self.worker_thread.join(timeout=10)  # Increased timeout
         logging.info("Background worker stopped")
     
+    def _interruptible_sleep(self, seconds):
+        """Sleep that can be interrupted by stop event"""
+        self.stop_event.wait(timeout=seconds)
+        return not self.running  # Return True if stopped
+
     def _worker_loop(self):
         """Main worker loop"""
         logging.info("Background worker loop started")
@@ -63,28 +71,44 @@ class BackgroundWorker:
                 today = datetime.now().date()
                 if self.last_run_date == today:
                     logging.info("Background worker already ran today. Sleeping until next day.")
-                    # Sleep until next day (midnight)
+                    # Sleep until next day (midnight) with interruptible sleep
                     now = datetime.now()
                     next_day = datetime.combine(now.date(), datetime.min.time()) + timedelta(days=1)
                     sleep_seconds = (next_day - now).total_seconds()
-                    time.sleep(max(sleep_seconds, 60))
+
+                    # Use interruptible sleep - check every 60 seconds
+                    while self.running and sleep_seconds > 0:
+                        sleep_time = min(sleep_seconds, 60)
+                        if self._interruptible_sleep(sleep_time):
+                            break  # Stopped
+                        sleep_seconds -= sleep_time
                     continue
 
                 # Download stock quotes
+                if not self.running:
+                    break
                 self._download_stocks()
 
                 # Run predictions on active stocks
+                if not self.running:
+                    break
                 self._run_predictions()
                 
                 self.last_run_date = today
 
-                # Wait before next cycle
-                time.sleep(self.prediction_interval)
-                
+                # Wait before next cycle with interruptible sleep
+                remaining_time = self.prediction_interval
+                while self.running and remaining_time > 0:
+                    sleep_time = min(remaining_time, 10)  # Check every 10 seconds
+                    if self._interruptible_sleep(sleep_time):
+                        break  # Stopped
+                    remaining_time -= sleep_time
+
             except Exception as e:
                 logging.error(f"Error in background worker loop: {e}", exc_info=True)
-                time.sleep(60)  # Wait a minute before retrying on error
-    
+                if self.running:
+                    self._interruptible_sleep(60)  # Wait a minute before retrying on error
+
     def _download_stocks(self):
         """Download stock quotes without timeout handling, with real-time status updates"""
         logging.info("Starting automated stock download")

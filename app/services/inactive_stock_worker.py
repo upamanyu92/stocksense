@@ -13,30 +13,47 @@ class InactiveStockRetryWorker:
         self.interval = interval_minutes * 60  # seconds
         self.retry_delay = retry_delay_hours  # hours
         self.lock = threading.Lock()
+        self.stop_event = threading.Event()  # Add stop event for interruptible sleep
 
     def start(self):
         if self.running:
             return
         self.running = True
+        self.stop_event.clear()  # Clear stop event
         self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker_thread.start()
         logging.info("InactiveStockRetryWorker started")
 
     def stop(self):
         self.running = False
+        self.stop_event.set()  # Signal the thread to wake up
         if self.worker_thread:
-            self.worker_thread.join(timeout=5)
+            self.worker_thread.join(timeout=10)  # Increased timeout
         logging.info("InactiveStockRetryWorker stopped")
+
+    def _interruptible_sleep(self, seconds):
+        """Sleep that can be interrupted by stop event"""
+        self.stop_event.wait(timeout=seconds)
+        return not self.running  # Return True if stopped
 
     def _worker_loop(self):
         logging.info("InactiveStockRetryWorker loop started")
         while self.running:
             try:
                 self._retry_inactive_stocks()
-                time.sleep(self.interval)
+
+                # Use interruptible sleep - check every 10 seconds
+                remaining_time = self.interval
+                while self.running and remaining_time > 0:
+                    sleep_time = min(remaining_time, 10)
+                    if self._interruptible_sleep(sleep_time):
+                        break  # Stopped
+                    remaining_time -= sleep_time
+
             except Exception as e:
                 logging.error(f"Error in InactiveStockRetryWorker loop: {e}", exc_info=True)
-                time.sleep(60)
+                if self.running:
+                    self._interruptible_sleep(60)  # Interruptible sleep on error too
 
     def _retry_inactive_stocks(self):
         from datetime import datetime, timedelta
@@ -53,7 +70,7 @@ class InactiveStockRetryWorker:
             security_id = stock['security_id']
             company_name = stock['company_name']
             scrip_code = stock['scrip_code']
-            stock_symbol = stock.get('stock_symbol')
+            stock_symbol = stock['stock_symbol']  # Changed from .get() to bracket notation
             last_attempt = stock['last_download_attempt']
             # Only retry if last_download_attempt is None or older than threshold
             if last_attempt:
