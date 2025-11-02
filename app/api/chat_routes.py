@@ -233,11 +233,3 @@ def clear_history():
     except Exception as e:
         logger.error(f"Error clearing history: {e}", exc_info=True)
         return jsonify({'error': 'Failed to clear history'}), 500
-
-
-# Initialize chat tables on blueprint registration
-try:
-    ChatService.create_tables()
-    logger.info("Chat tables initialized successfully")
-except Exception as e:
-    logger.error(f"Error initializing chat tables: {e}", exc_info=True)
