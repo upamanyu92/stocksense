@@ -567,7 +567,7 @@ async function showAddToWatchlist() {
   // Initialize autocomplete for modal
   const searchInput = document.getElementById('watchlistStockSearch');
   const dropdown = document.getElementById('watchlistAutocomplete');
-  let selectedStock = null;
+  let selectedStock = { symbol: '', name: '' };
   
   searchInput.addEventListener('input', async (e) => {
     const query = e.target.value.trim();
@@ -614,12 +614,6 @@ async function showAddToWatchlist() {
     }
   });
   
-  // Store selected stock globally for confirmation
-  window.modalSelectedStock = null;
-  searchInput.addEventListener('stockSelected', (e) => {
-    window.modalSelectedStock = e.detail;
-  });
-  
   searchInput.focus();
 }
 
@@ -634,14 +628,14 @@ function closeAddWatchlistModal() {
 async function confirmAddToWatchlist() {
   const selectedStockName = document.getElementById('selectedStockName').textContent;
   if (!selectedStockName) {
-    alert('Please select a stock first');
+    showNotification('Please select a stock first', 'error');
     return;
   }
   
   // Extract symbol from the selected text (format: "Name (SYMBOL)")
   const matches = selectedStockName.match(/\(([^)]+)\)$/);
   if (!matches) {
-    alert('Invalid stock selection');
+    showNotification('Invalid stock selection', 'error');
     return;
   }
   
@@ -665,11 +659,11 @@ async function confirmAddToWatchlist() {
       loadWatchlist();
       closeAddWatchlistModal();
     } else {
-      alert('Failed to add stock: ' + data.error);
+      showNotification('Failed to add stock: ' + data.error, 'error');
     }
   } catch (error) {
     console.error('Error adding to watchlist:', error);
-    alert('Failed to add stock: ' + error.message);
+    showNotification('Failed to add stock: ' + error.message, 'error');
   }
 }
 
@@ -753,22 +747,30 @@ async function runPrediction(symbol, name) {
       
       // Listen for prediction progress updates via WebSocket
       if (socket) {
-        socket.once('prediction_progress', (progress) => {
-          if (progress.status === 'completed' && progress.security_id === symbol) {
-            showNotification(`Prediction completed for ${progress.company_name}!`, 'success');
-            
-            // Reload the stock search results or watchlist to show updated prediction
-            if (name) {
-              // Reload search results
-              setTimeout(() => searchStock(symbol, name), 1000);
-            } else {
-              // Reload watchlist
-              setTimeout(() => loadWatchlist(), 1000);
+        // Store the handler so we can remove it later
+        const progressHandler = (progress) => {
+          if (progress.security_id === symbol) {
+            if (progress.status === 'completed') {
+              showNotification(`Prediction completed for ${progress.company_name}!`, 'success');
+              
+              // Reload the stock search results or watchlist to show updated prediction
+              if (name) {
+                setTimeout(() => searchStock(symbol, name), 1000);
+              } else {
+                setTimeout(() => loadWatchlist(), 1000);
+              }
+            } else if (progress.status === 'error') {
+              showNotification(`Prediction failed: ${progress.message}`, 'error');
             }
-          } else if (progress.status === 'error' && progress.security_id === symbol) {
-            showNotification(`Prediction failed: ${progress.message}`, 'error');
           }
-        });
+        };
+        
+        socket.on('prediction_progress', progressHandler);
+        
+        // Clean up after 5 minutes to prevent memory leaks
+        setTimeout(() => {
+          socket.off('prediction_progress', progressHandler);
+        }, 300000);
       }
     } else {
       showNotification('Failed to start prediction: ' + data.error, 'error');

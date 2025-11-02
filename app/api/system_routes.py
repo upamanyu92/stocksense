@@ -3,6 +3,7 @@ System monitoring and management API routes
 """
 import json
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -16,6 +17,9 @@ system_bp = Blueprint('system', __name__, url_prefix='/api/system')
 
 # Track application start time for uptime calculation
 app_start_time = datetime.now()
+
+# Configuration file path
+WORKER_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'worker_config.json')
 
 
 @system_bp.route('/status')
@@ -144,22 +148,17 @@ def stop_background_worker():
 
 def _save_worker_state(enabled: bool):
     """Save background worker state to configuration file"""
-    import os
-    config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'worker_config.json')
-    os.makedirs(os.path.dirname(config_file), exist_ok=True)
+    os.makedirs(os.path.dirname(WORKER_CONFIG_PATH), exist_ok=True)
     
-    with open(config_file, 'w') as f:
+    with open(WORKER_CONFIG_PATH, 'w') as f:
         json.dump({'background_worker_enabled': enabled}, f)
 
 
 def _load_worker_state() -> bool:
     """Load background worker state from configuration file"""
-    import os
-    config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'worker_config.json')
-    
-    if os.path.exists(config_file):
+    if os.path.exists(WORKER_CONFIG_PATH):
         try:
-            with open(config_file, 'r') as f:
+            with open(WORKER_CONFIG_PATH, 'r') as f:
                 config = json.load(f)
                 return config.get('background_worker_enabled', False)
         except Exception as e:
