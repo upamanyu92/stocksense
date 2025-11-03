@@ -3,8 +3,13 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Demo-Live-success.svg)](https://stocksense-z8zk.onrender.com)
 
 StockSense is a comprehensive, production-ready platform for intelligent stock prediction, real-time analysis, and automated monitoring. Designed for data scientists, quantitative analysts, and traders who need a robust, extensible system for building, deploying, and monitoring stock market models at scale with state-of-the-art AI capabilities.
+
+**🌐 Live Application:** [https://stocksense-z8zk.onrender.com](https://stocksense-z8zk.onrender.com)
+
+> **Note:** The application is hosted on Render's free tier. Initial load may take 30-60 seconds as the service spins up from sleep mode.
 
 ---
 
@@ -68,18 +73,16 @@ StockSense is a comprehensive, production-ready platform for intelligent stock p
    # Edit .env with your configuration
    ```
 
-4. **Initialize the database:**
-   ```bash
-   python scripts/create_db.py
-   ```
-
-5. **Start the application:**
+4. **Start the application:**
    ```bash
    python -m app.main
    ```
+   
+   > The database schema will be automatically initialized on first run.
 
-6. **Access the dashboard:**
+5. **Access the dashboard:**
    - Open your browser to `http://localhost:5005`
+   - Or visit the live demo at [https://stocksense-z8zk.onrender.com](https://stocksense-z8zk.onrender.com)
 
 ### Quick Usage Example
 
@@ -163,57 +166,6 @@ StockSense features an **intelligent multi-agent prediction system** that achiev
 | MAPE (Overall) | 8-10% | 3-5% | -3-7% |
 | MAPE (High Confidence) | 8-10% | 2-3% | -5-8% |
 
-### Decision Making
-
-The system makes autonomous decisions based on trust scores:
-
-- **Accept** (≥75% trust): High confidence - recommended for use
-- **Caution** (60-75% trust): Moderate confidence - use carefully  
-- **Reject** (<60% trust): Low confidence - not recommended
-
-### Market Regime Adaptation
-
-The system automatically detects and adapts to market conditions:
-
-- **Bull Market**: Prefers Transformer model, +10% confidence boost
-- **Bear Market**: Prefers LSTM model, +5% confidence boost
-- **Sideways Market**: Balanced ensemble approach
-- **Volatile Market**: Conservative strategy, -10% confidence penalty
-
-### API Endpoints
-
-#### Make Prediction
-```bash
-GET /api/agentic/predict/<symbol>?validate=true&min_confidence=0.6
-```
-
-**Example Response:**
-```json
-{
-  "prediction": 175.50,
-  "confidence": 0.78,
-  "decision": "accept",
-  "prediction_interval": [173.20, 177.80],
-  "market_regime": "bull",
-  "recommendation": "High confidence prediction. Recommended for use."
-}
-```
-
-#### Provide Feedback
-```bash
-POST /api/agentic/feedback
-{
-  "symbol": "AAPL",
-  "predicted": 175.50,
-  "actual": 177.25
-}
-```
-
-#### Get Performance Report
-```bash
-GET /api/agentic/performance
-```
-
 ---
 
 ## ⚡ Real-time Features
@@ -228,13 +180,11 @@ StockSense uses **Flask-SocketIO** for bidirectional, real-time communication.
    - Auto-updating stock prices every 10 seconds
    - Multi-stock tracking
    - Interactive Chart.js visualizations
-   - Start/stop controls for resource management
 
 2. **Live Prediction Updates**
    - See predictions as they're generated
    - Progress tracking for batch operations
    - Instant completion notifications
-   - Confidence scores and decision indicators
 
 3. **Instant Watchlist Sync**
    - Multi-device synchronization
@@ -245,132 +195,11 @@ StockSense uses **Flask-SocketIO** for bidirectional, real-time communication.
    - Real-time progress tracking
    - Current operation display
    - Activity logs with timestamps
-   - Processed/remaining counters
 
 5. **Smart Notifications**
    - Toast-style alerts
    - Success/warning/error/info types
    - Auto-dismiss (3 seconds)
-   - Slide animations
-
-### WebSocket Events
-
-**Client → Server:**
-- `subscribe_predictions` - Subscribe to prediction updates
-- `subscribe_watchlist` - Subscribe to watchlist changes
-- `subscribe_stock_prices` - Subscribe to price updates
-- `request_system_status` - Get system status
-
-**Server → Client:**
-- `prediction_update` - New prediction available
-- `prediction_progress` - Prediction progress
-- `watchlist_update` - Watchlist changed
-- `stock_price_update` - Price updated
-- `background_worker_status` - Worker status
-- `system_alert` - System alert
-
-### Price Streaming API
-
-```bash
-# Start tracking
-POST /api/price_stream/start
-{
-  "symbols": ["RELIANCE", "TCS", "INFY"]
-}
-
-# Stop tracking
-POST /api/price_stream/stop
-
-# Get status
-GET /api/price_stream/status
-
-# Get single price
-GET /api/price/<symbol>
-```
-
-### Performance Impact
-
-- **90% reduction** in HTTP requests (vs polling)
-- **50x faster** update delivery (<100ms vs 5 seconds)
-- Professional-grade user experience
-
----
-
-## 🏗️ Architecture & Design
-
-### Project Structure
-
-```
-stocksense/
-├── app/                      # Core application
-│   ├── agents/              # Agentic prediction system
-│   │   ├── base_agent.py
-│   │   ├── data_enrichment_agent.py
-│   │   ├── ensemble_agent.py
-│   │   ├── adaptive_learning_agent.py
-│   │   └── prediction_coordinator.py
-│   ├── api/                 # REST API routes
-│   ├── db/                  # Database models and utilities
-│   ├── features/            # Feature engineering
-│   ├── models/              # ML models
-│   ├── services/            # Business logic
-│   ├── static/              # Static assets (CSS, JS, JSON)
-│   ├── templates/           # HTML templates
-│   ├── utils/               # Utility functions
-│   └── main.py              # Application entry point
-├── scripts/                 # Management scripts
-│   ├── create_db.py
-│   ├── download_stk_json.py
-│   └── model_monitor_scheduler.py
-├── docs/                    # Documentation (archived)
-├── examples/                # Usage examples
-├── docker-compose.yml       # Docker orchestration
-├── Dockerfile              # Container definition
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
-```
-
-### Design Principles
-
-- **Modularity**: Clean separation of concerns
-- **Extensibility**: Easy to add new models, data sources, and features
-- **Transparency**: Comprehensive logging and monitoring
-- **Scalability**: Designed for production deployment
-- **Maintainability**: PEP8 compliant, well-documented code
-
-### Responsive Design
-
-StockSense features a fully responsive UI optimized for all devices:
-
-#### Device Breakpoints
-
-- **Mobile Portrait** (<576px): Full-width layouts, touch-optimized
-- **Mobile Landscape** (577-768px): Optimized spacing
-- **Tablets** (769-991px): Multi-column balanced layouts
-- **Desktop** (992-1399px): Full multi-column layouts
-- **Large Desktop** (≥1400px): Maximum optimization
-
-#### Cross-Browser Compatibility
-
-✅ Fully supported:
-- Chrome (latest 2 versions)
-- Firefox (latest 2 versions)
-- Safari (latest 2 versions)
-- Edge (latest 2 versions)
-- Mobile Safari (iOS 12+)
-- Chrome Mobile (Android 8+)
-
-⚠️ Graceful degradation:
-- Internet Explorer 11 (basic functionality)
-
-#### Accessibility Features
-
-- WCAG AAA compliant touch targets (44px minimum)
-- Proper font sizes (16px on inputs to prevent iOS zoom)
-- Fixed color contrast issues
-- Keyboard navigation support
-- Semantic HTML structure
-- ARIA labels where needed
 
 ---
 
@@ -394,245 +223,33 @@ docker compose down
 
 ### Services
 
-#### 1. Main Application (`predict_main`)
-- **Port**: 5005 (mapped to host)
-- **Command**: `python3 -m app.main`
-- **Health Check**: Configured to check `/health` endpoint every 30s
-- **Status**: Running and healthy
+- **Main Application** (`predict_main`) - Port 5005
+- **Model Monitor** (`model_monitor`) - Scheduled tasks
 
-#### 2. Model Monitor (`model_monitor`)
-- **Command**: `python3 -m scripts.model_monitor_scheduler`
-- **Schedule**: Runs at 9:16 AM IST daily (except Sunday)
-- **Status**: Running and waiting for scheduled execution
+---
 
-### Network Configuration
+## 📚 Database Management
 
-- **Network Name**: `stocknet`
-- **Driver**: bridge
-- **Isolation**: Services communicate within isolated network
+### Automatic Initialization
 
-### Health Endpoint
+The database schema is automatically initialized when the application starts. All required tables are created if they don't exist.
+
+### Manual Management
+
+Use the consolidated schema management script:
 
 ```bash
-curl http://localhost:5005/health
+# Initialize schema (safe, won't affect existing data)
+python scripts/init_db_schema.py --init
 
-# Response:
-{
-  "service": "stocksense",
-  "status": "healthy"
-}
-```
+# Load stock master data
+python scripts/init_db_schema.py --init --load-stk
 
-### Volume Mounts
+# Reset database (preserve users)
+python scripts/init_db_schema.py --reset
 
-- `.:/app` - Application code (live reload support)
-- `./app/db:/app/db` - Database persistence
-- `./app/templates:/app/templates` - Templates
-- `./model/saved_models:/app/model/saved_models` - Model persistence
-
-### Environment Variables
-
-- `FLASK_ENV=development`
-- `PYTHONPATH=/app`
-- `FLASK_PORT=5005`
-- `TZ=Asia/Kolkata` (model_monitor)
-
----
-
-## 📚 API Reference
-
-### Agentic Prediction API
-
-#### Predict
-```
-GET /api/agentic/predict/<symbol>
-Query Params: validate (bool), min_confidence (float 0-1)
-```
-
-#### Feedback
-```
-POST /api/agentic/feedback
-Body: { "symbol": "AAPL", "predicted": 175.50, "actual": 177.25 }
-```
-
-#### Performance
-```
-GET /api/agentic/performance
-```
-
-#### Health Check
-```
-GET /api/agentic/health
-```
-
-### Price Streaming API
-
-#### Start Streaming
-```
-POST /api/price_stream/start
-Body: { "symbols": ["RELIANCE", "TCS"] }
-```
-
-#### Stop Streaming
-```
-POST /api/price_stream/stop
-Body: { "symbols": ["RELIANCE", "TCS"] }
-```
-
-#### Get Status
-```
-GET /api/price_stream/status
-```
-
-#### Get Single Price
-```
-GET /api/price/<symbol>
-```
-
----
-
-## 🎯 Performance & Optimization
-
-### Watchlist Optimization
-
-StockSense is optimized to process **only watchlist stocks**, dramatically reducing computational load:
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Stocks Processed | ~5,000 | ~10-50 | **99% reduction** |
-| LLM API Calls | ~5,000 | ~10-50 | **99% reduction** |
-| Processing Time | Hours | Minutes | **90%+ faster** |
-| Cost per Cycle | High | Very Low | **99% cost reduction** |
-
-### How It Works
-
-1. Users add stocks to their watchlist
-2. Background worker queries **only watchlist stocks** across all users
-3. Predictions run exclusively on these stocks
-4. No wasted processing on unwatched stocks
-
-### Stock Data Management
-
-- Stock symbols and company names saved to `app/static/stk.json`
-- Autocomplete search powered by this file
-- Run `python scripts/download_stk_json.py` to update
-
----
-
-## 🌐 Browser Compatibility
-
-### Vendor Prefixes
-
-All critical CSS properties include vendor prefixes:
-
-```css
-/* Applied to: box-sizing, border-radius, transform, 
-   box-shadow, transition, animation, etc. */
--webkit-*, -moz-*, -ms-*, -o-*
-```
-
-### Touch Device Optimizations
-
-- Minimum 44px touch targets (WCAG AAA)
-- `-webkit-overflow-scrolling: touch` for smooth scrolling
-- Touch-specific media queries
-- Prevents iOS zoom on form inputs (16px font)
-
-### Testing Checklist
-
-- [x] Chrome (latest)
-- [x] Firefox (latest)
-- [x] Safari (latest)
-- [x] Edge (latest)
-- [x] Mobile Safari (iOS 12+)
-- [x] Chrome Mobile (Android 8+)
-- [x] Responsive breakpoints (320px - 2560px)
-- [x] Touch interactions
-- [x] Keyboard navigation
-
----
-
-## 🛠️ Extending StockSense
-
-### Add New Models
-
-1. Place model code in `app/models/`
-2. Update the prediction pipeline in `app/services/prediction_service.py`
-3. Register model with the ensemble agent
-
-### Integrate New Data Sources
-
-1. Extend database models in `app/db/`
-2. Add feature engineering in `app/features/`
-3. Update data enrichment agent
-
-### Customize the Dashboard
-
-1. Edit templates in `app/templates/`
-2. Modify styles in `app/static/`
-3. Follow responsive design breakpoints
-
-### Add New Agents
-
-1. Inherit from `BaseAgent` in `app/agents/base_agent.py`
-2. Implement required methods
-3. Register with `PredictionCoordinator`
-
----
-
-## 📖 Examples
-
-### Basic Prediction
-
-```python
-from app.agents import PredictionCoordinator
-
-coordinator = PredictionCoordinator()
-result = coordinator.predict('AAPL')
-
-print(f"${result['prediction']:.2f} (confidence: {result['confidence']:.2%})")
-```
-
-### Batch Predictions
-
-```python
-symbols = ['AAPL', 'MSFT', 'GOOGL']
-predictions = []
-
-for symbol in symbols:
-    result = coordinator.predict(symbol)
-    if result['decision'] in ['accept', 'caution']:
-        predictions.append(result)
-
-# Sort by confidence
-predictions.sort(key=lambda x: x['confidence'], reverse=True)
-```
-
-### With Feedback Loop
-
-```python
-# Make prediction
-result = coordinator.predict('AAPL')
-predicted_price = result['prediction']
-
-# Later, provide actual result for learning
-actual_price = 177.25
-coordinator.update_with_actual('AAPL', predicted_price, actual_price)
-```
-
-### Via REST API
-
-```bash
-# Make prediction
-curl "http://localhost:5005/api/agentic/predict/AAPL"
-
-# Provide feedback
-curl -X POST "http://localhost:5005/api/agentic/feedback" \
-  -H "Content-Type: application/json" \
-  -d '{"symbol": "AAPL", "predicted": 175.50, "actual": 177.25}'
-
-# Get performance metrics
-curl "http://localhost:5005/api/agentic/performance"
+# Reset everything including users
+python scripts/init_db_schema.py --reset --no-preserve-users
 ```
 
 ---
@@ -656,12 +273,6 @@ Contributions are welcome! Please follow these guidelines:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Reporting Issues
-
-- Use the GitHub issue tracker
-- Include clear description and reproduction steps
-- Add relevant logs and error messages
-
 ---
 
 ## 📄 License
@@ -679,41 +290,11 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-## 📞 Support
+**StockSense** - Empowering intelligent stock prediction with cutting-edge AI, real-time analytics, and production-ready deployment.
 
-For questions or issues:
-
-1. Check this comprehensive README
-2. Review code comments and examples
-3. Open a GitHub issue
+🌐 **Try it live:** [https://stocksense-z8zk.onrender.com](https://stocksense-z8zk.onrender.com)
 
 ---
 
-## 🔮 Future Enhancements
+*Last Updated: November 3, 2025*
 
-### Planned Features
-
-- Advanced price alerts with multi-conditions
-- Portfolio tracking with real-time updates
-- Market sentiment analysis from news/social media
-- Automated trading signal generation
-- Historical data visualization with candlestick charts
-- Collaborative features for team analysis
-- Mobile app integration
-- Multi-language support
-
-### Performance Optimizations
-
-- Redis for distributed caching and pub/sub
-- Celery for task distribution
-- Load balancing for WebSocket scaling
-- Database connection pooling
-- High availability with automatic failover
-
----
-
-**StockSense** - Empowering intelligent stock prediction with cutting-edge AI, real-time analytics, and production-ready deployment. Built for traders, analysts, and researchers who demand accuracy, transparency, and scalability.
-
----
-
-*Last Updated: 2025-11-02*
