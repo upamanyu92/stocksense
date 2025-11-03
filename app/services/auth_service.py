@@ -48,6 +48,14 @@ class User(UserMixin):
         if user_id:
             return User.get_by_id(user_id)
         return None
+
+    @staticmethod
+    def create_admin_user(username: str, password: str, email: str = None) -> Optional['User']:
+        """Create a new admin user"""
+        user_id = UserService.create_admin(username, password, email)
+        if user_id:
+            return User.get_by_id(user_id)
+        return None
     
     @staticmethod
     def verify_password(username: str, password: str) -> bool:

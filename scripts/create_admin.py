@@ -17,7 +17,7 @@ def create_default_user():
         return
     
     # Create user
-    user = User.create_user(username, password, email)
+    user = User.create_admin_user(username, password, email)
     if user:
         print(f"✓ Default user created successfully!")
         print(f"  Username: {username}")

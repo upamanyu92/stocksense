@@ -33,6 +33,30 @@ class UserService:
             return None
         finally:
             conn.close()
+
+
+    @staticmethod
+    def create_admin(username: str, password: str, email: str = None) -> Optional[int]:
+        """Create a new admin user"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        password_hash = generate_password_hash(password)
+
+        try:
+            cursor.execute('''
+                INSERT INTO users (username, password_hash, email, is_admin, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (username, password_hash, email, 1, datetime.now().isoformat()))
+            conn.commit()
+            user_id = cursor.lastrowid
+            return user_id
+        except Exception as e:
+            conn.rollback()
+            print(f"Error creating admin user: {e}")
+            return None
+        finally:
+            conn.close()
     
     @staticmethod
     def get_by_id(user_id: int) -> Optional[UserData]:

@@ -180,7 +180,7 @@ if __name__ == '__main__':
     from app.api.system_routes import _load_worker_state
     if _load_worker_state():
         logging.info("Background worker enabled from config - starting")
-        # background_worker.start()
+        background_worker.start()
     else:
         logging.info("Background worker disabled by default - use admin UI to enable")
     
