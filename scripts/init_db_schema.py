@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 class SchemaManager:
     """Manages database schema initialization and data purging"""
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path=None, verbose=True):
         """Initialize schema manager with database path"""
         if db_path is None:
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,8 +27,15 @@ class SchemaManager:
         else:
             self.db_path = db_path
 
+        self.verbose = verbose  # Control output verbosity
+
         # Ensure database directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+    def _log(self, message):
+        """Print message only if verbose mode is enabled"""
+        if self.verbose:
+            print(message)
 
     def get_connection(self):
         """Get database connection"""
@@ -39,13 +46,13 @@ class SchemaManager:
         Initialize all database tables if they don't already exist.
         This is safe to run multiple times - it won't affect existing data.
         """
-        print(f"Initializing database schema at: {self.db_path}")
+        self._log(f"Initializing database schema at: {self.db_path}")
         conn = self.get_connection()
         cursor = conn.cursor()
 
         try:
             # ========== USERS TABLE ==========
-            print("  Creating users table...")
+            self._log("  Creating users table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +66,7 @@ class SchemaManager:
             ''')
 
             # ========== WATCHLISTS TABLE ==========
-            print("  Creating watchlists table...")
+            self._log("  Creating watchlists table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS watchlists (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +81,7 @@ class SchemaManager:
             ''')
 
             # ========== STOCK QUOTES TABLE ==========
-            print("  Creating stock_quotes table...")
+            self._log("  Creating stock_quotes table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS stock_quotes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +117,7 @@ class SchemaManager:
             ''')
 
             # ========== PREDICTIONS TABLE ==========
-            print("  Creating predictions table...")
+            self._log("  Creating predictions table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS predictions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,7 +130,7 @@ class SchemaManager:
             ''')
 
             # ========== MODEL CONFIGURATIONS TABLE ==========
-            print("  Creating model_configurations table...")
+            self._log("  Creating model_configurations table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS model_configurations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +147,7 @@ class SchemaManager:
             ''')
 
             # ========== STK TABLE (Stock Master Data) ==========
-            print("  Creating STK table...")
+            self._log("  Creating STK table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS STK (
                     scrip_code TEXT PRIMARY KEY,
@@ -149,7 +156,7 @@ class SchemaManager:
             ''')
 
             # ========== USER WATCHLIST TABLE (Alternative name) ==========
-            print("  Creating user_watchlist table...")
+            self._log("  Creating user_watchlist table...")
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_watchlist (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,7 +170,7 @@ class SchemaManager:
             ''')
 
             # ========== CREATE INDEXES ==========
-            print("  Creating indexes...")
+            self._log("  Creating indexes...")
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_security_id ON stock_quotes (security_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_symbol ON stock_quotes (stock_symbol)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_predictions_stock_symbol ON predictions (stock_symbol)')
@@ -172,13 +179,14 @@ class SchemaManager:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_status ON stock_quotes (stock_status)')
 
             conn.commit()
-            print("\n✓ Schema initialization completed successfully!")
+            self._log("\n✓ Schema initialization completed successfully!")
 
             # Show table statistics
-            self._show_table_stats(cursor)
+            if self.verbose:
+                self._show_table_stats(cursor)
 
         except Exception as e:
-            print(f"\n✗ Error initializing schema: {e}")
+            self._log(f"\n✗ Error initializing schema: {e}")
             conn.rollback()
             raise
         finally:
@@ -375,4 +383,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

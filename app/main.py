@@ -1,6 +1,7 @@
 # Main Flask application entry point
 import logging
 import os
+import sys
 from datetime import datetime
 
 from flask import Flask, jsonify
@@ -23,11 +24,25 @@ from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.websocket_manager import websocket_manager
 from app.services.inactive_stock_worker import inactive_stock_worker
 
+# Import schema manager for database initialization
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.init_db_schema import SchemaManager
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+# Initialize database schema on application startup
+try:
+    logging.info("Initializing database schema...")
+    schema_manager = SchemaManager(verbose=False)  # Silent mode for app startup
+    schema_manager.init_schema()
+    logging.info("Database schema initialization completed")
+except Exception as e:
+    logging.error(f"Failed to initialize database schema: {e}")
+    # Continue anyway - schema might already exist
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
@@ -165,9 +180,9 @@ if __name__ == '__main__':
     from app.api.system_routes import _load_worker_state
     if _load_worker_state():
         logging.info("Background worker enabled from config - starting")
-        background_worker.start()
+        # background_worker.start()
     else:
         logging.info("Background worker disabled by default - use admin UI to enable")
     
-    inactive_stock_worker.start()  # Start retry worker for inactive stocks
+    # inactive_stock_worker.start()  # Start retry worker for inactive stocks
     socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)
