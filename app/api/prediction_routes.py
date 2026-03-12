@@ -65,22 +65,24 @@ def trigger_prediction():
                 break
             else:
                 for quote in batch:
-                    msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
+                    company_name = getattr(quote, 'company_name', 'Unknown')
+                    msg = f"Processing prediction for: {company_name}"
                     logging.info(f"{msg} [Thread: {threading.current_thread().name}]")
                     status_queue.put(msg)
                     websocket_manager.emit_prediction_progress({
                         'status': 'processing',
-                        'company_name': getattr(quote, 'company_name', str(quote)),
+                        'company_name': company_name,
                         'message': msg,
                         'timestamp': datetime.now().isoformat()
                     })
-                    futures.append(executor.submit(prediction_executor, quote.__dict__))
-                    status_queue.put(f"Running prediction_executor for: {getattr(quote, 'company_name', str(quote))}")
+                    # quote is a StockQuote dataclass, convert to dict
+                    from dataclasses import asdict
+                    futures.append(executor.submit(prediction_executor, asdict(quote)))
+                    status_queue.put(f"Running prediction_executor for: {company_name}")
 
             for future in as_completed(futures):
                 try:
                     _ = future.result()  # Result not used, just ensuring completion
-                    status_queue.put(msg)
                 except Exception as e:
                     err_msg = f"Error during prediction: {str(e)}"
                     logging.error(err_msg, exc_info=True)
@@ -125,22 +127,43 @@ def trigger_watchlist_prediction():
     with ThreadPoolExecutor(max_workers=4) as executor:
         # Create a mapping of futures to quotes
         future_to_quote = {}
-        for quote in watchlist_stocks:
-            msg = f"Processing prediction for: {getattr(quote, 'company_name', str(quote))}"
+        for quote_dict in watchlist_stocks:
+            company_name = quote_dict.get('company_name', 'Unknown')
+            msg = f"Processing prediction for: {company_name}"
             logging.info(msg)
             status_queue.put(msg)
-            future = executor.submit(prediction_executor, quote.__dict__)
-            future_to_quote[future] = quote
+            
+            # WatchlistService.get_watchlist returns dicts that might not have all fields 
+            # needed by prediction_executor. We need to fetch the full quote.
+            from app.db.services.stock_quote_service import StockQuoteService
+            full_quote = StockQuoteService.get_by_company_name(company_name)
+            if not full_quote:
+                # Try by symbol
+                symbol = quote_dict.get('stock_symbol')
+                # Note: StockQuoteService doesn't have get_by_symbol, but it has search_by_name
+                # Let's use db_executor directly or add a method to StockQuoteService
+                from app.db.db_executor import fetch_one
+                row = fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR stock_symbol = ?', (symbol, symbol))
+                if row:
+                    from app.db.data_models import StockQuote
+                    full_quote = StockQuote(**row)
+            
+            if full_quote:
+                from dataclasses import asdict
+                future = executor.submit(prediction_executor, asdict(full_quote))
+                future_to_quote[future] = company_name
+            else:
+                logging.warning(f"Could not find full quote for {company_name}")
+                results.append({'stock': company_name, 'status': 'skipped (no quote)'})
 
         for future in as_completed(future_to_quote):
-            quote = future_to_quote[future]
-            company_name = getattr(quote, 'company_name', 'Unknown')
+            company_name = future_to_quote[future]
             try:
                 _ = future.result()  # Result not used, just ensuring completion
                 results.append({'stock': company_name, 'status': 'done'})
                 status_queue.put(f"Prediction complete for {company_name}")
             except Exception as e:
-                logging.error(f"Error during prediction: {str(e)}", exc_info=True)
+                logging.error(f"Error during prediction for {company_name}: {str(e)}", exc_info=True)
                 results.append({'stock': company_name, 'status': 'error'})
                 status_queue.put(f"Error during prediction for {company_name}")
 
@@ -177,35 +200,28 @@ def trigger_single_prediction():
     
     try:
         # Find the stock in the database
-        from app.utils.util import get_db_connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        from app.db.db_executor import fetch_one
         
         if stock_symbol:
-            cursor.execute('SELECT * FROM stock_quotes WHERE security_id = ? OR scrip_code = ?', 
-                         (stock_symbol, stock_symbol))
+            row = fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR scrip_code = ? OR stock_symbol = ?', 
+                         (stock_symbol, stock_symbol, stock_symbol))
         else:
-            cursor.execute('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
-        
-        row = cursor.fetchone()
-        conn.close()
+            row = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
         
         if not row:
             return jsonify({'success': False, 'error': 'Stock not found'}), 404
         
-        quote_dict = dict(row)
-        
         # Emit start status
         websocket_manager.emit_prediction_progress({
             'status': 'started',
-            'company_name': quote_dict.get('company_name'),
-            'security_id': quote_dict.get('security_id'),
-            'message': f"Starting prediction for {quote_dict.get('company_name')}",
+            'company_name': row.get('company_name'),
+            'security_id': row.get('security_id'),
+            'message': f"Starting prediction for {row.get('company_name')}",
             'timestamp': datetime.now().isoformat()
         })
         
         # Run prediction in background thread
-        def run_prediction():
+        def run_prediction(quote_dict):
             try:
                 prediction_executor(quote_dict)
                 websocket_manager.emit_prediction_progress({
@@ -225,15 +241,14 @@ def trigger_single_prediction():
                     'timestamp': datetime.now().isoformat()
                 })
         
-        import threading
-        thread = threading.Thread(target=run_prediction, daemon=True)
+        thread = threading.Thread(target=run_prediction, args=(row,), daemon=True)
         thread.start()
         
         return jsonify({
             'success': True, 
-            'message': f"Prediction started for {quote_dict.get('company_name')}",
-            'company_name': quote_dict.get('company_name'),
-            'security_id': quote_dict.get('security_id')
+            'message': f"Prediction started for {row.get('company_name')}",
+            'company_name': row.get('company_name'),
+            'security_id': row.get('security_id')
         }), 200
         
     except Exception as e:

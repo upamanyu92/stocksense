@@ -115,6 +115,22 @@ class SchemaManager:
                     last_download_attempt TEXT
                 )
             ''')
+            
+            # Add missing columns to stock_quotes table if they don't exist
+            cursor.execute("PRAGMA table_info(stock_quotes)")
+            sq_columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'stock_symbol' not in sq_columns:
+                self._log("  Adding stock_symbol to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN stock_symbol TEXT')
+            
+            if 'high_52week' not in sq_columns and 'week_52_high' not in sq_columns:
+                self._log("  Adding high_52week to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN high_52week REAL')
+                
+            if 'low_52week' not in sq_columns and 'week_52_low' not in sq_columns:
+                self._log("  Adding low_52week to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN low_52week REAL')
 
             # ========== PREDICTIONS TABLE ==========
             self._log("  Creating predictions table...")
@@ -128,6 +144,30 @@ class SchemaManager:
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 )
             ''')
+            
+            # Add missing columns to predictions table if they don't exist
+            cursor.execute("PRAGMA table_info(predictions)")
+            p_columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'company_name' not in p_columns:
+                self._log("  Adding company_name to predictions table...")
+                cursor.execute('ALTER TABLE predictions ADD COLUMN company_name TEXT')
+                
+            if 'security_id' not in p_columns:
+                self._log("  Adding security_id to predictions table...")
+                cursor.execute('ALTER TABLE predictions ADD COLUMN security_id TEXT')
+                
+            if 'current_price' not in p_columns:
+                self._log("  Adding current_price to predictions table...")
+                cursor.execute('ALTER TABLE predictions ADD COLUMN current_price REAL')
+                
+            if 'stock_status' not in p_columns:
+                self._log("  Adding stock_status to predictions table...")
+                cursor.execute("ALTER TABLE predictions ADD COLUMN stock_status TEXT DEFAULT 'active'")
+            
+            if 'stock_symbol' not in p_columns:
+                self._log("  Adding stock_symbol to predictions table...")
+                cursor.execute("ALTER TABLE predictions ADD COLUMN stock_symbol TEXT")
 
             # ========== MODEL CONFIGURATIONS TABLE ==========
             self._log("  Creating model_configurations table...")
@@ -169,14 +209,56 @@ class SchemaManager:
                 )
             ''')
 
+            # ========== ALERTS TABLE ==========
+            self._log("  Creating alerts table...")
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER DEFAULT NULL,
+                    symbol TEXT NOT NULL,
+                    condition_type TEXT NOT NULL,
+                    condition_value REAL NOT NULL,
+                    min_confidence REAL DEFAULT 0.0,
+                    enabled INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # ========== NOTIFICATIONS TABLE ==========
+            self._log("  Creating notifications table...")
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    alert_id INTEGER DEFAULT NULL,
+                    user_id INTEGER DEFAULT NULL,
+                    symbol TEXT,
+                    message TEXT,
+                    meta JSON DEFAULT NULL,
+                    sent INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # ========== CREATE INDEXES ==========
             self._log("  Creating indexes...")
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_security_id ON stock_quotes (security_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_symbol ON stock_quotes (stock_symbol)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_predictions_stock_symbol ON predictions (stock_symbol)')
+            
+            # Re-fetch columns to ensure we have the latest state before creating indexes
+            cursor.execute("PRAGMA table_info(stock_quotes)")
+            sq_cols = [c[1] for c in cursor.fetchall()]
+            if 'stock_symbol' in sq_cols:
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_symbol ON stock_quotes (stock_symbol)')
+            
+            cursor.execute("PRAGMA table_info(predictions)")
+            p_cols = [c[1] for c in cursor.fetchall()]
+            if 'stock_symbol' in p_cols:
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_predictions_stock_symbol ON predictions (stock_symbol)')
+
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists (user_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_watchlist_user_id ON user_watchlist (user_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_status ON stock_quotes (stock_status)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_symbol ON alerts(symbol)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_notifications_sent ON notifications(sent)')
 
             conn.commit()
             self._log("\n✓ Schema initialization completed successfully!")

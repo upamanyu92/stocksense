@@ -1,4 +1,4 @@
-# Prediction service entry point
+# Prediction service entry point using Google Gemini AI
 from flask import Flask, jsonify
 import schedule
 import yfinance as yf
@@ -6,20 +6,23 @@ from datetime import datetime
 import logging
 
 from app.db.db_executor import execute_query
-from app.models.keras_model import predict_max_profit
-from app.models.training_script import download_stock_data
-from app.utils.util import predict_algo, check_index_existence
+from app.models.gemini_model import predict_with_details
+from app.utils.util import check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
 from app.db.data_models import Prediction
 from app.utils.yfinance_utils import get_quote_with_retry
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 # Initialize the agentic prediction coordinator
 prediction_coordinator = PredictionCoordinator(min_confidence=0.6)
 
-# WebSocket manager - will be set from main.py
+# WebSocket manager - will be set from main.py to avoid circular imports
 websocket_manager = None
 
 def set_websocket_manager(manager):
@@ -47,7 +50,7 @@ def prediction_executor(data):
                     'timestamp': datetime.now().isoformat()
                 })
             
-            # Use agentic prediction system for improved accuracy
+            # Use agentic prediction system with Gemini AI for improved accuracy
             try:
                 result = prediction_coordinator.predict(stock_symbol_yahoo, validate=True)
                 predicted_price = result['prediction']
@@ -55,18 +58,26 @@ def prediction_executor(data):
                 decision = result['decision']
                 
                 # Log agentic prediction details
-                logging.info(f"Agentic prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
+                logging.info(f"Gemini AI prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
                 logging.info(f"Recommendation: {result['recommendation']}")
                 
                 # Only use prediction if decision is 'accept' or 'caution'
                 if decision == 'reject':
-                    logging.warning(f"Prediction rejected due to low confidence. Falling back to traditional method.")
-                    predicted_price = predict_max_profit(stock_symbol_yahoo)
+                    logging.warning(f"Prediction rejected due to low confidence. Using Gemini fallback.")
+                    gemini_result = predict_with_details(stock_symbol_yahoo)
+                    predicted_price = gemini_result['predicted_price']
+                    confidence = gemini_result['confidence']
+                    decision = 'caution'
             except Exception as e:
-                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to traditional method.")
-                predicted_price = predict_max_profit(stock_symbol_yahoo)
-                confidence = 0.5
-                decision = 'fallback'
+                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to direct Gemini API.")
+                try:
+                    gemini_result = predict_with_details(stock_symbol_yahoo)
+                    predicted_price = gemini_result['predicted_price']
+                    confidence = gemini_result['confidence']
+                    decision = gemini_result.get('decision', 'caution')
+                except Exception as fallback_e:
+                    logging.error(f"Fallback Gemini prediction also failed: {str(fallback_e)}")
+                    raise
 
             # Handle both string and float values for current_value
             current_value = data['current_value']
@@ -143,11 +154,10 @@ def update_database():
             stock_symbol = row['stock_symbol']
             stock_symbol_yahoo = stock_symbol if stock_symbol.endswith('.BO') or stock_symbol.endswith('.NS') else stock_symbol + '.BO'
             
-            query = 'SELECT active FROM predictions_linear WHERE security_id = ?'
-            row = execute_query(query, (stock_symbol.replace('.BO', '').replace('.NS', ''),), fetchone=True)
-            if row is None or row['active'] == 1:
-                stock_data = download_stock_data(stock_symbol_yahoo)
-                predicted_price = predict_algo(stock_data, stock_symbol)
+            # Use Gemini for prediction
+            try:
+                gemini_result = predict_with_details(stock_symbol_yahoo)
+                predicted_price = gemini_result['predicted_price']
                 
                 # Get current price from yfinance
                 quote = get_quote_with_retry(stock_symbol_yahoo)
@@ -158,31 +168,24 @@ def update_database():
                 current_price = float(quote['currentValue']) if isinstance(quote['currentValue'], (int, float)) else float(str(quote['currentValue']).replace(',', ''))
                 
                 logger.info(f"Predicted price: {predicted_price}, Current price: {current_price} for {quote.get('companyName')}")
-                query = '''
-                    INSERT INTO predictions_linear (company_name, security_id, current_price, predicted_price, prediction_date, active)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(security_id) DO UPDATE SET
-                        company_name=excluded.company_name,
-                        current_price=excluded.current_price,
-                        predicted_price=excluded.predicted_price,
-                        prediction_date=excluded.prediction_date,
-                        active=excluded.active
-                '''
-                execute_query(query, (quote.get('companyName'), stock_symbol.replace('.BO', '').replace('.NS', ''), current_price, predicted_price,
-                                      datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 1), commit=True)
-            else:
-                logger.warning(f"Stock {stock_symbol} is marked as inactive for {name}")
+                
+                # Store prediction
+                prediction = Prediction(
+                    company_name=quote.get('companyName'),
+                    security_id=stock_symbol.replace('.BO', '').replace('.NS', ''),
+                    current_price=current_price,
+                    predicted_price=predicted_price,
+                    prediction_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                )
+                PredictionService.create(prediction)
+                
+            except Exception as e:
+                logger.error(f"Error predicting for {stock_symbol}: {str(e)}")
 
         except Exception as e:
-            logger.error(f"Error predicting for {stock_symbol}: {str(e)}")
-            if str(e) == "Inactive stock":
-                query = 'UPDATE predictions_linear SET active = 0 WHERE security_id = ?'
-                execute_query(query, (stock_symbol.replace('.BO', '').replace('.NS', '') if stock_symbol else code,), commit=True)
+            logger.error(f"Error processing {name}: {str(e)}")
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
-
     # Start the scheduler
     schedule.every(1).minutes.do(update_database)
 
@@ -191,4 +194,4 @@ if __name__ == '__main__':
     def index():
         return jsonify({"message": "Scheduler and Updater Service Running"}), 200
 
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # app.run(host='0.0.0.0', port=5001, debug=True)

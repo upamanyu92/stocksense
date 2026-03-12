@@ -14,11 +14,13 @@ from app.utils.util import get_db_connection
 class User(UserMixin):
     """User model for Flask-Login"""
     
-    def __init__(self, id, username, email, active=True):
+    def __init__(self, id, username, email, active=True, subscription_tier='free', subscription_expires_at=None):
         self.id = id
         self.username = username
         self.email = email
         self._active = active
+        self.subscription_tier = subscription_tier
+        self.subscription_expires_at = subscription_expires_at
     
     @property
     def is_active(self):
@@ -30,7 +32,14 @@ class User(UserMixin):
         """Get user by ID"""
         user_data = UserService.get_by_id(user_id)
         if user_data:
-            return User(user_data.id, user_data.username, user_data.email, bool(user_data.is_active))
+            return User(
+                user_data.id, 
+                user_data.username, 
+                user_data.email, 
+                bool(user_data.is_active),
+                user_data.subscription_tier,
+                user_data.subscription_expires_at
+            )
         return None
     
     @staticmethod
@@ -38,7 +47,14 @@ class User(UserMixin):
         """Get user by username"""
         user_data = UserService.get_by_username(username)
         if user_data:
-            return User(user_data.id, user_data.username, user_data.email, bool(user_data.is_active))
+            return User(
+                user_data.id, 
+                user_data.username, 
+                user_data.email, 
+                bool(user_data.is_active),
+                user_data.subscription_tier,
+                user_data.subscription_expires_at
+            )
         return None
     
     @staticmethod
@@ -61,6 +77,18 @@ class User(UserMixin):
     def verify_password(username: str, password: str) -> bool:
         """Verify user password"""
         return UserService.verify_password(username, password)
+
+    def is_pro(self) -> bool:
+        """Check if user has pro subscription"""
+        if self.subscription_tier == 'pro':
+            if self.subscription_expires_at:
+                try:
+                    expiry = datetime.fromisoformat(self.subscription_expires_at)
+                    return expiry > datetime.now()
+                except ValueError:
+                    return False
+            return True # No expiry means lifetime pro for now
+        return False
 
 
 class WatchlistService:

@@ -1,0 +1,57 @@
+from typing import List, Dict, Any
+from datetime import datetime
+from app.utils.util import get_db_connection
+
+
+def run_simple_backtest(symbol: str, start_date: str, end_date: str, initial_capital: float = 100000.0, strategy: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Run a simple backtest using stored historical prices in stock_quotes or predictions.
+    Strategy is a dict: {'type': 'predicted_change_threshold', 'threshold': 2.5}
+    This is a lightweight simulator for demo purposes.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # For demo, try to use predictions table
+    cursor.execute("SELECT prediction_date, predicted_price FROM predictions WHERE stock_symbol = ? AND prediction_date BETWEEN ? AND ? ORDER BY prediction_date", (symbol, start_date, end_date))
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        return {'error': 'No prediction data available for backtesting'}
+
+    # Very simple strategy: buy at close when predicted change > threshold, sell next day at next predicted price
+    threshold = strategy.get('threshold', 2.0) if strategy else 2.0
+    cash = initial_capital
+    position = 0.0
+    position_price = 0.0
+    trades = []
+
+    for i in range(len(rows)-1):
+        date, predicted = rows[i]
+        next_date, next_pred = rows[i+1]
+        # We need current price - for demo we use predicted as proxy
+        current_price = float(predicted)
+        next_price = float(next_pred)
+        change_pct = ((next_price - current_price) / current_price) * 100
+        if change_pct > threshold and cash > 0:
+            # buy full position
+            qty = cash / current_price
+            position = qty
+            position_price = current_price
+            cash = 0.0
+            trades.append({'action': 'buy', 'date': date, 'price': current_price, 'qty': qty})
+        elif position > 0:
+            # sell
+            cash = position * next_price
+            trades.append({'action': 'sell', 'date': next_date, 'price': next_price, 'qty': position})
+            position = 0.0
+            position_price = 0.0
+
+    portfolio_value = cash + (position * position_price if position > 0 else 0.0)
+    return {
+        'symbol': symbol,
+        'start_date': start_date,
+        'end_date': end_date,
+        'initial_capital': initial_capital,
+        'final_value': portfolio_value,
+        'trades': trades
+    }

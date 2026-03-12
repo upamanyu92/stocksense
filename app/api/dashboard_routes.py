@@ -19,3 +19,10 @@ def user_dashboard():
 def stocks_list():
     """Stocks list page with pagination and sorting"""
     return render_template('stocks_list.html', username=current_user.username)
+
+
+@dashboard_bp.route('/notifications')
+@login_required
+def notifications_page():
+    """Notifications page"""
+    return render_template('notifications.html', username=current_user.username)

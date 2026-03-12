@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/templates/dashboard.html">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/templates/dashboard.html" />
+              <option name="updatedContent" value="&lt;!-- ...existing code... --&gt;&#10;&lt;section id=&quot;top-predictions-section&quot;&gt;&#10;  &lt;h2&gt;Top Predictions&lt;/h2&gt;&#10;  &lt;table class=&quot;table&quot; id=&quot;topPredictionsTable&quot;&gt;&#10;    &lt;thead&gt;&#10;      &lt;tr&gt;&#10;        &lt;th&gt;Company Name&lt;/th&gt;&#10;        &lt;th&gt;Current Price&lt;/th&gt;&#10;        &lt;th&gt;Predicted Price&lt;/th&gt;&#10;        &lt;th&gt;Profit %&lt;/th&gt;&#10;        &lt;th&gt;Prediction Date&lt;/th&gt;&#10;      &lt;/tr&gt;&#10;    &lt;/thead&gt;&#10;    &lt;tbody&gt;&#10;      &lt;!-- Predictions will be injected here by dashboard.js --&gt;&#10;    &lt;/tbody&gt;&#10;  &lt;/table&gt;&#10;  &lt;div id=&quot;predictionsPagination&quot;&gt;&lt;/div&gt;&#10;&lt;/section&gt;&#10;&lt;!-- ...existing code... --&gt;&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

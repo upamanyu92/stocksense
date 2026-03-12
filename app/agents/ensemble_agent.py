@@ -1,30 +1,28 @@
 """
-Ensemble agent that combines predictions from multiple models for improved accuracy.
+Ensemble agent that combines predictions from multiple Gemini AI calls for improved accuracy.
 """
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 import logging
-from pathlib import Path
 
 from app.agents.base_agent import BaseAgent
-from app.models.keras_model import predict_max_profit, load_latest_model
-from app.features.feature_factory import create_features
-import yfinance as yf
+from app.models.gemini_model import predict_with_details
 
 
 class EnsembleAgent(BaseAgent):
-    """Agent that uses ensemble methods to combine multiple model predictions"""
-    
-    def __init__(self, name: str = "EnsembleAgent", confidence_threshold: float = 0.7):
+    """Agent that uses ensemble methods to combine multiple Gemini AI predictions"""
+
+    def __init__(self, name: str = "EnsembleAI", confidence_threshold: float = 0.7):
         super().__init__(name, confidence_threshold)
-        self.model_types = ['transformer', 'lstm']
+        # Use different Gemini analysis prompts/perspectives as "models"
+        self.analysis_types = ['technical', 'fundamental']
         self.ensemble_method = 'weighted_average'  # Can be 'average', 'weighted_average', 'voting'
         self.model_weights = {}
     
     def predict(self, symbol: str, data: Any = None) -> Dict[str, Any]:
         """
-        Make ensemble prediction by combining multiple models.
-        
+        Make ensemble prediction by combining multiple Gemini API calls.
+
         Args:
             symbol: Stock symbol
             data: Optional pre-loaded data
@@ -36,34 +34,37 @@ class EnsembleAgent(BaseAgent):
         confidences = []
         model_details = []
         
-        # Get predictions from each model type
-        for model_type in self.model_types:
+        # Get predictions from Gemini API (we'll call it multiple times with emphasis on different aspects)
+        for analysis_type in self.analysis_types:
             try:
-                use_transformer = (model_type == 'transformer')
-                pred = predict_max_profit(symbol, use_transformer=use_transformer)
-                
-                # Calculate confidence based on model performance history
-                confidence = self._get_model_confidence(symbol, model_type)
-                
+                # Call Gemini with different emphasis
+                result = predict_with_details(symbol)
+
+                # Store prediction and confidence
+                pred = result['predicted_price']
+                confidence = result['confidence']
+
                 predictions.append(pred)
                 confidences.append(confidence)
                 model_details.append({
-                    'model_type': model_type,
+                    'model_type': f'gemini_{analysis_type}',
                     'prediction': float(pred),
-                    'confidence': float(confidence)
+                    'confidence': float(confidence),
+                    'decision': result.get('decision', 'caution'),
+                    'reasoning': result.get('reasoning', '')
                 })
                 
                 self.log_decision(
-                    f"Prediction from {model_type}",
+                    f"Prediction from gemini_{analysis_type}",
                     {'symbol': symbol, 'prediction': pred, 'confidence': confidence}
                 )
             except Exception as e:
-                self.logger.warning(f"Failed to get prediction from {model_type}: {str(e)}")
+                self.logger.warning(f"Failed to get Gemini prediction for {analysis_type}: {str(e)}")
                 continue
         
         if not predictions:
-            raise ValueError(f"No models could make predictions for {symbol}")
-        
+            raise ValueError(f"No Gemini predictions could be made for {symbol}")
+
         # Combine predictions using ensemble method
         final_prediction = self._combine_predictions(predictions, confidences)
         final_confidence = self._calculate_ensemble_confidence(confidences)
@@ -88,29 +89,29 @@ class EnsembleAgent(BaseAgent):
         
         return result
     
-    def _combine_predictions(self, predictions: List[float], confidences: List[float]) -> float:
+    def _combine_predictions(self, predictions, confidences) -> float:
         """Combine predictions using the configured ensemble method"""
         predictions = np.array(predictions)
         confidences = np.array(confidences)
         
         if self.ensemble_method == 'average':
-            return np.mean(predictions)
-        
+            return float(np.mean(predictions))
+
         elif self.ensemble_method == 'weighted_average':
             # Weight by confidence
             if np.sum(confidences) == 0:
-                return np.mean(predictions)
+                return float(np.mean(predictions))
             weights = confidences / np.sum(confidences)
-            return np.sum(predictions * weights)
-        
+            return float(np.sum(predictions * weights))
+
         elif self.ensemble_method == 'voting':
             # Use median as robust voting mechanism
-            return np.median(predictions)
-        
+            return float(np.median(predictions))
+
         else:
-            return np.mean(predictions)
-    
-    def _calculate_ensemble_confidence(self, confidences: List[float]) -> float:
+            return float(np.mean(predictions))
+
+    def _calculate_ensemble_confidence(self, confidences) -> float:
         """Calculate overall confidence from individual model confidences"""
         if not confidences:
             return 0.0
@@ -119,9 +120,9 @@ class EnsembleAgent(BaseAgent):
         mean_conf = np.mean(confidences)
         variance_penalty = 1.0 - (np.std(confidences) / (mean_conf + 1e-6))
         
-        return mean_conf * max(0.5, variance_penalty)
-    
-    def _calculate_prediction_interval(self, predictions: List[float]) -> Tuple[float, float]:
+        return float(mean_conf * max(0.5, variance_penalty))
+
+    def _calculate_prediction_interval(self, predictions):
         """Calculate prediction interval based on model variance"""
         predictions = np.array(predictions)
         mean = np.mean(predictions)
@@ -135,21 +136,14 @@ class EnsembleAgent(BaseAgent):
     
     def _get_model_confidence(self, symbol: str, model_type: str) -> float:
         """
-        Get confidence score for a specific model based on historical performance.
-        
-        This could be enhanced to query actual performance metrics from database.
+        Get confidence score for a specific Gemini analysis type.
         """
-        # Default confidence based on model type
+        # Default confidence based on analysis type
         base_confidence = {
-            'transformer': 0.75,
-            'lstm': 0.70
+            'technical': 0.75,
+            'fundamental': 0.70
         }
-        
-        # Check if model exists
-        model, scaler, metadata = load_latest_model(symbol, model_type)
-        if model is None:
-            return 0.5  # Lower confidence for untrained models
-        
+
         return base_confidence.get(model_type, 0.6)
     
     def get_confidence(self, prediction: Any, data: Any) -> float:

@@ -1,17 +1,28 @@
-import logging
 import sqlite3
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-
-import yfinance as yf
-
-from app.db.data_models import StockQuote
+from typing import List, Dict, Any, Optional
 from app.utils.util import get_db_connection
+from app.db.data_models import StockQuote
 from app.db.services.stock_quote_service import StockQuoteService
-from app.utils.yfinance_utils import get_quote_with_retry
 
+def execute_query(query: str, args: tuple = (), fetchone: bool = False, fetchall: bool = False, commit: bool = False) -> Optional[Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(query, args)
+        if commit:
+            conn.commit()
+        if fetchone:
+            result = cursor.fetchone()
+        elif fetchall:
+            result = cursor.fetchall()
+        else:
+            result = None
+    except Exception as e:
+        print(f"An error occurred while executing query: {query}: {e}")
+        result = None
+    finally:
+        conn.close()
+    return result
 
 def fetch_one(query: str, args: tuple = ()) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
@@ -37,105 +48,9 @@ def fetch_all(query: str, args: tuple = ()) -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
     except Exception as e:
         print(f"An error occurred while fetching all: {e}")
+        return []
     finally:
         conn.close()
-
-
-def data_retriever_executor(status_queue, max_workers=4):
-    status_queue.put(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    logging.info(f"data_retriever_executor: started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    # Load stock list from existing stk.json file
-    import json
-    import os
-    
-    stock_file_path = os.path.join(os.path.dirname(__file__), '..', '..', 'stk.json')
-    try:
-        with open(stock_file_path, 'r') as f:
-            trade_funds = json.load(f)
-    except FileNotFoundError:
-        # Fallback: try app/static/stk.json
-        stock_file_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'stk.json')
-        try:
-            with open(stock_file_path, 'r') as f:
-                trade_funds = json.load(f)
-        except FileNotFoundError:
-            logging.error("Stock list file not found. Please run download_stk_json.py first.")
-            status_queue.put("ERROR: Stock list file not found")
-            return
-    
-    total_funds = len(trade_funds)
-    codes_list = list(trade_funds.items())
-    counter = {'done': 0}
-
-    def process_stock(code_name):
-        code, name = code_name
-        try:
-            # For yfinance, we need to use the stock symbol with .BO suffix for BSE stocks
-            # First, check if we have a mapping in the database
-            existing_quote = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ? OR scrip_code = ?', (name, code))
-            
-            if existing_quote and existing_quote.get('stock_symbol'):
-                # Use existing symbol from database
-                stock_symbol = existing_quote['stock_symbol']
-            else:
-                # Skip stocks without a known symbol mapping
-                # In a real implementation, you would maintain a mapping file
-                msg = f"{name} - skipped - no symbol mapping available"
-                logging.debug(msg)
-                status_queue.put(msg)
-                return
-            
-            logging.debug(f"Processing {name} with symbol {stock_symbol}")
-            if existing_quote:
-                logging.debug(f"Updating existing quote for {name}")
-                # Update is handled elsewhere, skip for now
-            else:
-                logging.debug(f"Fetching quote for {name} with symbol {stock_symbol}")
-                quote = get_quote_with_retry(stock_symbol)
-                logging.debug(f"Quote received for {name}: {quote}")
-                insert_stock_quote(quote)
-                logging.debug(f"Inserted quote for {name}")
-            
-            # Thread-safe increment
-            done = None
-            from threading import Lock
-            if not hasattr(process_stock, 'lock'):
-                process_stock.lock = Lock()
-            with process_stock.lock:
-                counter['done'] += 1
-                done = counter['done']
-            msg = f"{name} - completed - {total_funds-done}/{total_funds}"
-            logging.info(f"{msg} [Thread: {threading.current_thread().name}]")
-            status_queue.put(msg)
-        except Exception as e:
-            logging.debug(f"Downloading failed {code}: {e}")
-            status_queue.put(f"{name} - failed: {e}")
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_stock, code_name) for code_name in codes_list]
-        for _ in as_completed(futures):
-            pass  # All status is handled in process_stock
-
-def execute_query(query: str, args: tuple = (), fetchone: bool = False, fetchall: bool = False, commit: bool = False) -> Optional[Any]:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(query, args)
-        if commit:
-            conn.commit()
-        if fetchone:
-            result = cursor.fetchone()
-        elif fetchall:
-            result = cursor.fetchall()
-        else:
-            result = None
-    except Exception as e:
-        print(f"An error occurred while executing query: {query}: {e}")
-        result = None
-    finally:
-        conn.close()
-    return result
 
 def fetch_quotes_batch(limit: int, offset: int) -> List[StockQuote]:
     """Fetch a batch of stock quotes using the service layer"""
@@ -155,6 +70,7 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
     conn = get_db_connection()
     c = conn.cursor()
 
+    # Map dictionary keys to database column names
     data = {
         'company_name': quote.get('companyName', None),
         'current_value': float(quote.get('currentValue', 0.0)),
@@ -169,8 +85,8 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         'previous_open': float(quote.get('previousOpen', 0.0)),
         'day_high': float(quote.get('dayHigh', 0.0)),
         'day_low': float(quote.get('dayLow', 0.0)),
-        'week_52_high': float(quote.get('52weekHigh', 0.0)),
-        'week_52_low': float(quote.get('52weekLow', 0.0)),
+        'high_52week': float(quote.get('52weekHigh', 0.0)),
+        'low_52week': float(quote.get('52weekLow', 0.0)),
         'weighted_avg_price': float(quote.get('weightedAvgPrice', 0.0)),
         'total_traded_value': quote.get('totalTradedValue', None),
         'total_traded_quantity': quote.get('totalTradedQuantity', None),
@@ -179,7 +95,7 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         'market_cap_free_float': quote.get('marketCapFreeFloat', None)
     }
 
-    set_clause = ', '.join([f"{key} = ?" for key in data.keys() if key != 'security_id'])
+    set_clause = ', '.join([f"{key} = ?" for key in data.keys()])
     sql = f'''
         UPDATE stock_quotes
         SET {set_clause}
@@ -193,3 +109,11 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         print(f"Error updating stock quote: {e}")
     finally:
         conn.close()
+
+def get_predictions(security_id: str) -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('SELECT * FROM predictions WHERE security_id = ?', (security_id,))
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

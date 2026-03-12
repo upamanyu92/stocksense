@@ -7,11 +7,12 @@ import os
 import time
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, jsonify, request, Response, render_template
 from flask_login import login_required
 
 from app.services.background_worker import background_worker
 from app.utils.disk_monitor import DiskSpaceMonitor
+from app.services.worker_config import load_config, save_config
 
 system_bp = Blueprint('system', __name__, url_prefix='/api/system')
 
@@ -106,7 +107,7 @@ def start_background_worker():
         return jsonify({
             'success': True,
             'message': 'Background worker started'
-        }), 200
+        }, 200)
     except Exception as e:
         logging.error(f"Error starting background worker: {str(e)}", exc_info=True)
         return jsonify({
@@ -146,25 +147,53 @@ def stop_background_worker():
         }), 500
 
 
+@system_bp.route('/digest/enable', methods=['POST'])
+@login_required
+def enable_digest():
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+    cfg = load_config()
+    cfg['digest_email_enabled'] = True
+    save_config(cfg)
+    return jsonify({'success': True, 'digest_email_enabled': True}), 200
+
+
+@system_bp.route('/digest/disable', methods=['POST'])
+@login_required
+def disable_digest():
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({'success': False, 'error': 'Admin privileges required'}), 403
+    cfg = load_config()
+    cfg['digest_email_enabled'] = False
+    save_config(cfg)
+    return jsonify({'success': True, 'digest_email_enabled': False}), 200
+
+
+@system_bp.route('/digest/status', methods=['GET'])
+@login_required
+def digest_status():
+    cfg = load_config()
+    return jsonify({'digest_email_enabled': bool(cfg.get('digest_email_enabled', False))}), 200
+
+
 def _save_worker_state(enabled: bool):
     """Save background worker state to configuration file"""
-    os.makedirs(os.path.dirname(WORKER_CONFIG_PATH), exist_ok=True)
-    
-    with open(WORKER_CONFIG_PATH, 'w') as f:
-        json.dump({'background_worker_enabled': enabled}, f)
+    # Preserve other flags when updating worker state
+    cfg = load_config()
+    cfg['background_worker_enabled'] = bool(enabled)
+    save_config(cfg)
 
 
 def _load_worker_state() -> bool:
     """Load background worker state from configuration file"""
-    if os.path.exists(WORKER_CONFIG_PATH):
-        try:
-            with open(WORKER_CONFIG_PATH, 'r') as f:
-                config = json.load(f)
-                return config.get('background_worker_enabled', False)
-        except Exception as e:
-            logging.error(f"Error loading worker config: {str(e)}")
-    
-    return False  # Default to disabled
+    cfg = load_config()
+    return bool(cfg.get('background_worker_enabled', False))
 
 
 @system_bp.route('/background_worker/status')
@@ -183,3 +212,14 @@ def background_worker_status():
 def background_status():
     """Return real-time status of background worker"""
     return jsonify(background_worker.get_status())
+
+
+@system_bp.route('/ui', methods=['GET'])
+@login_required
+def admin_ui():
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+    return render_template('admin_system.html')

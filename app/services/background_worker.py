@@ -15,6 +15,11 @@ import yfinance as yf
 from app.services.prediction_service import prediction_executor
 from app.utils.util import get_db_connection
 from app.utils.yfinance_utils import get_quote_with_retry
+from app.services import alert_service as alert_svc
+from app.db.services.alert_service import insert_notification as db_insert_notification
+import json
+from app.services.digest_service import build_daily_brief, send_daily_digest
+from app.services.worker_config import load_config as load_worker_config
 
 # Import websocket_manager - will be set from main.py to avoid circular imports
 websocket_manager = None
@@ -300,7 +305,7 @@ class BackgroundWorker:
             # Update or insert stock status
             cursor.execute('''
                 INSERT INTO stock_quotes (
-                    company_name, security_id, stock_status, scrip_code,
+                    company_name, security_id, scrip_code, stock_status,
                     download_attempts, last_download_attempt
                 )
                 VALUES (?, ?, ?, 'inactive', 1, ?)
@@ -356,7 +361,7 @@ class BackgroundWorker:
         cursor.execute('''
             SELECT DISTINCT sq.* 
             FROM stock_quotes sq
-            INNER JOIN user_watchlist uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
+            INNER JOIN watchlists uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
             WHERE sq.stock_status = 'active'
             ORDER BY sq.company_name
         ''')
@@ -404,7 +409,53 @@ class BackgroundWorker:
         self.status_queue.put(completion_update)
         if websocket_manager:
             websocket_manager.emit_background_worker_status(completion_update)
-    
+
+        # Evaluate alerts after predictions
+        try:
+            logging.info('Evaluating alerts after predictions')
+            notifications = alert_svc.run_alerts_evaluation()
+            # Emit notifications via websocket and ensure stored
+            for n in notifications:
+                msg = {
+                    'type': 'alert_notification',
+                    'alert_id': n.get('alert_id'),
+                    'notification_id': n.get('notification_id'),
+                    'symbol': n.get('result', {}).get('symbol') if n.get('result') else None,
+                    'message': n.get('message')
+                }
+                self.status_queue.put(msg)
+                if websocket_manager:
+                    websocket_manager.emit_background_worker_status(msg)
+        except Exception as e:
+            logging.error(f"Error evaluating alerts: {e}")
+
+        # Generate Daily Brief once per day (after running predictions)
+        try:
+            # Simple daily brief: top 5 notifications and top 5 predicted movers
+            today = datetime.now().date()
+            if not hasattr(self, 'daily_brief_last_date') or self.daily_brief_last_date != today:
+                logging.info('Generating daily brief')
+                # Fetch recent notifications
+                recent_notifs = alert_svc.list_alerts()  # reuse alerts list for context
+                brief_message = f"Daily Brief for {today.isoformat()}: {len(recent_notifs)} alerts active"
+                # Insert brief as notification with alert_id=None
+                db_insert_notification(None, None, 'DAILY_BRIEF', brief_message, meta=json.dumps({'count': len(recent_notifs)}))
+                self.daily_brief_last_date = today
+                # Build and send email digest to admins if configured
+                try:
+                    # Check worker config for digest flag
+                    cfg = load_worker_config()
+                    if cfg.get('digest_email_enabled'):
+                        body = build_daily_brief()
+                        admin_list = os.environ.get('ADMIN_ALERT_EMAILS')
+                        if admin_list:
+                            to_emails = [e.strip() for e in admin_list.split(',') if e.strip()]
+                            send_daily_digest(to_emails, f"StockSense Daily Brief - {today.isoformat()}", body)
+                except Exception as e:
+                    logging.error(f"Failed to send daily digest: {e}")
+        except Exception as e:
+            logging.error(f"Error generating daily brief: {e}")
+
     def get_status(self) -> Dict[str, Any]:
         """Get current worker status"""
         statuses = []

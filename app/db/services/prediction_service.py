@@ -18,15 +18,16 @@ class PredictionService:
         try:
             cursor.execute('''
                 INSERT OR REPLACE INTO predictions 
-                (company_name, security_id, current_price, predicted_price, prediction_date, stock_status)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (company_name, security_id, current_price, predicted_price, prediction_date, stock_status, stock_symbol)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
                 prediction.company_name,
                 prediction.security_id,
                 prediction.current_price,
                 prediction.predicted_price,
                 prediction.prediction_date,
-                prediction.stock_status or 'active'
+                prediction.stock_status or 'active',
+                prediction.security_id  # Use security_id as stock_symbol
             ))
             conn.commit()
             return cursor.lastrowid

@@ -4,11 +4,11 @@ Flask
 Flask-Login
 numpy
 pandas
-tensorflow
-keras
 schedule
 flask-socketio
 flask-cors
 fastapi
 pytz
 psutil
+google-genai
+python-dotenv

@@ -23,10 +23,29 @@ from app.services.price_streamer import price_streamer
 from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.websocket_manager import websocket_manager
 from app.services.inactive_stock_worker import inactive_stock_worker
-
-# Import schema manager for database initialization
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from app.config_settings import Config
+from app.api.alert_routes import bp as alert_bp
+from app.api.notification_routes import notification_bp
+from app.api.backtest_routes import backtest_bp
+from app.api.llm_routes import llm_bp
+import sqlite3
+import pkgutil
+import os
+from pathlib import Path
 from scripts.init_db_schema import SchemaManager
+
+# Execute migrations for alerts table if not present
+try:
+    migrations_path = os.path.join(os.path.dirname(__file__), 'db', 'migrations', 'create_alerts_table.sql')
+    if os.path.exists(migrations_path):
+        conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'db', 'stock_predictions.db'))
+        with open(migrations_path, 'r') as f:
+            sql = f.read()
+            conn.executescript(sql)
+        conn.close()
+        logging.info('Alerts/notifications tables ensured')
+except Exception as e:
+    logging.warning(f'Failed to run alerts migration: {e}')
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +62,15 @@ try:
 except Exception as e:
     logging.error(f"Failed to initialize database schema: {e}")
     # Continue anyway - schema might already exist
+
+# Initialize Gemini AI
+try:
+    logging.info("Initializing Google Gemini AI API...")
+    Config.initialize_gemini()
+    logging.info("Gemini AI initialized successfully")
+except Exception as e:
+    logging.warning(f"Gemini AI initialization warning: {e}")
+    logging.warning("Predictions will not work until GEMINI_API_KEY is configured in .env file")
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
@@ -81,6 +109,10 @@ app.register_blueprint(system_bp)
 app.register_blueprint(price_stream_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(alert_bp)
+app.register_blueprint(notification_bp)
+app.register_blueprint(backtest_bp)
+app.register_blueprint(llm_bp)
 
 @login_manager.user_loader
 def load_user(user_id):

@@ -22,8 +22,8 @@ class StockQuote:
     previous_open: float
     day_high: float
     day_low: float
-    week_52_high: float
-    week_52_low: float
+    high_52week: float
+    low_52week: float
     weighted_avg_price: float
     total_traded_value: str
     total_traded_quantity: str
@@ -65,6 +65,7 @@ class Prediction:
     prediction_date: str
     id: Optional[int] = None
     stock_status: Optional[str] = 'active'
+    stock_symbol: Optional[str] = None
 
 
 @dataclass
@@ -76,6 +77,8 @@ class User:
     created_at: Optional[str] = None
     is_active: int = 1
     is_admin: int = 0
+    subscription_tier: str = 'free'
+    subscription_expires_at: Optional[str] = None
 
 
 @dataclass

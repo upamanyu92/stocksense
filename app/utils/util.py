@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Optional
 import os
-from app.config import Config
+from app.config_settings import Config
 
 class SQLiteConnectionPool:
     def __init__(self, db_path: str = None, pool_size: int = 5):
