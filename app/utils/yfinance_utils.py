@@ -195,3 +195,145 @@ def get_nifty_stocks() -> List[Dict[str, str]]:
     except Exception as e:
         logging.error(f"Error fetching NIFTY stocks: {e}")
         return []
+
+
+def search_companies_by_name(
+    company_name: str,
+    max_results: int = 10,
+    indian_only: bool = True,
+    max_retries: int = 3,
+    delay: int = 1
+) -> List[Dict[str, Any]]:
+    """
+    Search for companies by name using yfinance Search API.
+
+    Args:
+        company_name: Name of the company to search for
+        max_results: Maximum number of search results to return
+        indian_only: Filter to show only Indian stocks (BSE/NSE)
+        max_retries: Maximum number of retry attempts
+        delay: Delay between retries in seconds
+
+    Returns:
+        List of dictionaries containing search results with symbol, name, exchange, and type
+        Returns empty list if search fails after all retries
+    """
+    last_exception = None
+    indian_exchanges = {"NSE", "BSE", "NSI", "BOM", "INDIA"}
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            search = yf.Search(query=company_name, max_results=max_results, news_count=0)
+            quotes = getattr(search, "quotes", []) or []
+
+            results: List[Dict[str, Any]] = []
+            for item in quotes:
+                symbol = item.get("symbol")
+                if not symbol:
+                    continue
+
+                exchange = item.get("exchange") or item.get("exchDisp") or ""
+
+                # Filter by Indian exchanges if requested
+                if indian_only and exchange:
+                    if exchange.upper() not in indian_exchanges:
+                        continue
+
+                results.append({
+                    "symbol": symbol,
+                    "name": item.get("longname") or item.get("shortname") or symbol,
+                    "exchange": exchange,
+                    "type": item.get("quoteType") or item.get("typeDisp") or "",
+                    "industry": item.get("industry", ""),
+                    "sector": item.get("sector", ""),
+                })
+
+            if results:
+                logging.info(f"Found {len(results)} results for '{company_name}'")
+                return results[:max_results]
+            else:
+                logging.warning(f"No results found for '{company_name}'")
+                return []
+
+        except Exception as e:
+            last_exception = e
+            logging.warning(f"Search attempt {attempt} failed for '{company_name}': {e}")
+            if attempt < max_retries:
+                time.sleep(delay)
+
+    logging.error(f"All {max_retries} search attempts failed for '{company_name}'")
+    return []
+
+
+def get_quote_by_company_name(
+    company_name: str,
+    max_search_results: int = 5,
+    max_retries: int = 3,
+    delay: int = 1
+) -> Optional[Dict[str, Any]]:
+    """
+    Resolve company name to stock symbol and fetch quote in BSE-compatible format.
+
+    This function searches for a company by name, prioritizes exact/partial matches,
+    and returns the stock quote in the same format as get_quote_with_retry().
+
+    Args:
+        company_name: Name of the company to search for
+        max_search_results: Maximum number of search results to evaluate
+        max_retries: Maximum number of retry attempts for each operation
+        delay: Delay between retries in seconds
+
+    Returns:
+        Dictionary containing stock quote data in BSE-compatible format, or None if failed
+    """
+    # Search for the company
+    search_results = search_companies_by_name(
+        company_name=company_name,
+        max_results=max_search_results,
+        indian_only=True,
+        max_retries=max_retries,
+        delay=delay,
+    )
+
+    if not search_results:
+        logging.warning(f"No companies found matching '{company_name}'")
+        return None
+
+    # Sort results: prioritize exact matches and companies starting with the search term
+    query_lower = company_name.strip().lower()
+    search_results.sort(
+        key=lambda x: (
+            (x.get("name", "").strip().lower() != query_lower),  # Exact match first
+            not (x.get("name", "").strip().lower().startswith(query_lower)),  # Partial match second
+        )
+    )
+
+    # Try to get quote for each search result
+    for match in search_results:
+        symbol = match.get("symbol")
+        if not symbol:
+            continue
+
+        try:
+            quote = get_quote_with_retry(
+                symbol=symbol,
+                max_retries=max_retries,
+                delay=delay,
+            )
+            if quote:
+                # Add search context to the quote
+                quote["searchMatch"] = {
+                    "originalQuery": company_name,
+                    "matchedName": match.get("name"),
+                    "matchedSymbol": symbol,
+                    "exchange": match.get("exchange"),
+                }
+                logging.info(f"Successfully fetched quote for {symbol} (matched to '{company_name}')")
+                return quote
+        except Exception as e:
+            logging.warning(f"Failed to get quote for {symbol}: {e}")
+            continue
+
+    logging.error(f"Could not fetch quote for any match of '{company_name}'")
+    return None
+

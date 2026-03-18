@@ -1,13 +1,12 @@
 """
 Chat service for managing conversations and learning
 """
-import sqlite3
 import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import logging
 
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 
 logger = logging.getLogger(__name__)
@@ -19,11 +18,10 @@ class ChatService:
     @staticmethod
     def create_tables():
         """Create chat-related tables if they don't exist"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         # Chat conversations table
-        cursor.execute('''
+        db.execute('''
             CREATE TABLE IF NOT EXISTS chat_conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -34,10 +32,10 @@ class ChatService:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
-        ''')
-        
+        ''', commit=True)
+
         # User preferences learned from interactions
-        cursor.execute('''
+        db.execute('''
             CREATE TABLE IF NOT EXISTS chat_user_preferences (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL UNIQUE,
@@ -48,10 +46,10 @@ class ChatService:
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
-        ''')
-        
+        ''', commit=True)
+
         # Agent learning data
-        cursor.execute('''
+        db.execute('''
             CREATE TABLE IF NOT EXISTS chat_agent_learning (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 context_type TEXT NOT NULL,
@@ -62,10 +60,8 @@ class ChatService:
                 last_used TEXT,
                 created_at TEXT NOT NULL
             )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        ''', commit=True)
+
         logger.info("Chat tables created successfully")
     
     @staticmethod
@@ -77,31 +73,25 @@ class ChatService:
         sentiment: Optional[str] = None
     ) -> int:
         """Save a conversation exchange"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         context_json = json.dumps(context) if context else None
         created_at = datetime.now().isoformat()
         
-        cursor.execute('''
+        conversation_id = db.insert('''
             INSERT INTO chat_conversations 
             (user_id, message, response, context, sentiment, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (user_id, message, response, context_json, sentiment, created_at))
         
-        conversation_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return conversation_id
-    
+        return conversation_id or -1
+
     @staticmethod
     def get_conversation_history(user_id: int, limit: int = 10) -> List[Dict]:
         """Get recent conversation history for a user"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
+        db = get_session_manager()
+
+        rows = db.fetch_all('''
             SELECT id, message, response, context, sentiment, created_at
             FROM chat_conversations
             WHERE user_id = ?
@@ -109,19 +99,16 @@ class ChatService:
             LIMIT ?
         ''', (user_id, limit))
         
-        rows = cursor.fetchall()
-        conn.close()
-        
         history = []
         for row in rows:
-            context = json.loads(row[3]) if row[3] else None
+            context = json.loads(row['context']) if row['context'] else None
             history.append({
-                'id': row[0],
-                'message': row[1],
-                'response': row[2],
+                'id': row['id'],
+                'message': row['message'],
+                'response': row['response'],
                 'context': context,
-                'sentiment': row[4],
-                'created_at': row[5]
+                'sentiment': row['sentiment'],
+                'created_at': row['created_at']
             })
         
         return list(reversed(history))  # Return in chronological order
@@ -135,16 +122,14 @@ class ChatService:
         learning_data: Optional[Dict] = None
     ):
         """Update or create user preferences based on interactions"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         # Check if preferences exist
-        cursor.execute(
+        exists = db.fetch_one(
             'SELECT id FROM chat_user_preferences WHERE user_id = ?',
             (user_id,)
         )
-        exists = cursor.fetchone()
-        
+
         updated_at = datetime.now().isoformat()
         
         if exists:
@@ -174,10 +159,10 @@ class ChatService:
                 
                 # Use explicit field names - safe from SQL injection
                 query = 'UPDATE chat_user_preferences SET ' + ', '.join(update_clauses) + ' WHERE user_id = ?'
-                cursor.execute(query, params)
+                db.update(query, tuple(params))
         else:
             # Insert new preferences
-            cursor.execute('''
+            db.insert('''
                 INSERT INTO chat_user_preferences
                 (user_id, preferred_stocks, interaction_style, topics_of_interest, learning_data, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -189,34 +174,27 @@ class ChatService:
                 json.dumps(learning_data) if learning_data else None,
                 updated_at
             ))
-        
-        conn.commit()
-        conn.close()
-    
+
     @staticmethod
     def get_user_preferences(user_id: int) -> Optional[Dict]:
         """Get user preferences"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
+        db = get_session_manager()
+
+        row = db.fetch_one('''
             SELECT preferred_stocks, interaction_style, topics_of_interest, learning_data, updated_at
             FROM chat_user_preferences
             WHERE user_id = ?
         ''', (user_id,))
         
-        row = cursor.fetchone()
-        conn.close()
-        
         if not row:
             return None
         
         return {
-            'preferred_stocks': json.loads(row[0]) if row[0] else [],
-            'interaction_style': row[1],
-            'topics_of_interest': json.loads(row[2]) if row[2] else [],
-            'learning_data': json.loads(row[3]) if row[3] else {},
-            'updated_at': row[4]
+            'preferred_stocks': json.loads(row['preferred_stocks']) if row['preferred_stocks'] else [],
+            'interaction_style': row['interaction_style'],
+            'topics_of_interest': json.loads(row['topics_of_interest']) if row['topics_of_interest'] else [],
+            'learning_data': json.loads(row['learning_data']) if row['learning_data'] else {},
+            'updated_at': row['updated_at']
         }
     
     @staticmethod
@@ -226,54 +204,43 @@ class ChatService:
         response_template: str
     ):
         """Save a learned response pattern"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         created_at = datetime.now().isoformat()
         
-        cursor.execute('''
+        db.insert('''
             INSERT INTO chat_agent_learning
             (context_type, question_pattern, response_template, created_at)
             VALUES (?, ?, ?, ?)
         ''', (context_type, question_pattern, response_template, created_at))
-        
-        conn.commit()
-        conn.close()
-    
+
     @staticmethod
     def update_pattern_success(pattern_id: int, success: bool):
         """Update success/failure count for a learned pattern"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Safely determine which field to increment
-        field = 'success_count' if success else 'failure_count'
+        db = get_session_manager()
+
         last_used = datetime.now().isoformat()
         
         # Use parameterized query with field selection
         if success:
-            cursor.execute('''
+            db.update('''
                 UPDATE chat_agent_learning
                 SET success_count = success_count + 1, last_used = ?
                 WHERE id = ?
             ''', (last_used, pattern_id))
         else:
-            cursor.execute('''
+            db.update('''
                 UPDATE chat_agent_learning
                 SET failure_count = failure_count + 1, last_used = ?
                 WHERE id = ?
             ''', (last_used, pattern_id))
-        
-        conn.commit()
-        conn.close()
-    
+
     @staticmethod
     def get_best_patterns(context_type: str, limit: int = 5) -> List[Dict]:
         """Get best performing patterns for a context type"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
+        db = get_session_manager()
+
+        rows = db.fetch_all('''
             SELECT id, question_pattern, response_template, success_count, failure_count
             FROM chat_agent_learning
             WHERE context_type = ?
@@ -281,17 +248,16 @@ class ChatService:
             LIMIT ?
         ''', (context_type, limit))
         
-        rows = cursor.fetchall()
-        conn.close()
-        
         patterns = []
         for row in rows:
             patterns.append({
-                'id': row[0],
-                'question_pattern': row[1],
-                'response_template': row[2],
-                'success_count': row[3],
-                'failure_count': row[4]
+                'id': row['id'],
+                'question_pattern': row['question_pattern'],
+                'response_template': row['response_template'],
+                'success_count': row['success_count'],
+                'failure_count': row['failure_count']
             })
         
         return patterns
+
+

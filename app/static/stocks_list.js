@@ -112,7 +112,7 @@ function renderStocks(stocks) {
   if (stocks.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-muted);">
+        <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-light);">
           <i class="fas fa-inbox" style="font-size: 2rem;"></i>
           <p style="margin-top: 10px;">No stocks found</p>
         </td>

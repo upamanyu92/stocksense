@@ -1,37 +1,32 @@
 # Main Flask application entry point
 import logging
 import os
-import sys
-from datetime import datetime
+import sqlite3
 
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_socketio import SocketIO, emit
 
+from app.api.alert_routes import bp as alert_bp
 from app.api.auth_routes import auth_bp
-from app.api.watchlist_routes import watchlist_bp
+from app.api.backtest_routes import backtest_bp
+from app.api.chat_routes import chat_bp
+from app.api.dashboard_routes import dashboard_bp
+from app.api.llm_routes import llm_bp
+from app.api.notification_routes import notification_bp
+from app.api.nse_routes import nse_bp
 from app.api.prediction_routes import prediction_bp
+from app.api.price_stream_routes import price_stream_bp
 from app.api.stock_routes import stock_bp
 from app.api.system_routes import system_bp
-from app.api.price_stream_routes import price_stream_bp
-from app.api.dashboard_routes import dashboard_bp
-from app.api.chat_routes import chat_bp
+from app.api.watchlist_routes import watchlist_bp
+from app.config_settings import Config
 from app.services.auth_service import User
 from app.services.background_worker import background_worker
 from app.services.price_streamer import price_streamer
 from app.utils.disk_monitor import DiskSpaceMonitor
 from app.utils.websocket_manager import websocket_manager
-from app.services.inactive_stock_worker import inactive_stock_worker
-from app.config_settings import Config
-from app.api.alert_routes import bp as alert_bp
-from app.api.notification_routes import notification_bp
-from app.api.backtest_routes import backtest_bp
-from app.api.llm_routes import llm_bp
-import sqlite3
-import pkgutil
-import os
-from pathlib import Path
 from scripts.init_db_schema import SchemaManager
 
 # Execute migrations for alerts table if not present
@@ -63,14 +58,14 @@ except Exception as e:
     logging.error(f"Failed to initialize database schema: {e}")
     # Continue anyway - schema might already exist
 
-# Initialize Gemini AI
+# Initialize Ollama local LLM
 try:
-    logging.info("Initializing Google Gemini AI API...")
-    Config.initialize_gemini()
-    logging.info("Gemini AI initialized successfully")
+    logging.info("Initializing Ollama local LLM...")
+    Config.initialize_ollama()
+    logging.info("Ollama local LLM initialized successfully")
 except Exception as e:
-    logging.warning(f"Gemini AI initialization warning: {e}")
-    logging.warning("Predictions will not work until GEMINI_API_KEY is configured in .env file")
+    logging.warning(f"Ollama initialization warning: {e}")
+    logging.warning("Predictions will not work until Ollama is running (ollama serve)")
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
@@ -113,6 +108,7 @@ app.register_blueprint(alert_bp)
 app.register_blueprint(notification_bp)
 app.register_blueprint(backtest_bp)
 app.register_blueprint(llm_bp)
+app.register_blueprint(nse_bp)
 
 @login_manager.user_loader
 def load_user(user_id):

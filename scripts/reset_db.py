@@ -12,6 +12,5 @@ else:
 
 print("Recreating database...")
 subprocess.run(['python3', 'create_db.py'], check=True)
-subprocess.run(['python3', 'create_model_config_table.py'], check=True)
 print("Database reset complete.")
 

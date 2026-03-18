@@ -10,5 +10,6 @@ flask-cors
 fastapi
 pytz
 psutil
-google-genai
+ollama
 python-dotenv
+requests

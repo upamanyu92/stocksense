@@ -132,6 +132,22 @@ class SchemaManager:
                 self._log("  Adding low_52week to stock_quotes table...")
                 cursor.execute('ALTER TABLE stock_quotes ADD COLUMN low_52week REAL')
 
+            if 'group_name' not in sq_columns:
+                self._log("  Adding group_name to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN group_name TEXT')
+
+            if 'stock_status' not in sq_columns:
+                self._log("  Adding stock_status to stock_quotes table...")
+                cursor.execute("ALTER TABLE stock_quotes ADD COLUMN stock_status TEXT DEFAULT 'active'")
+
+            if 'download_attempts' not in sq_columns:
+                self._log("  Adding download_attempts to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN download_attempts INTEGER DEFAULT 0')
+
+            if 'last_download_attempt' not in sq_columns:
+                self._log("  Adding last_download_attempt to stock_quotes table...")
+                cursor.execute('ALTER TABLE stock_quotes ADD COLUMN last_download_attempt TEXT')
+
             # ========== PREDICTIONS TABLE ==========
             self._log("  Creating predictions table...")
             cursor.execute('''

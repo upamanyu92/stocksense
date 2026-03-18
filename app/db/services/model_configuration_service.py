@@ -3,7 +3,7 @@ Model Configuration database service for managing model_configurations table ope
 """
 from typing import Optional, List
 from datetime import datetime
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 from app.db.data_models import ModelConfiguration
 
 
@@ -13,13 +13,12 @@ class ModelConfigurationService:
     @staticmethod
     def create(config: ModelConfiguration) -> Optional[int]:
         """Create a new model configuration"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         now = datetime.now()
         
         try:
-            cursor.execute('''
+            return db.insert('''
                 INSERT INTO model_configurations (
                     symbol, model_type, num_heads, ff_dim, dropout_rate,
                     learning_rate, batch_size, epochs, sequence_length,
@@ -32,24 +31,16 @@ class ModelConfigurationService:
                 config.epochs, config.sequence_length, config.early_stopping_patience,
                 now, now
             ))
-            conn.commit()
-            return cursor.lastrowid
         except Exception as e:
-            conn.rollback()
             print(f"Error creating model configuration: {e}")
             return None
-        finally:
-            conn.close()
-    
+
     @staticmethod
     def get_by_id(config_id: int) -> Optional[ModelConfiguration]:
         """Get model configuration by ID"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM model_configurations WHERE id = ?', (config_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
+        db = get_session_manager()
+        row = db.fetch_one('SELECT * FROM model_configurations WHERE id = ?', (config_id,))
+
         if row:
             data = dict(row)
             # Convert timestamp strings to datetime objects if needed
@@ -63,15 +54,12 @@ class ModelConfigurationService:
     @staticmethod
     def get_by_symbol_and_type(symbol: str, model_type: str) -> Optional[ModelConfiguration]:
         """Get model configuration by symbol and type"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
+        db = get_session_manager()
+        row = db.fetch_one('''
             SELECT * FROM model_configurations 
             WHERE symbol = ? AND model_type = ?
         ''', (symbol, model_type))
-        row = cursor.fetchone()
-        conn.close()
-        
+
         if row:
             data = dict(row)
             if 'created_at' in data and isinstance(data['created_at'], str):
@@ -84,9 +72,8 @@ class ModelConfigurationService:
     @staticmethod
     def update(config_id: int, **kwargs) -> bool:
         """Update model configuration fields"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         valid_fields = [
             'num_heads', 'ff_dim', 'dropout_rate', 'learning_rate',
             'batch_size', 'epochs', 'sequence_length', 'early_stopping_patience'
@@ -101,42 +88,28 @@ class ModelConfigurationService:
         values = list(update_fields.values()) + [config_id]
         
         try:
-            cursor.execute(f'UPDATE model_configurations SET {set_clause} WHERE id = ?', values)
-            conn.commit()
-            return cursor.rowcount > 0
+            return db.update(f'UPDATE model_configurations SET {set_clause} WHERE id = ?', tuple(values))
         except Exception as e:
-            conn.rollback()
             print(f"Error updating model configuration: {e}")
             return False
-        finally:
-            conn.close()
-    
+
     @staticmethod
     def delete(config_id: int) -> bool:
         """Delete a model configuration"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         try:
-            cursor.execute('DELETE FROM model_configurations WHERE id = ?', (config_id,))
-            conn.commit()
-            return cursor.rowcount > 0
+            return db.delete('DELETE FROM model_configurations WHERE id = ?', (config_id,))
         except Exception as e:
-            conn.rollback()
             print(f"Error deleting model configuration: {e}")
             return False
-        finally:
-            conn.close()
-    
+
     @staticmethod
     def get_all() -> List[ModelConfiguration]:
         """Get all model configurations"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM model_configurations')
-        rows = cursor.fetchall()
-        conn.close()
-        
+        db = get_session_manager()
+        rows = db.fetch_all('SELECT * FROM model_configurations')
+
         configs = []
         for row in rows:
             data = dict(row)
@@ -146,3 +119,5 @@ class ModelConfigurationService:
                 data['updated_at'] = datetime.fromisoformat(data['updated_at'])
             configs.append(ModelConfiguration(**data))
         return configs
+
+

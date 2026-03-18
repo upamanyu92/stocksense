@@ -22,8 +22,9 @@ class Config:
     FLASK_HOST = '0.0.0.0'
     FLASK_PORT = int(os.getenv('FLASK_PORT', 5005))
 
-    # Gemini AI Configuration
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+    # Ollama AI Configuration (Local LLM)
+    OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    OLLAMA_MODEL = os.getenv('OLLAMA_MODEL_NAME', 'phi4-mini')
 
     @classmethod
     def ensure_directories(cls):
@@ -32,13 +33,13 @@ class Config:
         os.makedirs(cls.MODEL_DIR, exist_ok=True)
 
     @classmethod
-    def initialize_gemini(cls):
-        """Initialize Gemini AI API"""
-        from app.models.gemini_model import initialize_model
+    def initialize_ollama(cls):
+        """Initialize Ollama local LLM"""
+        from app.models.ollama_model import initialize_model
         try:
             initialize_model()
             return True
         except Exception as e:
             import logging
-            logging.warning(f"Failed to initialize Gemini: {e}. Predictions may not work until API key is configured.")
+            logging.warning(f"Failed to initialize Ollama: {e}. Predictions may not work until Ollama is running.")
             return False

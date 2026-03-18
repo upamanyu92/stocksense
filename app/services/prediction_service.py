@@ -1,4 +1,4 @@
-# Prediction service entry point using Google Gemini AI
+# Prediction service entry point using Ollama local LLM
 from flask import Flask, jsonify
 import schedule
 import yfinance as yf
@@ -6,7 +6,7 @@ from datetime import datetime
 import logging
 
 from app.db.db_executor import execute_query
-from app.models.gemini_model import predict_with_details
+from app.models.ollama_model import predict_with_details
 from app.utils.util import check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
@@ -50,33 +50,33 @@ def prediction_executor(data):
                     'timestamp': datetime.now().isoformat()
                 })
             
-            # Use agentic prediction system with Gemini AI for improved accuracy
+            # Use agentic prediction system with Ollama local LLM for improved accuracy
             try:
                 result = prediction_coordinator.predict(stock_symbol_yahoo, validate=True)
                 predicted_price = result['prediction']
                 confidence = result['confidence']
                 decision = result['decision']
-                
+
                 # Log agentic prediction details
-                logging.info(f"Gemini AI prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
+                logging.info(f"Ollama LLM prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
                 logging.info(f"Recommendation: {result['recommendation']}")
-                
+
                 # Only use prediction if decision is 'accept' or 'caution'
                 if decision == 'reject':
-                    logging.warning(f"Prediction rejected due to low confidence. Using Gemini fallback.")
-                    gemini_result = predict_with_details(stock_symbol_yahoo)
-                    predicted_price = gemini_result['predicted_price']
-                    confidence = gemini_result['confidence']
+                    logging.warning(f"Prediction rejected due to low confidence. Using Ollama fallback.")
+                    ollama_result = predict_with_details(stock_symbol_yahoo)
+                    predicted_price = ollama_result['predicted_price']
+                    confidence = ollama_result['confidence']
                     decision = 'caution'
             except Exception as e:
-                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to direct Gemini API.")
+                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to direct Ollama API.")
                 try:
-                    gemini_result = predict_with_details(stock_symbol_yahoo)
-                    predicted_price = gemini_result['predicted_price']
-                    confidence = gemini_result['confidence']
-                    decision = gemini_result.get('decision', 'caution')
+                    ollama_result = predict_with_details(stock_symbol_yahoo)
+                    predicted_price = ollama_result['predicted_price']
+                    confidence = ollama_result['confidence']
+                    decision = ollama_result.get('decision', 'caution')
                 except Exception as fallback_e:
-                    logging.error(f"Fallback Gemini prediction also failed: {str(fallback_e)}")
+                    logging.error(f"Fallback Ollama prediction also failed: {str(fallback_e)}")
                     raise
 
             # Handle both string and float values for current_value
@@ -154,11 +154,11 @@ def update_database():
             stock_symbol = row['stock_symbol']
             stock_symbol_yahoo = stock_symbol if stock_symbol.endswith('.BO') or stock_symbol.endswith('.NS') else stock_symbol + '.BO'
             
-            # Use Gemini for prediction
+            # Use Ollama for prediction
             try:
-                gemini_result = predict_with_details(stock_symbol_yahoo)
-                predicted_price = gemini_result['predicted_price']
-                
+                ollama_result = predict_with_details(stock_symbol_yahoo)
+                predicted_price = ollama_result['predicted_price']
+
                 # Get current price from yfinance
                 quote = get_quote_with_retry(stock_symbol_yahoo)
                 if not quote:

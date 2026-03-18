@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.db.services.user_service import UserService
 from app.db.services.watchlist_service import WatchlistDBService
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 
 class User(UserMixin):
@@ -107,10 +107,9 @@ class WatchlistService:
     @staticmethod
     def get_watchlist(user_id: int) -> List[Dict]:
         """Get user's watchlist with current stock data"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
+        db = get_session_manager()
+
+        rows = db.fetch_all('''
             SELECT 
                 w.stock_symbol,
                 w.company_name,
@@ -130,28 +129,19 @@ class WatchlistService:
             ORDER BY w.display_order, w.added_at DESC
         ''', (user_id,))
         
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
-    
+        return rows
+
     @staticmethod
     def update_display_order(user_id: int, stock_symbol: str, order: int) -> bool:
         """Update display order for a stock in watchlist"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         try:
-            cursor.execute('''
+            return db.update('''
                 UPDATE watchlists 
                 SET display_order = ?
                 WHERE user_id = ? AND stock_symbol = ?
             ''', (order, user_id, stock_symbol))
-            conn.commit()
-            conn.close()
-            return True
         except Exception as e:
-            conn.rollback()
-            conn.close()
             print(f"Error updating display order: {e}")
             return False

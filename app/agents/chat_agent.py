@@ -1,18 +1,17 @@
 """
-Intelligent Chat Agent with self-awareness and learning capabilities
+Intelligent Chat Agent with Ollama LLM integration for natural language understanding
 """
 import re
-import json
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import random
 
 from app.agents.base_agent import BaseAgent
 from app.db.services.chat_service import ChatService
-from app.db.services.stock_quote_service import StockQuoteService
 from app.db.services.prediction_service import PredictionService
 from app.db.services.watchlist_service import WatchlistDBService
+from app.services.ollama_chat_service import OllamaChatService
+from app.services.nse_securities_service import NSESecuritiesService
 from app.utils.util import get_db_connection
 
 
@@ -34,14 +33,19 @@ class ChatAgent(BaseAgent):
     def __init__(self):
         super().__init__(name="ChatAgent", confidence_threshold=0.7)
         
+        # Initialize Ollama chat service
+        self.ollama_service = OllamaChatService()
+        self.nse_service = NSESecuritiesService()
+
         # Self-awareness metadata
         self.capabilities = [
             "stock price queries",
             "prediction insights",
             "watchlist management",
             "market analysis",
-            "learning from your preferences",
-            "contextual conversations"
+            "NSE securities search and management",
+            "contextual conversations",
+            "intelligent understanding via Ollama LLM"
         ]
         
         self.limitations = [
@@ -50,25 +54,7 @@ class ChatAgent(BaseAgent):
             "My predictions are based on historical data and may not be accurate",
             "I'm constantly learning and may make mistakes"
         ]
-        
-        # Sentiment keywords
-        self.positive_keywords = ['good', 'great', 'excellent', 'thanks', 'helpful', 'perfect', 'awesome']
-        self.negative_keywords = ['bad', 'wrong', 'poor', 'unhelpful', 'incorrect', 'useless']
-        
-        # Intent patterns
-        self.intent_patterns = {
-            'greeting': [r'\b(hi|hello|hey|greetings)\b'],
-            'goodbye': [r'\b(bye|goodbye|see you|farewell)\b'],
-            'thanks': [r'\b(thank|thanks|appreciate)\b'],
-            'stock_price': [r'\b(price|value|quote)\b.*\b(of|for)?\b.*\b([A-Z]{2,})\b', 
-                           r'\b([A-Z]{2,})\b.*\b(price|value|quote)\b'],
-            'prediction': [r'\b(predict|forecast|future)\b', r'\bwill\b.*\b(go|move|be)\b'],
-            'watchlist': [r'\b(watchlist|watch|track|follow)\b'],
-            'help': [r'\b(help|what can you|capabilities|can you)\b'],
-            'about': [r'\b(who are you|what are you|about you)\b'],
-            'learning': [r'\b(learn|remember|preference)\b']
-        }
-    
+
     def predict(self, symbol: str, data: Any) -> Dict[str, Any]:
         """Make prediction (for BaseAgent interface compatibility)"""
         return {'prediction': None, 'confidence': 0.0}
@@ -79,122 +65,88 @@ class ChatAgent(BaseAgent):
     
     def chat(self, user_id: int, message: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        Process user message and generate intelligent response.
-        
+        Process user message using Ollama LLM and generate intelligent response.
+
         Args:
             user_id: User ID
             message: User message
             context: Optional context (stock symbols, previous conversation, etc.)
             
         Returns:
-            Response dictionary with message, context, and learning metadata
+            Response dictionary with message, intent, action, and entities
         """
         logger.info(f"Processing chat message from user {user_id}: {message}")
         
-        # Get user preferences
-        preferences = ChatService.get_user_preferences(user_id) or {}
-        
-        # Get conversation history for context
-        history = ChatService.get_conversation_history(user_id, limit=5)
-        
-        # Detect intent
-        intent = self._detect_intent(message)
-        logger.info(f"Detected intent: {intent}")
-        
-        # Detect sentiment
-        sentiment = self._detect_sentiment(message)
-        
-        # Generate response based on intent
-        response_data = self._generate_response(
-            user_id=user_id,
-            message=message,
-            intent=intent,
-            sentiment=sentiment,
-            preferences=preferences,
-            history=history,
-            context=context or {}
-        )
-        
-        # Learn from this interaction
-        self._learn_from_interaction(
-            user_id=user_id,
-            message=message,
-            intent=intent,
-            sentiment=sentiment,
-            response=response_data['message']
-        )
-        
-        # Save conversation
-        ChatService.save_conversation(
-            user_id=user_id,
-            message=message,
-            response=response_data['message'],
-            context=response_data.get('context'),
-            sentiment=sentiment
-        )
-        
-        return response_data
-    
-    def _detect_intent(self, message: str) -> str:
-        """Detect user intent from message"""
-        message_lower = message.lower()
-        
-        for intent, patterns in self.intent_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, message_lower, re.IGNORECASE):
-                    return intent
-        
-        return 'general'
-    
-    def _detect_sentiment(self, message: str) -> str:
-        """Detect sentiment from message"""
-        message_lower = message.lower()
-        
-        positive_count = sum(1 for word in self.positive_keywords if word in message_lower)
-        negative_count = sum(1 for word in self.negative_keywords if word in message_lower)
-        
-        if positive_count > negative_count:
-            return 'positive'
-        elif negative_count > positive_count:
-            return 'negative'
-        else:
-            return 'neutral'
-    
-    def _generate_response(
-        self,
-        user_id: int,
-        message: str,
-        intent: str,
-        sentiment: str,
-        preferences: Dict,
-        history: List[Dict],
-        context: Dict
-    ) -> Dict[str, Any]:
-        """Generate intelligent response based on intent and context"""
-        
-        response_handlers = {
-            'greeting': self._handle_greeting,
-            'goodbye': self._handle_goodbye,
-            'thanks': self._handle_thanks,
-            'stock_price': self._handle_stock_price,
-            'prediction': self._handle_prediction,
-            'watchlist': self._handle_watchlist,
-            'help': self._handle_help,
-            'about': self._handle_about,
-            'learning': self._handle_learning,
-            'general': self._handle_general
-        }
-        
-        handler = response_handlers.get(intent, self._handle_general)
-        response = handler(user_id, message, preferences, history, context)
-        
-        # Add self-awareness elements
-        if sentiment == 'negative':
-            response['message'] += "\n\nI sense you might not be satisfied. I'm constantly learning to serve you better. Could you help me understand what you need?"
-        
-        return response
-    
-    def _handle_greeting(self, user_id: int, message: str, preferences: Dict, 
+        try:
+            # Get user preferences
+            preferences = ChatService.get_user_preferences(user_id) or {}
+
+            # Get conversation history for context
+            history = ChatService.get_conversation_history(user_id, limit=5)
+
+            # Build context for Ollama
+            ollama_context = self._build_ollama_context(user_id, preferences, context)
+
+            # Process through Ollama LLM
+            ollama_response = self.ollama_service.process_user_message(
+                message,
+                context=ollama_context,
+                conversation_history=history
+            )
+
+            if not ollama_response.get('success'):
+                return {
+                    'message': ollama_response.get('response', 'I apologize, but I encountered an error.'),
+                    'intent': 'error',
+                    'context': {}
+                }
+
+            # Extract intent and action from Ollama response
+            intent = ollama_response.get('intent', 'general')
+            action = ollama_response.get('action')
+            entities = ollama_response.get('entities', {})
+
+            # Generate contextual response based on action
+            final_response = self._handle_action(
+                user_id=user_id,
+                action=action,
+                entities=entities,
+                intent=intent,
+                llm_response=ollama_response.get('response'),
+                preferences=preferences,
+                context=context or {}
+            )
+
+            # Learn from this interaction
+            self._learn_from_interaction(
+                user_id=user_id,
+                message=message,
+                intent=intent,
+                response=final_response['message'],
+                action=action,
+                entities=entities
+            )
+
+            # Save conversation
+            ChatService.save_conversation(
+                user_id=user_id,
+                message=message,
+                response=final_response['message'],
+                context={'intent': intent, 'action': action, 'entities': entities},
+                sentiment='neutral'
+            )
+
+            return final_response
+
+        except Exception as e:
+            logger.error(f"Error in chat: {e}", exc_info=True)
+            return {
+                'message': 'I apologize, but I encountered an error. Please try again.',
+                'intent': 'error',
+                'context': {}
+            }
+
+    def _handle_greeting(self, user_id: int, message: str, preferences: Dict,
                         history: List, context: Dict) -> Dict[str, Any]:
         """Handle greeting messages"""
         greetings = [
@@ -521,17 +473,20 @@ class ChatAgent(BaseAgent):
         user_id: int,
         message: str,
         intent: str,
-        sentiment: str,
-        response: str
+        response: str,
+        action: Optional[str] = None,
+        entities: Optional[Dict] = None
     ):
         """Learn from the interaction"""
         # Update metadata
         self.metadata['predictions_made'] += 1
         
-        # Track sentiment as success metric
-        if sentiment == 'positive':
-            self.metadata['successful_predictions'] += 1
-        
+        # Track action usage
+        if action:
+            actions_used = self.metadata.get('actions_used', {})
+            actions_used[action] = actions_used.get(action, 0) + 1
+            self.metadata['actions_used'] = actions_used
+
         # Update interaction style preference
         message_length = len(message.split())
         if message_length < 5:
@@ -550,14 +505,23 @@ class ChatAgent(BaseAgent):
             topics.append(intent)
             topics = topics[-10:]  # Keep last 10 topics
         
+        # Track symbols if mentioned
+        symbols_tracked = current_prefs.get('symbols_tracked', [])
+        if entities and entities.get('symbols'):
+            for sym in entities['symbols']:
+                if sym not in symbols_tracked:
+                    symbols_tracked.append(sym)
+            symbols_tracked = symbols_tracked[-20:]
+
         ChatService.update_user_preferences(
             user_id=user_id,
             interaction_style=interaction_style,
-            topics_of_interest=topics
+            topics_of_interest=topics,
+            preferred_stocks=entities.get('symbols', []) if entities else []
         )
         
-        logger.info(f"Learned from interaction - Intent: {intent}, Sentiment: {sentiment}")
-    
+        logger.info(f"Learned from interaction - Intent: {intent}, Action: {action}")
+
     def _update_stock_preference(self, user_id: int, symbol: str):
         """Update user's preferred stocks"""
         prefs = ChatService.get_user_preferences(user_id) or {}
@@ -571,3 +535,275 @@ class ChatAgent(BaseAgent):
                 user_id=user_id,
                 preferred_stocks=preferred
             )
+
+    def _build_ollama_context(self, user_id: int, preferences: Dict, context: Optional[Dict]) -> Dict[str, Any]:
+        """Build context information for Ollama LLM"""
+        try:
+            conn = get_db_connection()
+
+            # Get user's watchlist
+            watchlist = WatchlistDBService.get_by_user(user_id)
+            watchlist_symbols = [w.stock_symbol for w in watchlist] if watchlist else []
+
+            # Get available NSE stocks count
+            stocks_count = self.nse_service.get_security_count(conn)
+
+            conn.close()
+
+            return {
+                'watchlist': watchlist_symbols,
+                'current_stocks': context.get('symbols', []) if context else [],
+                'stocks_available': stocks_count,
+                'user_preferences': preferences
+            }
+        except Exception as e:
+            logger.error(f"Error building Ollama context: {e}")
+            return {}
+
+    def _handle_action(self, user_id: int, action: Optional[str], entities: Dict,
+                      intent: str, llm_response: str, preferences: Dict, context: Dict) -> Dict[str, Any]:
+        """Handle action detected by Ollama LLM"""
+
+        handlers = {
+            'get_stock_price': lambda: self._handle_get_price(user_id, entities, llm_response),
+            'run_prediction': lambda: self._handle_run_prediction(user_id, entities, llm_response),
+            'add_watchlist': lambda: self._handle_add_watchlist(user_id, entities, llm_response),
+            'remove_watchlist': lambda: self._handle_remove_watchlist(user_id, entities, llm_response),
+            'view_watchlist': lambda: self._handle_view_watchlist(user_id, llm_response),
+            'display_stock_values': lambda: self._handle_display_values(user_id, entities, llm_response),
+            'list_available_stocks': lambda: self._handle_list_stocks(user_id, entities, llm_response),
+        }
+
+        handler = handlers.get(action)
+        if handler:
+            try:
+                return handler()
+            except Exception as e:
+                logger.error(f"Error handling action {action}: {e}")
+                return {
+                    'message': f"I encountered an error handling your request: {str(e)}",
+                    'intent': intent,
+                    'context': {}
+                }
+
+        # No specific action, return LLM response
+        return {
+            'message': llm_response,
+            'intent': intent,
+            'context': entities
+        }
+
+    def _handle_get_price(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle getting stock price"""
+        symbols = entities.get('symbols', [])
+
+        if not symbols:
+            return {
+                'message': llm_response + '\n\nPlease specify which stock symbol you\'d like to check.',
+                'intent': 'check_price',
+                'context': {}
+            }
+
+        conn = get_db_connection()
+        prices_info = []
+
+        for symbol in symbols[:3]:  # Limit to 3 symbols
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT company_name, current_value, change, p_change, day_high, day_low
+                    FROM stock_quotes 
+                    WHERE UPPER(security_id) = UPPER(?) OR UPPER(company_name) LIKE UPPER(?)
+                    LIMIT 1
+                ''', (symbol, f'%{symbol}%'))
+
+                row = cursor.fetchone()
+                if row:
+                    prices_info.append({
+                        'symbol': symbol,
+                        'company': row[0],
+                        'price': row[1],
+                        'change': row[2],
+                        'pchange': row[3],
+                        'high': row[4],
+                        'low': row[5]
+                    })
+            except Exception as e:
+                logger.error(f"Error getting price for {symbol}: {e}")
+
+        conn.close()
+
+        if not prices_info:
+            return {
+                'message': f"I couldn't find price information for {', '.join(symbols)}. Would you like me to search for available stocks?",
+                'intent': 'check_price',
+                'context': {}
+            }
+
+        price_text = llm_response + "\n\n**Stock Prices:**\n"
+        for info in prices_info:
+            price_text += f"\n{info['symbol']} ({info['company']}): ₹{info['price']}\n"
+            price_text += f"  Change: {info['change']} ({info['pchange']}%)\n"
+            price_text += f"  Range: ₹{info['low']} - ₹{info['high']}"
+
+        return {
+            'message': price_text,
+            'intent': 'check_price',
+            'context': {'symbols': symbols, 'prices': prices_info}
+        }
+
+    def _handle_run_prediction(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle running predictions"""
+        scope = entities.get('prediction_scope', 'single')
+        symbols = entities.get('symbols', [])
+
+        return {
+            'message': llm_response + f"\n\nTo run predictions on {scope} stocks" +
+                      (f" ({', '.join(symbols)})" if symbols else "(your watchlist)") +
+                      ", use the prediction endpoint or click 'Run Predictions' in the UI.",
+            'intent': 'predict',
+            'context': {'scope': scope, 'symbols': symbols}
+        }
+
+    def _handle_add_watchlist(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle adding to watchlist"""
+        symbols = entities.get('symbols', [])
+
+        if not symbols:
+            return {
+                'message': llm_response + '\n\nPlease specify which stocks to add to your watchlist.',
+                'intent': 'watchlist',
+                'context': {}
+            }
+
+        try:
+            added = []
+
+            for symbol in symbols:
+                # Get stock info from database
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT id, company_name FROM stock_quotes 
+                    WHERE UPPER(security_id) = UPPER(?)
+                    LIMIT 1
+                ''', (symbol,))
+                row = cursor.fetchone()
+                conn.close()
+
+                if row:
+                    stock_id = row[0]
+                    company_name = row[1]
+                    # Add to watchlist using the correct method
+                    success = WatchlistDBService.add(user_id, symbol, company_name)
+                    if success:
+                        added.append(symbol)
+
+
+            if added:
+                return {
+                    'message': f"✅ Added {', '.join(added)} to your watchlist!",
+                    'intent': 'watchlist',
+                    'context': {'action': 'add', 'symbols': added}
+                }
+            else:
+                return {
+                    'message': f"Couldn't find {', '.join(symbols)} in available stocks.",
+                    'intent': 'watchlist',
+                    'context': {}
+                }
+        except Exception as e:
+            logger.error(f"Error adding to watchlist: {e}")
+            return {
+                'message': f"Error adding to watchlist: {str(e)}",
+                'intent': 'watchlist',
+                'context': {}
+            }
+
+    def _handle_remove_watchlist(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle removing from watchlist"""
+        symbols = entities.get('symbols', [])
+
+        return {
+            'message': llm_response + (f"\n\nTo remove {', '.join(symbols)} from your watchlist, use the UI or call the remove endpoint." if symbols else ""),
+            'intent': 'watchlist',
+            'context': {'action': 'remove', 'symbols': symbols}
+        }
+
+    def _handle_view_watchlist(self, user_id: int, llm_response: str) -> Dict[str, Any]:
+        """Handle viewing watchlist"""
+        try:
+            watchlist = WatchlistDBService.get_by_user(user_id)
+
+            if watchlist:
+                watchlist_text = llm_response + "\n\n**Your Watchlist:**\n"
+                for item in watchlist:
+                    watchlist_text += f"- {item.stock_symbol}: {item.company_name}\n"
+
+                return {
+                    'message': watchlist_text,
+                    'intent': 'watchlist',
+                    'context': {'action': 'view', 'count': len(watchlist)}
+                }
+            else:
+                return {
+                    'message': "Your watchlist is empty. Would you like to add some stocks?",
+                    'intent': 'watchlist',
+                    'context': {'count': 0}
+                }
+        except Exception as e:
+            logger.error(f"Error viewing watchlist: {e}")
+            return {
+                'message': f"Error viewing watchlist: {str(e)}",
+                'intent': 'watchlist',
+                'context': {}
+            }
+
+    def _handle_display_values(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle displaying current and predicted values"""
+        symbols = entities.get('symbols', [])
+
+        return {
+            'message': llm_response + (f"\n\nDisplaying current and predicted values for: {', '.join(symbols)}" if symbols else ""),
+            'intent': 'show_values',
+            'context': {'symbols': symbols}
+        }
+
+    def _handle_list_stocks(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
+        """Handle listing available NSE stocks"""
+        try:
+            conn = get_db_connection()
+
+            search_query = entities.get('search_query')
+            if search_query:
+                stocks = self.nse_service.search_securities(conn, search_query)
+                title = f"Found {len(stocks)} matching stocks:"
+            else:
+                stocks = self.nse_service.get_available_securities(conn, limit=20)
+                title = f"Top 20 available NSE stocks (total: {self.nse_service.get_security_count(conn)}):"
+
+            conn.close()
+
+            if stocks:
+                stocks_text = llm_response + f"\n\n**{title}**\n"
+                for stock in stocks:
+                    stocks_text += f"- {stock['scrip_code']}: {stock['company_name']}\n"
+
+                return {
+                    'message': stocks_text,
+                    'intent': 'list_stocks',
+                    'context': {'count': len(stocks), 'stocks': stocks}
+                }
+            else:
+                return {
+                    'message': "No stocks found matching your query.",
+                    'intent': 'list_stocks',
+                    'context': {}
+                }
+        except Exception as e:
+            logger.error(f"Error listing stocks: {e}")
+            return {
+                'message': f"Error listing stocks: {str(e)}",
+                'intent': 'list_stocks',
+                'context': {}
+            }

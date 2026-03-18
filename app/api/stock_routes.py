@@ -1,9 +1,135 @@
-import sqlite3
 import logging
 from flask import Blueprint, request, jsonify
 from app.utils.util import get_db_connection
+from app.utils.yfinance_utils import search_companies_by_name, get_quote_by_company_name
 
-stock_bp = Blueprint('stock', __name__)
+stock_bp = Blueprint('stock', __name__, url_prefix='/api/stocks')
+
+
+@stock_bp.route('suggestions', methods=['GET'])
+def get_stock_suggestions():
+    """Get stock suggestions based on query parameter 'q'"""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'error': 'Query parameter "q" is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Use parameterized query to prevent SQL injection
+        cursor.execute('''
+            SELECT company_name, scrip_code
+            FROM STK
+            WHERE company_name LIKE ?
+            ORDER BY company_name ASC
+            LIMIT 10
+        ''', (f'%{query}%',))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        suggestions = [{'company_name': row[0], 'scrip_code': row[1]} for row in rows]
+        logging.info(suggestions)
+
+        return suggestions, 200
+
+    except Exception as e:
+        logging.error(f"Error fetching stock suggestions: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
+@stock_bp.route('/search', methods=['GET'])
+def search_stocks():
+    """
+    Search for companies by name using yfinance Search API.
+
+    Query parameters:
+    - q (required): Company name to search for
+    - max_results (optional): Maximum number of results (default: 10)
+    - indian_only (optional): Filter to Indian stocks only (default: true)
+
+    Returns:
+        List of search results with symbol, name, exchange, type, etc.
+    """
+    company_name = request.args.get('q', '').strip()
+    if not company_name:
+        return jsonify({'error': 'Query parameter "q" (company name) is required'}), 400
+
+    try:
+        max_results = request.args.get('max_results', 10, type=int)
+        indian_only = request.args.get('indian_only', 'true').lower() == 'true'
+
+        # Validate parameters
+        if max_results < 1 or max_results > 50:
+            return jsonify({'error': 'max_results must be between 1 and 50'}), 400
+
+        results = search_companies_by_name(
+            company_name=company_name,
+            max_results=max_results,
+            indian_only=indian_only,
+            max_retries=3,
+            delay=1
+        )
+
+        return jsonify({
+            'query': company_name,
+            'results': results,
+            'count': len(results)
+        }), 200
+
+    except Exception as e:
+        logging.error(f"Error searching for companies: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
+@stock_bp.route('/quote-by-name', methods=['GET'])
+def get_quote_by_name():
+    """
+    Get stock quote by company name using yfinance.
+    The function automatically searches for the company and returns the quote
+    in BSE-compatible format.
+
+    Query parameters:
+    - q (required): Company name to search for
+    - max_search_results (optional): Maximum search results to try (default: 5)
+
+    Returns:
+        Stock quote in BSE-compatible format with search match information
+    """
+    company_name = request.args.get('q', '').strip()
+    if not company_name:
+        return jsonify({'error': 'Query parameter "q" (company name) is required'}), 400
+
+    try:
+        max_search_results = request.args.get('max_search_results', 5, type=int)
+
+        # Validate parameters
+        if max_search_results < 1 or max_search_results > 20:
+            return jsonify({'error': 'max_search_results must be between 1 and 20'}), 400
+
+        quote = get_quote_by_company_name(
+            company_name=company_name,
+            max_search_results=max_search_results,
+            max_retries=3,
+            delay=1
+        )
+
+        if quote:
+            return jsonify({
+                'success': True,
+                'quote': quote
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Could not find quote for company: {company_name}'
+            }), 404
+
+    except Exception as e:
+        logging.error(f"Error fetching quote by company name: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
 
 @stock_bp.route('/list', methods=['GET'])
 def list_stocks():
@@ -125,6 +251,7 @@ def list_stocks():
     except Exception as e:
         logging.error(f"Error listing stocks: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
 
 @stock_bp.route('/<security_id>', methods=['GET'])
 def get_stock_details(security_id):

@@ -580,12 +580,12 @@ async function showAddToWatchlist() {
     try {
       const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
       const suggestions = await response.json();
-      
+      console.log('Suggestions fetched for add to watchlist modal:', suggestions);
       if (suggestions.length > 0) {
         dropdown.innerHTML = suggestions.map(stock => `
-          <div class="autocomplete-item" data-symbol="${stock.security_id}" data-name="${stock.company_name}">
+          <div class="autocomplete-item" data-symbol="${stock.scrip_code}" data-name="${stock.company_name}">
             <strong>${stock.company_name}</strong>
-            <br><small style="color: var(--text-muted);">${stock.security_id || stock.scrip_code} ${stock.industry ? '- ' + stock.industry : ''}</small>
+//            <br><small style="color: var(--text-muted);">${stock.scrip_code} ${stock.company_name ? '- ' + stock.company_name : ''}</small>
           </div>
         `).join('');
         
@@ -820,12 +820,11 @@ async function fetchSuggestions(query, dropdown) {
   try {
     const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
     const suggestions = await response.json();
-    
     if (suggestions.length > 0) {
       dropdown.innerHTML = suggestions.map(stock => `
-        <div class="autocomplete-item" data-symbol="${stock.security_id}" data-name="${stock.company_name}">
+        <div class="autocomplete-item" data-symbol="${stock.scrip_code}" data-name="${stock.company_name}">
           <strong>${stock.company_name}</strong>
-          <br><small style="color: var(--text-muted);">${stock.security_id || stock.scrip_code} ${stock.industry ? '- ' + stock.industry : ''}</small>
+          <br><small style="color: var(--text-muted);">${stock.scrip_code}</small>
         </div>
       `).join('');
       
@@ -979,7 +978,7 @@ const predictionPageSize = 20;
 
 async function loadTopPredictions(page = 1) {
   try {
-    const response = await fetch(`/get_predictions?page=${page}&page_size=${predictionPageSize}`);
+    const response = await fetch(`/api/predictions?page=${page}&page_size=${predictionPageSize}`);
     const data = await response.json();
     console.log('Fetched Predictions:', data);
 

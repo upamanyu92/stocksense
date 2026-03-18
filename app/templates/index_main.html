@@ -394,7 +394,7 @@
                 const button = $(this).find('button');
                 showLoading(button);
 
-                $.get('/get_predictions', function(data) {
+                $.get('/api/predictions', function(data) {
                     $('#predictionsResult').html(formatPredictionData(data));
                 }).fail(function() {
                     $('#predictionsResult').html('<div class="alert alert-danger">Error retrieving predictions</div>');

@@ -3,6 +3,7 @@ Background worker service for automated stock downloads and predictions.
 """
 import concurrent
 import logging
+import os
 import queue
 import threading
 import time
@@ -13,14 +14,13 @@ from typing import Dict, Any
 import yfinance as yf
 
 from app.services.prediction_service import prediction_executor
-from app.utils.util import get_db_connection
-from app.utils.yfinance_utils import get_quote_with_retry
+from app.utils.yfinance_utils import get_quote_with_retry, get_quote_by_company_name
 from app.services import alert_service as alert_svc
 from app.db.services.alert_service import insert_notification as db_insert_notification
 import json
 from app.services.digest_service import build_daily_brief, send_daily_digest
 from app.services.worker_config import load_config as load_worker_config
-
+from app.db.session_manager import get_session_manager
 # Import websocket_manager - will be set from main.py to avoid circular imports
 websocket_manager = None
 
@@ -138,19 +138,17 @@ class BackgroundWorker:
             except FileNotFoundError:
                 # Fallback: get stocks from database that already have symbols
                 logging.warning("stk.json not found, loading stocks from database")
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute('SELECT scrip_code, company_name FROM stock_quotes WHERE stock_symbol IS NOT NULL')
-                rows = cursor.fetchall()
-                conn.close()
+                db = get_session_manager()
+                rows = db.fetch_all('SELECT scrip_code, company_name FROM stock_quotes WHERE stock_symbol IS NOT NULL')
                 funds = {row['scrip_code']: row['company_name'] for row in rows}
 
             total_stocks = len(funds)
             processed = 0
             failed = 0
             remaining = total_stocks
+            logging.info(f"Found {total_stocks} stocks to download")
 
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=4) as executor:
                 future_to_code = {
                     executor.submit(self._download_single_stock, code, name, processed, remaining): (code, name) for
                     code, name in funds.items()}
@@ -161,7 +159,7 @@ class BackgroundWorker:
                         processed += 1
                         remaining -= 1
                     except Exception as e:
-                        logging.error(f"Error downloading stock {name} ({code}): {e}")
+                        logging.debug(f"Error downloading stock {name} ({code}): {e}")
                         self._mark_stock_inactive(code, name, str(e))
                         failed += 1
                         remaining -= 1
@@ -193,7 +191,7 @@ class BackgroundWorker:
                 websocket_manager.emit_background_worker_status(completion_update)
 
         except Exception as e:
-            logging.error(f"Error in stock download: {e}", exc_info=True)
+            logging.debug(f"Error in stock download: {e}", exc_info=True)
             error_update = {
                 'type': 'download',
                 'status': 'error',
@@ -207,6 +205,8 @@ class BackgroundWorker:
     def _download_single_stock(self, code: str, name: str, processed: int = 0, remaining: int = 0):
         """Download data for a single stock, emit status before and after"""
         # Emit status before processing (use company name)
+        stock_symbol = None
+        quote = None
         self.status_queue.put({
             'type': 'download',
             'status': 'processing',
@@ -217,23 +217,24 @@ class BackgroundWorker:
         })
         try:
             # Get stock symbol from database if it exists
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT stock_symbol FROM stock_quotes WHERE scrip_code = ? OR company_name = ?', (code, name))
-            row = cursor.fetchone()
-            conn.close()
-            
+            db = get_session_manager()
+            row = db.fetch_one('SELECT stock_symbol FROM stock_quotes WHERE scrip_code = ? OR company_name = ?', (code, name))
+
             if row and row['stock_symbol']:
                 stock_symbol = row['stock_symbol']
             else:
                 # Skip stocks without symbol mapping
                 logging.debug(f"Skipping {name} - no symbol mapping")
-                return
-            
-            quote = get_quote_with_retry(stock_symbol)
+                # return
+            if stock_symbol:
+                quote = get_quote_with_retry(stock_symbol)
+            else:
+                quote = get_quote_by_company_name(name)
 
             if not quote:
                 raise ValueError("No quote data returned")
+            else:
+                logging.info(f"Downloading {name} ({code}): {quote}")
 
             # Store quote in database
             self._store_stock_quote(quote)
@@ -244,22 +245,21 @@ class BackgroundWorker:
             logging.debug(f"Successfully downloaded {name}")
 
         except Exception as e:
-            logging.error(f"Error downloading single stock {name}: {e}")
+            logging.debug(f"Error downloading single stock {name}: {e}")
             raise
 
     def _store_stock_quote(self, quote: Dict[str, Any]):
         """Store stock quote in database"""
-        import json
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        db = get_session_manager()
         try:
-            cursor.execute('''
+            db.execute('''
                 INSERT OR REPLACE INTO stock_quotes (
                     company_name, security_id, scrip_code, stock_symbol, current_value, change, p_change,
                     day_high, day_low, previous_close, previous_open, two_week_avg_quantity, high_52week, low_52week,
                     face_value, group_name, industry, market_cap_free_float, market_cap_full, total_traded_quantity,
-                    total_traded_value, updated_on, weighted_avg_price, buy, sell, stock_status, last_download_attempt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                    total_traded_value, updated_on, weighted_avg_price, buy, sell, stock_status, download_attempts,
+                    last_download_attempt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 quote.get('companyName'),
                 quote.get('securityID'),
@@ -286,24 +286,20 @@ class BackgroundWorker:
                 float(quote.get('weightedAvgPrice', 0)),
                 json.dumps(quote.get('buy', {})),
                 json.dumps(quote.get('sell', {})),
+                'active',
+                0,
                 datetime.now().isoformat()
-            ))
-            conn.commit()
+            ), commit=True)
         except Exception as e:
-            conn.rollback()
             logging.error(f"Error storing stock quote: {e}. Raw quote: {quote}")
             raise
-        finally:
-            conn.close()
-    
+
     def _mark_stock_inactive(self, code: str, name: str, reason: str):
         """Mark a stock as inactive after download failure"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
         try:
             # Update or insert stock status
-            cursor.execute('''
+            db.execute('''
                 INSERT INTO stock_quotes (
                     company_name, security_id, scrip_code, stock_status,
                     download_attempts, last_download_attempt
@@ -313,36 +309,26 @@ class BackgroundWorker:
                     stock_status = 'inactive',
                     download_attempts = download_attempts + 1,
                     last_download_attempt = ?
-            ''', (name, code, code, datetime.now().isoformat(), datetime.now().isoformat()))
-            conn.commit()
-            
+            ''', (name, code, code, datetime.now().isoformat(), datetime.now().isoformat()), commit=True)
+
             logging.warning(f"Marked stock {name} (code: {code}) as inactive. Reason: {reason}")
             
         except Exception as e:
-            conn.rollback()
             logging.error(f"Error marking stock inactive: {e}")
-        finally:
-            conn.close()
-    
+
     def _reset_download_attempts(self, security_id: str):
         """Reset download attempts counter on successful download"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
         try:
-            cursor.execute('''
+            db.execute('''
                 UPDATE stock_quotes 
                 SET download_attempts = 0,
                     stock_status = 'active'
                 WHERE security_id = ?
-            ''', (security_id,))
-            conn.commit()
+            ''', (security_id,), commit=True)
         except Exception as e:
-            conn.rollback()
             logging.error(f"Error resetting download attempts: {e}")
-        finally:
-            conn.close()
-    
+
     def _run_predictions(self):
         """Run predictions on watchlist stocks only"""
         logging.info("Starting automated predictions on watchlist stocks")
@@ -356,18 +342,15 @@ class BackgroundWorker:
             websocket_manager.emit_background_worker_status(start_update)
         
         # Get watchlist stocks from all users
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
+        db = get_session_manager()
+        watchlist_stocks = db.fetch_all('''
             SELECT DISTINCT sq.* 
             FROM stock_quotes sq
             INNER JOIN watchlists uw ON sq.stock_symbol = uw.stock_symbol OR sq.security_id = uw.stock_symbol
             WHERE sq.stock_status = 'active'
             ORDER BY sq.company_name
         ''')
-        watchlist_stocks = cursor.fetchall()
-        conn.close()
-        
+
         total = len(watchlist_stocks)
         processed = 0
         
@@ -379,7 +362,7 @@ class BackgroundWorker:
             
             try:
                 # Run prediction
-                prediction_executor(dict(stock))
+                prediction_executor(stock)
                 processed += 1
                 
                 # Update progress
@@ -389,7 +372,7 @@ class BackgroundWorker:
                         'status': 'progress',
                         'processed': processed,
                         'total': total,
-                        'stock_name': stock['company_name'],
+                        'stock_name': stock.get('company_name'),
                         'timestamp': datetime.now().isoformat()
                     }
                     self.status_queue.put(progress_update)
@@ -397,8 +380,8 @@ class BackgroundWorker:
                         websocket_manager.emit_background_worker_status(progress_update)
                     
             except Exception as e:
-                logging.error(f"Error predicting for {stock['company_name']}: {e}")
-        
+                logging.error(f"Error predicting for {stock.get('company_name')}: {e}")
+
         completion_update = {
             'type': 'prediction',
             'status': 'completed',

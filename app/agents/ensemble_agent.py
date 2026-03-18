@@ -1,27 +1,27 @@
 """
-Ensemble agent that combines predictions from multiple Gemini AI calls for improved accuracy.
+Ensemble agent that combines predictions from multiple Ollama AI calls for improved accuracy.
 """
 import numpy as np
 from typing import Dict, Any
 import logging
 
 from app.agents.base_agent import BaseAgent
-from app.models.gemini_model import predict_with_details
+from app.models.ollama_model import predict_with_details
 
 
 class EnsembleAgent(BaseAgent):
-    """Agent that uses ensemble methods to combine multiple Gemini AI predictions"""
+    """Agent that uses ensemble methods to combine multiple Ollama AI predictions"""
 
     def __init__(self, name: str = "EnsembleAI", confidence_threshold: float = 0.7):
         super().__init__(name, confidence_threshold)
-        # Use different Gemini analysis prompts/perspectives as "models"
+        # Use different Ollama analysis prompts/perspectives as "models"
         self.analysis_types = ['technical', 'fundamental']
         self.ensemble_method = 'weighted_average'  # Can be 'average', 'weighted_average', 'voting'
         self.model_weights = {}
     
     def predict(self, symbol: str, data: Any = None) -> Dict[str, Any]:
         """
-        Make ensemble prediction by combining multiple Gemini API calls.
+        Make ensemble prediction by combining multiple Ollama AI calls.
 
         Args:
             symbol: Stock symbol
@@ -34,10 +34,10 @@ class EnsembleAgent(BaseAgent):
         confidences = []
         model_details = []
         
-        # Get predictions from Gemini API (we'll call it multiple times with emphasis on different aspects)
+        # Get predictions from Ollama (we'll call it multiple times with emphasis on different aspects)
         for analysis_type in self.analysis_types:
             try:
-                # Call Gemini with different emphasis
+                # Call Ollama with different emphasis
                 result = predict_with_details(symbol)
 
                 # Store prediction and confidence
@@ -47,7 +47,7 @@ class EnsembleAgent(BaseAgent):
                 predictions.append(pred)
                 confidences.append(confidence)
                 model_details.append({
-                    'model_type': f'gemini_{analysis_type}',
+                    'model_type': f'ollama_{analysis_type}',
                     'prediction': float(pred),
                     'confidence': float(confidence),
                     'decision': result.get('decision', 'caution'),
@@ -55,15 +55,15 @@ class EnsembleAgent(BaseAgent):
                 })
                 
                 self.log_decision(
-                    f"Prediction from gemini_{analysis_type}",
+                    f"Prediction from ollama_{analysis_type}",
                     {'symbol': symbol, 'prediction': pred, 'confidence': confidence}
                 )
             except Exception as e:
-                self.logger.warning(f"Failed to get Gemini prediction for {analysis_type}: {str(e)}")
+                self.logger.warning(f"Failed to get Ollama prediction for {analysis_type}: {str(e)}")
                 continue
         
         if not predictions:
-            raise ValueError(f"No Gemini predictions could be made for {symbol}")
+            raise ValueError(f"No Ollama predictions could be made for {symbol}")
 
         # Combine predictions using ensemble method
         final_prediction = self._combine_predictions(predictions, confidences)
@@ -136,7 +136,7 @@ class EnsembleAgent(BaseAgent):
     
     def _get_model_confidence(self, symbol: str, model_type: str) -> float:
         """
-        Get confidence score for a specific Gemini analysis type.
+        Get confidence score for a specific Ollama analysis type.
         """
         # Default confidence based on analysis type
         base_confidence = {

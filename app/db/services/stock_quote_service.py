@@ -2,9 +2,8 @@
 Stock Quote database service for managing stock_quotes table operations
 """
 from typing import Optional, List, Dict, Any
-import sqlite3
 import logging
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 from app.db.data_models import StockQuote
 
 
@@ -14,11 +13,10 @@ class StockQuoteService:
     @staticmethod
     def create(quote: StockQuote) -> Optional[int]:
         """Create a new stock quote"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         try:
-            cursor.execute('''
+            return db.insert('''
                 INSERT OR REPLACE INTO stock_quotes (
                     company_name, current_value, change, p_change, updated_on,
                     security_id, scrip_code, group_type, face_value, industry,
@@ -39,21 +37,15 @@ class StockQuoteService:
                 quote.stock_status or 'active', quote.download_attempts or 0,
                 quote.last_download_attempt
             ))
-            conn.commit()
-            return cursor.lastrowid
         except Exception as e:
-            conn.rollback()
             logging.error(f"Error creating stock quote: {e}")
             return None
-        finally:
-            conn.close()
-    
+
     @staticmethod
     def insert_from_dict(quote_dict: Dict[str, Any]) -> None:
         """Insert stock quote from dictionary (legacy support)"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = get_session_manager()
+
         data = {
             'company_name': quote_dict.get('companyName', None),
             'current_value': float(quote_dict.get('currentValue', 0.0)),
@@ -84,75 +76,54 @@ class StockQuoteService:
         sql = f'INSERT OR REPLACE INTO stock_quotes ({columns}) VALUES ({placeholders})'
         
         try:
-            cursor.execute(sql, list(data.values()))
-            conn.commit()
-        except sqlite3.Error as e:
+            db.insert(sql, tuple(data.values()))
+        except Exception as e:
             logging.error(f"Error inserting stock quote: {e}")
-        finally:
-            conn.close()
-    
+
     @staticmethod
     def get_by_id(quote_id: int) -> Optional[StockQuote]:
         """Get stock quote by ID"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM stock_quotes WHERE id = ?', (quote_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
+        db = get_session_manager()
+        row = db.fetch_one('SELECT * FROM stock_quotes WHERE id = ?', (quote_id,))
+
         if row:
-            return StockQuote(**dict(row))
+            return StockQuote(**row)
         return None
     
     @staticmethod
     def get_by_company_name(company_name: str) -> Optional[StockQuote]:
         """Get stock quote by company name"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
-        row = cursor.fetchone()
-        conn.close()
-        
+        db = get_session_manager()
+        row = db.fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
+
         if row:
-            return StockQuote(**dict(row))
+            return StockQuote(**row)
         return None
     
     @staticmethod
     def search_by_name(company_name: str) -> List[Dict[str, Any]]:
         """Search stock quotes by company name pattern"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM stock_quotes WHERE company_name LIKE ?', (f'%{company_name}%',))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-    
+        db = get_session_manager()
+        return db.fetch_all('SELECT * FROM stock_quotes WHERE company_name LIKE ?', (f'%{company_name}%',))
+
     @staticmethod
     def get_batch(limit: int, offset: int) -> List[StockQuote]:
         """Get a batch of stock quotes"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM stock_quotes LIMIT ? OFFSET ?', (limit, offset))
-        rows = cursor.fetchall()
-        conn.close()
-        return [StockQuote(**dict(row)) for row in rows]
-    
+        db = get_session_manager()
+        rows = db.fetch_all('SELECT * FROM stock_quotes LIMIT ? OFFSET ?', (limit, offset))
+        return [StockQuote(**row) for row in rows]
+
     @staticmethod
     def get_all() -> List[StockQuote]:
         """Get all stock quotes"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM stock_quotes')
-        rows = cursor.fetchall()
-        conn.close()
-        return [StockQuote(**dict(row)) for row in rows]
-    
+        db = get_session_manager()
+        rows = db.fetch_all('SELECT * FROM stock_quotes')
+        return [StockQuote(**row) for row in rows]
+
     @staticmethod
     def count() -> int:
         """Get total count of stock quotes"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM stock_quotes')
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count
+        db = get_session_manager()
+        row = db.fetch_one('SELECT COUNT(*) as count FROM stock_quotes')
+        return row['count'] if row else 0
+

@@ -104,7 +104,7 @@
 
             $('#getPredictionsForm').submit(function(event) {
                 event.preventDefault();
-                $.get('/get_predictions', function(data) {
+                $.get('/api/predictions', function(data) {
                     $('#predictionsResult').html('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
                 });
             });

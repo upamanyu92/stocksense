@@ -1,6 +1,8 @@
 """
 Watchlist management API routes.
 """
+import logging
+
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.services.auth_service import WatchlistService
@@ -31,6 +33,7 @@ def get_watchlist():
 def add_to_watchlist():
     """Add stock to watchlist"""
     data = request.get_json()
+    logging.info(f"Received request to add to watchlist: {data}")
     stock_symbol = data.get('stock_symbol')
     company_name = data.get('company_name')
     

@@ -12,7 +12,7 @@ import logging
 class DiskSpaceMonitor:
     """Monitor disk space and manage model cleanup"""
     
-    LOW_DISK_THRESHOLD = 15  # percent
+    LOW_DISK_THRESHOLD = 35  # percent
     
     @staticmethod
     def get_disk_usage() -> Dict[str, float]:
