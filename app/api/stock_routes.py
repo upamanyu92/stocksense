@@ -6,7 +6,7 @@ from app.utils.yfinance_utils import search_companies_by_name, get_quote_by_comp
 stock_bp = Blueprint('stock', __name__, url_prefix='/api/stocks')
 
 
-@stock_bp.route('suggestions', methods=['GET'])
+@stock_bp.route('/suggestions', methods=['GET'])
 def get_stock_suggestions():
     """Get stock suggestions based on query parameter 'q'"""
     query = request.args.get('q', '').strip()
@@ -69,6 +69,40 @@ def search_stocks():
 
     except Exception as e:
         logging.error(f"Error searching for companies: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
+@stock_bp.route('/search/<path:name>', methods=['GET'])
+def search_stocks_by_name(name: str):
+    """
+    Search for companies by name provided as a URL path segment.
+
+    This variant supports the frontend pattern:
+        GET /api/stocks/search/<company-name>
+
+    It delegates to the same yfinance search used by the query-parameter
+    variant above and returns the list of matching results directly (not
+    wrapped in a dict) so the caller can treat the response as a JSON array.
+
+    Returns:
+        JSON array of search result objects.
+    """
+    name = name.strip()
+    if not name:
+        return jsonify([]), 200
+
+    try:
+        results = search_companies_by_name(
+            company_name=name,
+            max_results=10,
+            indian_only=True,
+            max_retries=3,
+            delay=1,
+        )
+        return jsonify(results), 200
+
+    except Exception as e:
+        logging.error(f"Error searching for companies by name '{name}': {e}", exc_info=True)
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 
