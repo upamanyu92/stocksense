@@ -393,7 +393,7 @@ async function updateBackgroundWorkerStatus() {
   }
   
   try {
-    const response = await fetch('/api/background-status');
+    const response = await fetch('/api/system/background-status');
     const data = await response.json();
     updateBackgroundWorkerStatusUI(data);
   } catch (error) {

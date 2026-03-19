@@ -7,7 +7,7 @@ import os
 import time
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request, Response, render_template
+from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required
 
 from app.services.background_worker import background_worker
@@ -217,9 +217,11 @@ def background_status():
 @system_bp.route('/ui', methods=['GET'])
 @login_required
 def admin_ui():
+    """Redirect to the dashboard admin page."""
+    from flask import redirect, url_for
     from flask_login import current_user
     from app.db.services.user_service import UserService
     user = UserService.get_by_id(current_user.id)
     if not user or not user.is_admin:
         return jsonify({'error': 'Admin access required'}), 403
-    return render_template('admin_system.html')
+    return redirect(url_for('dashboard.admin_page'))

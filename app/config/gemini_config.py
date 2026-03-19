@@ -14,17 +14,17 @@ class GeminiConfig:
     # API Configuration
     API_KEY = os.getenv('GEMINI_API_KEY', '')
     # Using gemini-2.0-flash as it's the current stable version
-    MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', '')
+    MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.0-flash')
 
     # Temperature and generation parameters
-    TEMPERATURE = float(os.getenv('GEMINI_TEMPERATURE', ''))
-    TOP_P = float(os.getenv('GEMINI_TOP_P', ''))
-    TOP_K = int(os.getenv('GEMINI_TOP_K', ''))
-    MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', ''))
+    TEMPERATURE = float(os.getenv('GEMINI_TEMPERATURE', '0.7'))
+    TOP_P = float(os.getenv('GEMINI_TOP_P', '0.9'))
+    TOP_K = int(os.getenv('GEMINI_TOP_K', '40'))
+    MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '1024'))
 
     # Prediction confidence thresholds
-    MIN_CONFIDENCE = float(os.getenv('GEMINI_MIN_CONFIDENCE', ''))
-    HIGH_CONFIDENCE_THRESHOLD = float(os.getenv('GEMINI_HIGH_CONFIDENCE_THRESHOLD', ''))
+    MIN_CONFIDENCE = float(os.getenv('GEMINI_MIN_CONFIDENCE', '0.5'))
+    HIGH_CONFIDENCE_THRESHOLD = float(os.getenv('GEMINI_HIGH_CONFIDENCE_THRESHOLD', '0.8'))
 
     # System prompts for stock analysis
     STOCK_ANALYSIS_SYSTEM_PROMPT = """You are an expert stock market analyst with deep knowledge of technical analysis, 

@@ -12,7 +12,7 @@ from app.db.services.prediction_service import PredictionService
 from app.db.services.watchlist_service import WatchlistDBService
 from app.services.ollama_chat_service import OllamaChatService
 from app.services.nse_securities_service import NSESecuritiesService
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 
 logger = logging.getLogger(__name__)
@@ -222,11 +222,8 @@ class ChatAgent(BaseAgent):
         
         try:
             # Get stock data directly from database
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Try to find by security_id first
-            cursor.execute('''
+            db = get_session_manager()
+            row = db.fetch_one('''
                 SELECT security_id, company_name, current_value, change, p_change, 
                        day_high, day_low, high_52week, low_52week, updated_on
                 FROM stock_quotes 
@@ -234,22 +231,19 @@ class ChatAgent(BaseAgent):
                 LIMIT 1
             ''', (symbol, f'%{symbol}%'))
             
-            row = cursor.fetchone()
-            conn.close()
-            
             if row:
                 # Explicit field mapping for safety
                 quote_data = {
-                    'security_id': row[0],
-                    'company_name': row[1],
-                    'current_value': row[2],
-                    'change': row[3],
-                    'p_change': row[4],
-                    'day_high': row[5],
-                    'day_low': row[6],
-                    'high_52week': row[7],
-                    'low_52week': row[8],
-                    'updated_on': row[9]
+                    'security_id': row['security_id'],
+                    'company_name': row['company_name'],
+                    'current_value': row['current_value'],
+                    'change': row['change'],
+                    'p_change': row['p_change'],
+                    'day_high': row['day_high'],
+                    'day_low': row['day_low'],
+                    'high_52week': row['high_52week'],
+                    'low_52week': row['low_52week'],
+                    'updated_on': row['updated_on']
                 }
                 response = f"📊 **{quote_data['company_name']}** ({quote_data['security_id']})\n\n"
                 response += f"Current Price: ₹{quote_data['current_value']:.2f}\n"
@@ -539,16 +533,18 @@ class ChatAgent(BaseAgent):
     def _build_ollama_context(self, user_id: int, preferences: Dict, context: Optional[Dict]) -> Dict[str, Any]:
         """Build context information for Ollama LLM"""
         try:
-            conn = get_db_connection()
+            db = get_session_manager()
 
             # Get user's watchlist
             watchlist = WatchlistDBService.get_by_user(user_id)
             watchlist_symbols = [w.stock_symbol for w in watchlist] if watchlist else []
 
-            # Get available NSE stocks count
-            stocks_count = self.nse_service.get_security_count(conn)
-
-            conn.close()
+            # Get available NSE stocks count using a pooled connection
+            conn = db.get_connection()
+            try:
+                stocks_count = self.nse_service.get_security_count(conn)
+            finally:
+                db.release_connection(conn)
 
             return {
                 'watchlist': watchlist_symbols,
@@ -604,34 +600,30 @@ class ChatAgent(BaseAgent):
                 'context': {}
             }
 
-        conn = get_db_connection()
+        db = get_session_manager()
         prices_info = []
 
         for symbol in symbols[:3]:  # Limit to 3 symbols
             try:
-                cursor = conn.cursor()
-                cursor.execute('''
+                row = db.fetch_one('''
                     SELECT company_name, current_value, change, p_change, day_high, day_low
                     FROM stock_quotes 
                     WHERE UPPER(security_id) = UPPER(?) OR UPPER(company_name) LIKE UPPER(?)
                     LIMIT 1
                 ''', (symbol, f'%{symbol}%'))
 
-                row = cursor.fetchone()
                 if row:
                     prices_info.append({
                         'symbol': symbol,
-                        'company': row[0],
-                        'price': row[1],
-                        'change': row[2],
-                        'pchange': row[3],
-                        'high': row[4],
-                        'low': row[5]
+                        'company': row['company_name'],
+                        'price': row['current_value'],
+                        'change': row['change'],
+                        'pchange': row['p_change'],
+                        'high': row['day_high'],
+                        'low': row['day_low']
                     })
             except Exception as e:
                 logger.error(f"Error getting price for {symbol}: {e}")
-
-        conn.close()
 
         if not prices_info:
             return {
@@ -681,19 +673,16 @@ class ChatAgent(BaseAgent):
 
             for symbol in symbols:
                 # Get stock info from database
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute('''
+                db = get_session_manager()
+                row = db.fetch_one('''
                     SELECT id, company_name FROM stock_quotes 
                     WHERE UPPER(security_id) = UPPER(?)
                     LIMIT 1
                 ''', (symbol,))
-                row = cursor.fetchone()
-                conn.close()
 
                 if row:
-                    stock_id = row[0]
-                    company_name = row[1]
+                    stock_id = row['id']
+                    company_name = row['company_name']
                     # Add to watchlist using the correct method
                     success = WatchlistDBService.add(user_id, symbol, company_name)
                     if success:
@@ -772,17 +761,18 @@ class ChatAgent(BaseAgent):
     def _handle_list_stocks(self, user_id: int, entities: Dict, llm_response: str) -> Dict[str, Any]:
         """Handle listing available NSE stocks"""
         try:
-            conn = get_db_connection()
-
-            search_query = entities.get('search_query')
-            if search_query:
-                stocks = self.nse_service.search_securities(conn, search_query)
-                title = f"Found {len(stocks)} matching stocks:"
-            else:
-                stocks = self.nse_service.get_available_securities(conn, limit=20)
-                title = f"Top 20 available NSE stocks (total: {self.nse_service.get_security_count(conn)}):"
-
-            conn.close()
+            db = get_session_manager()
+            conn = db.get_connection()
+            try:
+                search_query = entities.get('search_query')
+                if search_query:
+                    stocks = self.nse_service.search_securities(conn, search_query)
+                    title = f"Found {len(stocks)} matching stocks:"
+                else:
+                    stocks = self.nse_service.get_available_securities(conn, limit=20)
+                    title = f"Top 20 available NSE stocks (total: {self.nse_service.get_security_count(conn)}):"
+            finally:
+                db.release_connection(conn)
 
             if stocks:
                 stocks_text = llm_response + f"\n\n**{title}**\n"
