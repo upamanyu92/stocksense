@@ -7,7 +7,7 @@ import logging
 import os
 
 from app.services.nse_securities_service import NSESecuritiesService
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +41,17 @@ def load_securities():
                 'message': 'Please ensure stk.json exists in project root'
             }), 400
 
-        # Add to database
-        conn = get_db_connection()
-        result = nse_service.add_securities_to_db(securities, conn)
-        conn.close()
+        # Add to database using pooled connection
+        db = get_session_manager()
+        conn = db.get_connection()
+        try:
+            result = nse_service.add_securities_to_db(securities, conn)
+        finally:
+            db.release_connection(conn)
 
         return jsonify({
             'success': result['success'],
-            'message': f"Loaded NSE securities",
+            'message': f"Loaded {result.get('added', 0)} NSE securities ({result.get('skipped', 0)} skipped)",
             'details': result
         })
 
@@ -66,9 +69,12 @@ def get_securities_count():
     """Get total count of NSE securities in database"""
     try:
         nse_service = NSESecuritiesService()
-        conn = get_db_connection()
-        count = nse_service.get_security_count(conn)
-        conn.close()
+        db = get_session_manager()
+        conn = db.get_connection()
+        try:
+            count = nse_service.get_security_count(conn)
+        finally:
+            db.release_connection(conn)
 
         return jsonify({
             'success': True,
@@ -109,9 +115,12 @@ def search_securities():
             }), 400
 
         nse_service = NSESecuritiesService()
-        conn = get_db_connection()
-        securities = nse_service.search_securities(conn, query)
-        conn.close()
+        db = get_session_manager()
+        conn = db.get_connection()
+        try:
+            securities = nse_service.search_securities(conn, query)
+        finally:
+            db.release_connection(conn)
 
         return jsonify({
             'success': True,
@@ -145,10 +154,13 @@ def list_securities():
         limit = min(limit, 100)  # Cap at 100
 
         nse_service = NSESecuritiesService()
-        conn = get_db_connection()
-        securities = nse_service.get_available_securities(conn, limit=limit)
-        total_count = nse_service.get_security_count(conn)
-        conn.close()
+        db = get_session_manager()
+        conn = db.get_connection()
+        try:
+            securities = nse_service.get_available_securities(conn, limit=limit)
+            total_count = nse_service.get_security_count(conn)
+        finally:
+            db.release_connection(conn)
 
         return jsonify({
             'success': True,

@@ -290,13 +290,8 @@ class DatabaseSessionManager:
                 return True
             except sqlite3.OperationalError as e:
                 conn.rollback()
-                if 'database is locked' in str(e):
-                    logger.warning(f"Database locked during transaction, retrying...")
-                    time.sleep(0.2)
-                    return self.execute_transaction(operations)  # Retry
-                else:
-                    logger.error(f"Error in transaction: {e}")
-                    raise
+                logger.error(f"Error in transaction: {e}")
+                raise
             except Exception as e:
                 conn.rollback()
                 logger.error(f"Error in transaction: {e}")

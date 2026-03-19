@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from app.utils.yfinance_utils import get_quote_with_retry
-from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 
 class StockPriceStreamer:
@@ -83,19 +83,15 @@ class StockPriceStreamer:
     
     def _fetch_and_emit_prices(self, symbols: List[str]):
         """Fetch current prices and emit via WebSocket"""
-
+        db = get_session_manager()
         for symbol in symbols:
             try:
                 # Get stock info from database to find stock symbol
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute('''
+                stock = db.fetch_one('''
                     SELECT * FROM stock_quotes 
                     WHERE company_name = ? OR security_id = ? OR stock_symbol = ?
                     LIMIT 1
                 ''', (symbol, symbol, symbol))
-                stock = cursor.fetchone()
-                conn.close()
                 
                 if not stock:
                     logging.warning(f"Stock not found in database: {symbol}")
@@ -138,15 +134,12 @@ class StockPriceStreamer:
         """Fetch price for a single symbol immediately"""
         try:
             # Get stock info from database
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
+            db = get_session_manager()
+            stock = db.fetch_one('''
                 SELECT security_id, company_name, stock_symbol FROM stock_quotes 
                 WHERE company_name = ? OR security_id = ? OR stock_symbol = ?
                 LIMIT 1
             ''', (symbol, symbol, symbol))
-            stock = cursor.fetchone()
-            conn.close()
             
             if not stock:
                 return None

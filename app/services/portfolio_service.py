@@ -1,5 +1,4 @@
-from typing import Dict, Any, List
-from app.utils.util import get_db_connection
+from typing import Dict, Any
 
 
 def get_portfolio(user_id: int) -> Dict[str, Any]:
