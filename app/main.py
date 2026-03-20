@@ -17,6 +17,7 @@ from app.api.llm_routes import llm_bp
 from app.api.notification_routes import notification_bp
 from app.api.nse_routes import nse_bp
 from app.api.prediction_routes import prediction_bp
+from app.api.premium_dashboard_routes import premium_dashboard_bp
 from app.api.price_stream_routes import price_stream_bp
 from app.api.stock_routes import stock_bp
 from app.api.system_routes import system_bp
@@ -41,6 +42,19 @@ try:
         logging.info('Alerts/notifications tables ensured')
 except Exception as e:
     logging.warning(f'Failed to run alerts migration: {e}')
+
+# Execute migrations for premium dashboard tables
+try:
+    premium_migrations_path = os.path.join(os.path.dirname(__file__), 'db', 'migrations', 'create_premium_tables.sql')
+    if os.path.exists(premium_migrations_path):
+        conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'db', 'stock_predictions.db'))
+        with open(premium_migrations_path, 'r') as f:
+            sql = f.read()
+            conn.executescript(sql)
+        conn.close()
+        logging.info('Premium dashboard tables ensured')
+except Exception as e:
+    logging.warning(f'Failed to run premium tables migration: {e}')
 
 # Configure logging
 logging.basicConfig(
@@ -109,6 +123,7 @@ app.register_blueprint(notification_bp)
 app.register_blueprint(backtest_bp)
 app.register_blueprint(llm_bp)
 app.register_blueprint(nse_bp)
+app.register_blueprint(premium_dashboard_bp)
 
 @login_manager.user_loader
 def load_user(user_id):
