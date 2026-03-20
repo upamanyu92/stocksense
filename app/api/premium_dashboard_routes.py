@@ -355,13 +355,15 @@ def record_trade():
                 new_qty = existing[1] + quantity
                 new_invested = existing[3] + total_value
                 new_avg = new_invested / new_qty if new_qty > 0 else 0
+                new_pnl = (price * new_qty) - new_invested
+                new_pnl_pct = (new_pnl / new_invested * 100) if new_invested > 0 else 0
                 cursor.execute('''
                     UPDATE portfolio_holdings
                     SET quantity = ?, avg_buy_price = ?, invested_value = ?,
-                        current_value = ?, pnl = current_value * ? - ?,
+                        current_value = ?, pnl = ?, pnl_percent = ?,
                         updated_at = datetime('now')
                     WHERE id = ?
-                ''', (new_qty, new_avg, new_invested, price, new_qty, new_invested, existing[0]))
+                ''', (new_qty, new_avg, new_invested, price, new_pnl, new_pnl_pct, existing[0]))
             else:
                 cursor.execute('''
                     INSERT INTO portfolio_holdings (user_id, stock_symbol, company_name, quantity, avg_buy_price, current_value, invested_value, pnl, pnl_percent)
@@ -463,7 +465,7 @@ def user_level():
         else:
             badges = []
             try:
-                badges = json.loads(row[6]) if row[6] else []
+                badges = json.loads(row[7]) if row[7] else []
             except (json.JSONDecodeError, TypeError):
                 badges = []
 
@@ -472,7 +474,7 @@ def user_level():
                 'xp_points': row[3],
                 'predictions_made': row[4],
                 'successful_predictions': row[5],
-                'streak_days': row[6] if len(row) > 6 else 0,
+                'streak_days': row[6],
                 'badges': badges
             }
 
