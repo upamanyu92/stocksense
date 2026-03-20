@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from app.db.services.alert_service import create_alert as db_create_alert, list_alerts as db_list_alerts, get_alert as db_get_alert, insert_notification as db_insert_notification
-from app.models.ollama_model import predict_with_details
+from app.models.llm_factory import LLMFactory
 from app.db.session_manager import get_session_manager
 
 
@@ -44,7 +44,7 @@ def evaluate_alert(alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     # Get latest prediction
     result = None
     try:
-        result = predict_with_details(symbol)
+        result = LLMFactory.predict_with_details(symbol)
     except Exception:
         # Try fallback to DB
         result = _fallback_prediction_from_db(symbol)
