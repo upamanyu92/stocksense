@@ -81,7 +81,7 @@ def dashboard_overview():
         })
     except Exception as e:
         logger.error(f"Error fetching dashboard overview: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to fetch dashboard overview'}), 500
 
 
 @premium_dashboard_bp.route('/api/dashboard/market-indices', methods=['GET'])
