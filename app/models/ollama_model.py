@@ -10,6 +10,7 @@ import re
 from datetime import datetime
 
 from app.config.ollama_config import OllamaConfig
+from app.utils.util import check_index_existence
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

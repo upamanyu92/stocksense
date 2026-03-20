@@ -1,10 +1,8 @@
-{% extends 'base.html' %}
-
-{% block title %}Alerts Management — StockSense{% endblock %}
+{% extends 'index.html' %}
 
 {% block content %}
 <div class="container mt-4">
-  <h2><i class="fas fa-bell"></i> Alerts Management</h2>
+  <h2>Alerts Management</h2>
   <div class="card mb-3">
     <div class="card-body">
       <form id="createAlertForm">
@@ -40,9 +38,6 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
 <script src="/static/alerts_mgmt.js"></script>
 {% endblock %}
 

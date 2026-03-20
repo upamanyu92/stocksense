@@ -1,10 +1,8 @@
 import threading
 import time
 import logging
-import json
 from datetime import datetime, timedelta
-
-from app.db.session_manager import get_session_manager
+from app.utils.util import get_db_connection
 from app.utils.yfinance_utils import get_quote_with_retry
 
 class InactiveStockRetryWorker:
@@ -58,20 +56,22 @@ class InactiveStockRetryWorker:
                     self._interruptible_sleep(60)  # Interruptible sleep on error too
 
     def _retry_inactive_stocks(self):
-        db = get_session_manager()
+        from datetime import datetime, timedelta
+        conn = get_db_connection()
+        cursor = conn.cursor()
         # Fetch all inactive stocks with their last_download_attempt and stock_symbol
-        inactive_stocks = db.fetch_all(
-            "SELECT security_id, company_name, scrip_code, stock_symbol, last_download_attempt "
-            "FROM stock_quotes WHERE stock_status = 'inactive'"
-        )
+        cursor.execute("SELECT security_id, company_name, scrip_code, stock_symbol, last_download_attempt FROM stock_quotes WHERE stock_status = 'inactive'")
+        inactive_stocks = cursor.fetchall()
+        conn.close()
         logging.info(f"Retrying download for {len(inactive_stocks)} inactive stocks")
         now = datetime.now()
         retry_threshold = now - timedelta(hours=self.retry_delay)
         for stock in inactive_stocks:
-            security_id = stock.get('security_id')
-            company_name = stock.get('company_name')
-            stock_symbol = stock.get('stock_symbol')
-            last_attempt = stock.get('last_download_attempt')
+            security_id = stock['security_id']
+            company_name = stock['company_name']
+            scrip_code = stock['scrip_code']
+            stock_symbol = stock['stock_symbol']  # Changed from .get() to bracket notation
+            last_attempt = stock['last_download_attempt']
             # Only retry if last_download_attempt is None or older than threshold
             if last_attempt:
                 try:
@@ -104,10 +104,12 @@ class InactiveStockRetryWorker:
                 logging.error(f"Error retrying inactive stock {company_name} ({security_id}): {e}")
 
     def _update_stock_to_active(self, quote):
-        db = get_session_manager()
+        import json
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             current_value = quote.get('currentValue', 0)
-            db.update('''
+            cursor.execute('''
                 UPDATE stock_quotes SET
                     company_name = ?,
                     current_value = ?,
@@ -161,8 +163,12 @@ class InactiveStockRetryWorker:
                 datetime.now().isoformat(),
                 quote.get('securityID')
             ))
+            conn.commit()
         except Exception as e:
+            conn.rollback()
             logging.error(f"Error updating stock to active: {e}. Raw quote: {quote}")
+        finally:
+            conn.close()
 
 # Global instance
 inactive_stock_worker = InactiveStockRetryWorker()

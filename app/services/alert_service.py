@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 from app.db.services.alert_service import create_alert as db_create_alert, list_alerts as db_list_alerts, get_alert as db_get_alert, insert_notification as db_insert_notification
-from app.models.ollama_model import predict_with_details
-from app.db.session_manager import get_session_manager
+from app.models.gemini_model import predict_with_details
+from app.db.db_executor import fetch_one
 
 
 def create_alert(symbol: str, condition_type: str, condition_value: float, min_confidence: float = 0.0, user_id: Optional[int] = None) -> int:
@@ -15,12 +15,7 @@ def list_alerts(symbol: Optional[str] = None):
 def _fallback_prediction_from_db(symbol: str) -> Optional[Dict[str, Any]]:
     """Attempt to use the latest stored prediction from the predictions table as a fallback."""
     try:
-        db = get_session_manager()
-        row = db.fetch_one(
-            'SELECT predicted_price, prediction_date FROM predictions '
-            'WHERE stock_symbol = ? ORDER BY prediction_date DESC LIMIT 1',
-            (symbol,),
-        )
+        row = fetch_one('SELECT predicted_price, prediction_date FROM predictions WHERE stock_symbol = ? ORDER BY prediction_date DESC LIMIT 1', (symbol,))
         if row and row.get('predicted_price') is not None:
             return {
                 'symbol': symbol,
@@ -35,7 +30,7 @@ def _fallback_prediction_from_db(symbol: str) -> Optional[Dict[str, Any]]:
 
 
 def evaluate_alert(alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Evaluate a single alert using Ollama predictions, with DB fallback."""
+    """Evaluate a single alert using Gemini predictions, with DB fallback."""
     symbol = alert.get('symbol')
     condition_type = alert.get('condition_type')
     condition_value = float(alert.get('condition_value', 0.0))
@@ -59,11 +54,7 @@ def evaluate_alert(alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     current_price = None
     # Try to get the latest current price from DB if available
     try:
-        db = get_session_manager()
-        row = db.fetch_one(
-            'SELECT current_value FROM stock_quotes WHERE stock_symbol = ? OR company_name = ?',
-            (symbol, symbol),
-        )
+        row = fetch_one('SELECT current_value FROM stock_quotes WHERE stock_symbol = ? OR company_name = ?', (symbol, symbol))
         if row:
             current_price = float(row.get('current_value'))
     except Exception:

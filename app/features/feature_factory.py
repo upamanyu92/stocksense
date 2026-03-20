@@ -28,6 +28,7 @@ def calculate_technical_indicators(df: pd.DataFrame,
     df['OBV'] = calculate_obv(df)
     df['Volume_SMA'] = df['Volume'].rolling(window=20).mean()
     df['Volume_Ratio'] = df['Volume'] / df['Volume_SMA']
+    df['Volume_Mean'] = df['Volume'].rolling(window=20).mean()
 
     return df
 

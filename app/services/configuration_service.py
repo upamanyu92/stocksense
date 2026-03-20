@@ -1,32 +1,29 @@
 from datetime import datetime
 from typing import List, Optional
 from app.db.data_models import ModelConfiguration
-from app.db.session_manager import get_session_manager
+from app.db.db_executor import execute_query, fetch_one, fetch_all
 
 class ConfigurationService:
     @staticmethod
     def get_configuration(symbol: str, model_type: str = 'transformer') -> Optional[ModelConfiguration]:
-        db = get_session_manager()
         query = """
             SELECT * FROM model_configurations 
             WHERE symbol = ? AND model_type = ?
             ORDER BY updated_at DESC LIMIT 1
         """
-        result = db.fetch_one(query, (symbol, model_type))
+        result = fetch_one(query, (symbol, model_type))
         if result:
             return ModelConfiguration(**result)
         return None
 
     @staticmethod
     def get_all_configurations() -> List[ModelConfiguration]:
-        db = get_session_manager()
         query = "SELECT * FROM model_configurations ORDER BY updated_at DESC"
-        results = db.fetch_all(query)
+        results = fetch_all(query)
         return [ModelConfiguration(**row) for row in results]
 
     @staticmethod
     def create_configuration(config: ModelConfiguration) -> ModelConfiguration:
-        db = get_session_manager()
         now = datetime.now()
         config.created_at = now
         config.updated_at = now
@@ -46,12 +43,11 @@ class ConfigurationService:
             config.updated_at
         )
 
-        config.id = db.insert(query, params)
+        config.id = execute_query(query, params)
         return config
 
     @staticmethod
     def update_configuration(config: ModelConfiguration) -> ModelConfiguration:
-        db = get_session_manager()
         config.updated_at = datetime.now()
 
         query = """
@@ -74,10 +70,10 @@ class ConfigurationService:
             config.updated_at, config.id
         )
 
-        db.update(query, params)
+        execute_query(query, params)
         return config
 
     @staticmethod
     def delete_configuration(config_id: int) -> bool:
-        db = get_session_manager()
-        return db.delete("DELETE FROM model_configurations WHERE id = ?", (config_id,))
+        query = "DELETE FROM model_configurations WHERE id = ?"
+        return execute_query(query, (config_id,)) > 0

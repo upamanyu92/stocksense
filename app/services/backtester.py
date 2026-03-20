@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 from datetime import datetime
-from app.db.session_manager import get_session_manager
+from app.utils.util import get_db_connection
 
 
 def run_simple_backtest(symbol: str, start_date: str, end_date: str, initial_capital: float = 100000.0, strategy: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -8,13 +8,12 @@ def run_simple_backtest(symbol: str, start_date: str, end_date: str, initial_cap
     Strategy is a dict: {'type': 'predicted_change_threshold', 'threshold': 2.5}
     This is a lightweight simulator for demo purposes.
     """
-    db = get_session_manager()
-    rows = db.fetch_all(
-        "SELECT prediction_date, predicted_price FROM predictions "
-        "WHERE stock_symbol = ? AND prediction_date BETWEEN ? AND ? "
-        "ORDER BY prediction_date",
-        (symbol, start_date, end_date),
-    )
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # For demo, try to use predictions table
+    cursor.execute("SELECT prediction_date, predicted_price FROM predictions WHERE stock_symbol = ? AND prediction_date BETWEEN ? AND ? ORDER BY prediction_date", (symbol, start_date, end_date))
+    rows = cursor.fetchall()
+    conn.close()
 
     if not rows:
         return {'error': 'No prediction data available for backtesting'}

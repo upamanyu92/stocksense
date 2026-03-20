@@ -1,20 +1,23 @@
 # Prediction service entry point using Ollama local LLM
-import json
-import os
+from flask import Flask, jsonify
 import schedule
+import yfinance as yf
 from datetime import datetime
 import logging
 
+from app.db.db_executor import execute_query
 from app.models.ollama_model import predict_with_details
+from app.utils.util import check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
 from app.db.data_models import Prediction
-from app.db.session_manager import get_session_manager
 from app.utils.yfinance_utils import get_quote_with_retry
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
 
 # Initialize the agentic prediction coordinator
 prediction_coordinator = PredictionCoordinator(min_confidence=0.6)
@@ -141,11 +144,8 @@ def update_database():
     for code, name in funds.items():
         try:
             # Get stock symbol from database
-            db = get_session_manager()
-            row = db.fetch_one(
-                'SELECT stock_symbol FROM stock_quotes WHERE scrip_code = ? OR company_name = ?',
-                (code, name),
-            )
+            query = 'SELECT stock_symbol FROM stock_quotes WHERE scrip_code = ? OR company_name = ?'
+            row = execute_query(query, (code, name), fetchone=True)
             
             if not row or not row.get('stock_symbol'):
                 logger.debug(f"Skipping {name} - no symbol mapping")
@@ -188,3 +188,10 @@ def update_database():
 if __name__ == '__main__':
     # Start the scheduler
     schedule.every(1).minutes.do(update_database)
+
+    # Flask route for monitoring
+    @app.route('/')
+    def index():
+        return jsonify({"message": "Scheduler and Updater Service Running"}), 200
+
+    # app.run(host='0.0.0.0', port=5001, debug=True)

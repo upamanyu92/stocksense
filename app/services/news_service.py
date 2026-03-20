@@ -1,3 +1,4 @@
+import requests
 import logging
 from typing import List, Dict
 

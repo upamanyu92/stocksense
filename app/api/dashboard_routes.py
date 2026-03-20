@@ -3,7 +3,6 @@ Dashboard and UI routes
 """
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from app.db.services.user_service import UserService
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -27,21 +26,3 @@ def stocks_list():
 def notifications_page():
     """Notifications page"""
     return render_template('notifications.html', username=current_user.username)
-
-
-@dashboard_bp.route('/alerts')
-@login_required
-def alerts_page():
-    """Alerts management page"""
-    return render_template('alerts_mgmt.html', username=current_user.username)
-
-
-@dashboard_bp.route('/admin')
-@login_required
-def admin_page():
-    """System administration page (admin users only)"""
-    user = UserService.get_by_id(current_user.id)
-    if not user or not user.is_admin:
-        from flask import abort
-        abort(403)
-    return render_template('admin_system.html', username=current_user.username)

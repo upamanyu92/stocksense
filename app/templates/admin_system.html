@@ -1,10 +1,8 @@
-{% extends 'base.html' %}
-
-{% block title %}System Admin — StockSense{% endblock %}
+{% extends 'index.html' %}
 
 {% block content %}
 <div class="container mt-4">
-  <h2><i class="fas fa-cogs"></i> System Admin</h2>
+  <h2>System Admin</h2>
   <div class="card mb-3">
     <div class="card-body">
       <h4>Background Worker</h4>
@@ -22,9 +20,6 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
 <script src="/static/admin_system.js"></script>
 {% endblock %}
 

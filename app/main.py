@@ -9,7 +9,6 @@ from flask_login import LoginManager
 from flask_socketio import SocketIO, emit
 
 from app.api.alert_routes import bp as alert_bp
-from app.api.agentic_routes import agentic_api as agentic_bp
 from app.api.auth_routes import auth_bp
 from app.api.backtest_routes import backtest_bp
 from app.api.chat_routes import chat_bp
@@ -18,7 +17,6 @@ from app.api.llm_routes import llm_bp
 from app.api.notification_routes import notification_bp
 from app.api.nse_routes import nse_bp
 from app.api.prediction_routes import prediction_bp
-from app.api.price_routes import price_bp
 from app.api.price_stream_routes import price_stream_bp
 from app.api.stock_routes import stock_bp
 from app.api.system_routes import system_bp
@@ -104,7 +102,6 @@ app.register_blueprint(prediction_bp)
 app.register_blueprint(stock_bp)
 app.register_blueprint(system_bp)
 app.register_blueprint(price_stream_bp)
-app.register_blueprint(price_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(alert_bp)
@@ -112,7 +109,6 @@ app.register_blueprint(notification_bp)
 app.register_blueprint(backtest_bp)
 app.register_blueprint(llm_bp)
 app.register_blueprint(nse_bp)
-app.register_blueprint(agentic_bp)
 
 @login_manager.user_loader
 def load_user(user_id):

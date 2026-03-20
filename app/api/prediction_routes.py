@@ -5,15 +5,12 @@ import logging
 import queue
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required, current_user
 
-from app.db.session_manager import get_session_manager
-from app.db.services.stock_quote_service import StockQuoteService
-from app.db.data_models import StockQuote
+from app.db.db_executor import fetch_quotes_batch
 from app.services.prediction_service import prediction_executor
 from app.utils.websocket_manager import websocket_manager
 from app.db.services.prediction_service import PredictionService
@@ -55,7 +52,7 @@ def trigger_prediction():
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = []
         while True:
-            batch = StockQuoteService.get_batch(batch_size, offset)
+            batch = fetch_quotes_batch(batch_size, offset)
             if len(batch) == 0:
                 msg = f"No more batches to process, finished at {datetime.now()}"
                 logging.info(msg)
@@ -138,16 +135,21 @@ def trigger_watchlist_prediction():
             
             # WatchlistService.get_watchlist returns dicts that might not have all fields 
             # needed by prediction_executor. We need to fetch the full quote.
+            from app.db.services.stock_quote_service import StockQuoteService
             full_quote = StockQuoteService.get_by_company_name(company_name)
             if not full_quote:
                 # Try by symbol
                 symbol = quote_dict.get('stock_symbol')
-                db = get_session_manager()
-                row = db.fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR stock_symbol = ?', (symbol, symbol))
+                # Note: StockQuoteService doesn't have get_by_symbol, but it has search_by_name
+                # Let's use db_executor directly or add a method to StockQuoteService
+                from app.db.db_executor import fetch_one
+                row = fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR stock_symbol = ?', (symbol, symbol))
                 if row:
+                    from app.db.data_models import StockQuote
                     full_quote = StockQuote(**row)
             
             if full_quote:
+                from dataclasses import asdict
                 future = executor.submit(prediction_executor, asdict(full_quote))
                 future_to_quote[future] = company_name
             else:
@@ -198,13 +200,13 @@ def trigger_single_prediction():
     
     try:
         # Find the stock in the database
-        db = get_session_manager()
+        from app.db.db_executor import fetch_one
         
         if stock_symbol:
-            row = db.fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR scrip_code = ? OR stock_symbol = ?', 
+            row = fetch_one('SELECT * FROM stock_quotes WHERE security_id = ? OR scrip_code = ? OR stock_symbol = ?', 
                          (stock_symbol, stock_symbol, stock_symbol))
         else:
-            row = db.fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
+            row = fetch_one('SELECT * FROM stock_quotes WHERE company_name = ?', (company_name,))
         
         if not row:
             return jsonify({'success': False, 'error': 'Stock not found'}), 404
