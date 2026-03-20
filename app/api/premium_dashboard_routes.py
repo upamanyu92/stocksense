@@ -3,7 +3,6 @@ Premium Dashboard API routes - provides data for the AI-powered stock analytics 
 """
 import json
 import logging
-import random
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request, render_template

@@ -1191,8 +1191,8 @@
         if (el) el.value = '';
       }
     );
-    var typeSelect = document.getElementById('tradeType');
-    if (typeSelect) typeSelect.value = 'BUY';
+    var typeRadio = document.querySelector('input[name="trade_type"][value="BUY"]');
+    if (typeRadio) typeRadio.checked = true;
   }
 
   async function submitTrade() {
@@ -1202,7 +1202,9 @@
     var company = (
       document.getElementById('tradeCompanyName')?.value || ''
     ).trim();
-    var type = document.getElementById('tradeType')?.value || 'BUY';
+    var type = 'BUY';
+    var tradeTypeRadios = document.querySelectorAll('input[name="trade_type"]');
+    tradeTypeRadios.forEach(function(r) { if (r.checked) type = r.value; });
     var qty = parseInt(document.getElementById('tradeQuantity')?.value, 10);
     var price = parseFloat(document.getElementById('tradePrice')?.value);
 

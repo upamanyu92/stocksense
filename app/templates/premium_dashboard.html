@@ -151,24 +151,25 @@
                     <section id="overviewContainer" class="dashboard-section full-width">
                         <div class="hero-portfolio glass-card">
                             <span class="hero-portfolio-label">Total Portfolio Value</span>
-                            <div class="hero-portfolio-value animated" id="portfolio-total-value">
+                            <div class="hero-portfolio-value animated" id="portfolioValue">
                                 <div class="skeleton skeleton-number">&nbsp;</div>
                             </div>
-                            <div class="hero-portfolio-change" id="totalPnl">
+                            <div class="hero-portfolio-change">
+                                <span id="totalPnl"></span>
                                 <span id="pnlPercent" class="counter-percent"></span>
                             </div>
                             <div class="hero-portfolio-meta">
                                 <div class="hero-meta-item">
                                     <span class="hero-meta-label">Holdings</span>
-                                    <span class="hero-meta-value" data-stat="holdings">—</span>
+                                    <span class="hero-meta-value" id="holdingsCount">—</span>
                                 </div>
                                 <div class="hero-meta-item">
                                     <span class="hero-meta-label">Watchlist</span>
-                                    <span class="hero-meta-value" data-stat="watchlist">—</span>
+                                    <span class="hero-meta-value" id="watchlistCount">—</span>
                                 </div>
                                 <div class="hero-meta-item">
                                     <span class="hero-meta-label">Predictions</span>
-                                    <span class="hero-meta-value" data-stat="predictions">—</span>
+                                    <span class="hero-meta-value" id="predictionsCount">—</span>
                                 </div>
                             </div>
                             <div class="chart-container">
