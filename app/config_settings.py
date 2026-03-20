@@ -15,9 +15,6 @@ class Config:
     # Model paths
     MODEL_DIR = os.path.join(BASE_DIR, 'model', 'saved_models')
 
-    # Alpha Vantage stock data API
-    ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
-
     # Debug mode
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 

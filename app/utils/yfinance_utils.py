@@ -5,18 +5,9 @@ import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Optional, List
 
-from app.utils.alpha_vantage_utils import (
-    get_quote as av_get_quote,
-    search_companies as av_search_companies,
-)
-
-
 def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> Optional[Dict[str, Any]]:
     """
-    Get stock quote using Alpha Vantage (primary) or yfinance (fallback) with retry logic.
-
-    Alpha Vantage is used when ``ALPHA_VANTAGE_API_KEY`` is set in the environment.
-    If Alpha Vantage is not configured or returns no data, yfinance is used instead.
+    Get stock quote using yfinance with retry logic.
     
     Args:
         symbol: Stock symbol (e.g., 'RELIANCE.BO' for BSE stocks)
@@ -26,14 +17,6 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
     Returns:
         Dictionary containing stock quote data in BSE-compatible format, or None if failed
     """
-    # --- Try Alpha Vantage first ---
-    av_quote = av_get_quote(symbol, max_retries=max_retries, delay=delay)
-    if av_quote and av_quote.get("currentValue"):
-        logging.info("Fetched quote for %s via Alpha Vantage", symbol)
-        return av_quote
-
-    # --- Fallback to yfinance ---
-    logging.debug("Alpha Vantage did not return a quote for %s; falling back to yfinance", symbol)
     last_exception = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -222,10 +205,7 @@ def search_companies_by_name(
     delay: int = 1
 ) -> List[Dict[str, Any]]:
     """
-    Search for companies by name using Alpha Vantage (primary) or yfinance (fallback).
-
-    Alpha Vantage is used when ``ALPHA_VANTAGE_API_KEY`` is set in the environment.
-    If Alpha Vantage is not configured or returns no results, yfinance is used instead.
+    Search for companies by name using yfinance Search API.
 
     Args:
         company_name: Name of the company to search for
@@ -238,20 +218,6 @@ def search_companies_by_name(
         List of dictionaries containing search results with symbol, name, exchange, and type
         Returns empty list if search fails after all retries
     """
-    # --- Try Alpha Vantage first ---
-    av_results = av_search_companies(
-        keywords=company_name,
-        max_results=max_results,
-        indian_only=indian_only,
-        max_retries=max_retries,
-        delay=delay,
-    )
-    if av_results:
-        logging.info("Search for '%s' returned %d results via Alpha Vantage", company_name, len(av_results))
-        return av_results
-
-    # --- Fallback to yfinance Search API ---
-    logging.debug("Alpha Vantage search returned no results for '%s'; falling back to yfinance", company_name)
     last_exception = None
     indian_exchanges = {"NSE", "BSE", "NSI", "BOM", "INDIA"}
 
