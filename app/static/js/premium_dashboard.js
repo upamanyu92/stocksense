@@ -236,7 +236,7 @@
     else if (hour < 17) greeting = 'Good afternoon';
     else greeting = 'Good evening';
     var username =
-      el.getAttribute('data-username') || 'Investor';
+      document.body.getAttribute('data-username') || 'Investor';
     el.textContent = greeting + ', ' + username + '!';
   }
 
@@ -1068,9 +1068,13 @@
     var panel = document.getElementById('chatPanel');
     if (!panel) return;
     chatOpen = !chatOpen;
-    panel.style.display = chatOpen ? 'flex' : 'none';
+    if (chatOpen) {
+      panel.removeAttribute('hidden');
+    } else {
+      panel.setAttribute('hidden', '');
+    }
     var badge = document.getElementById('chatBadge');
-    if (badge) badge.style.display = 'none';
+    if (badge) badge.setAttribute('hidden', '');
     if (chatOpen) {
       var input = document.getElementById('chatInput');
       if (input) input.focus();

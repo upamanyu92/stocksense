@@ -12,6 +12,10 @@ from app.utils.util import get_db_connection
 
 logger = logging.getLogger(__name__)
 
+# Thresholds for classifying prediction movement direction
+BULLISH_THRESHOLD = 2.0   # percent change above which a prediction is "bullish/up"
+BEARISH_THRESHOLD = -2.0  # percent change below which a prediction is "bearish/down"
+
 premium_dashboard_bp = Blueprint('premium_dashboard', __name__)
 
 
@@ -180,11 +184,11 @@ def ai_insights():
 
                 if predicted and current and current > 0:
                     change_pct = ((predicted - current) / current) * 100
-                    if change_pct > 2:
+                    if change_pct > BULLISH_THRESHOLD:
                         insight_type = 'buy_signal'
                         message = f"{company} likely to rise {abs(change_pct):.1f}% based on AI prediction model"
                         confidence = min(0.65 + abs(change_pct) / 100, 0.95)
-                    elif change_pct < -2:
+                    elif change_pct < BEARISH_THRESHOLD:
                         insight_type = 'sell_signal'
                         message = f"Sell signal detected for {company} — predicted decline of {abs(change_pct):.1f}%"
                         confidence = min(0.60 + abs(change_pct) / 100, 0.92)
@@ -490,7 +494,12 @@ def user_level():
             level_data['level_tier'] = 1
 
         level_data['next_level_xp'] = 500 if xp < 500 else (1000 if xp < 1000 else 2000)
-        level_data['xp_progress'] = (xp % 500) / 500 * 100 if xp < 1000 else (xp % 1000) / 1000 * 100
+        if xp < 500:
+            level_data['xp_progress'] = xp / 500 * 100
+        elif xp < 1000:
+            level_data['xp_progress'] = (xp - 500) / 500 * 100
+        else:
+            level_data['xp_progress'] = (xp - 1000) / 1000 * 100
 
         conn.close()
 
@@ -543,9 +552,9 @@ def get_sentiment():
             current = row[2]
             if predicted and current and current > 0:
                 change = ((predicted - current) / current) * 100
-                if change > 1:
+                if change > BULLISH_THRESHOLD / 2:
                     bullish_count += 1
-                elif change < -1:
+                elif change < BEARISH_THRESHOLD / 2:
                     bearish_count += 1
                 else:
                     neutral_count += 1
