@@ -978,7 +978,7 @@ const predictionPageSize = 20;
 
 async function loadTopPredictions(page = 1) {
   try {
-    const response = await fetch(`/api/predictions/?page=${page}&page_size=${predictionPageSize}`);
+    const response = await fetch(`/api/predictions?page=${page}&page_size=${predictionPageSize}`);
     const data = await response.json();
     console.log('Fetched Predictions:', data);
 
