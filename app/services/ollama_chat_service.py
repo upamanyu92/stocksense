@@ -1,13 +1,10 @@
 """
-LLM integration for the StockSense chat agent.
-
-Routes NLP calls to the active LLM backend selected by APP_ENV:
-  • dev        → local Ollama
-  • production → configured cloud LLM (Anthropic / OpenAI / Gemini)
+Ollama LLM integration for chat agent - handles natural language processing with local LLM
 """
 import logging
+import json
 from typing import Dict, Any, Optional
-from app.models.llm_factory import LLMFactory
+from app.models.ollama_model import _call_ollama_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +65,9 @@ When user asks about:
             # Build the prompt
             prompt = self._build_chat_prompt(user_message, context_str)
 
-            # Get response via LLM factory (Ollama in dev, cloud LLM in production)
-            response_text = LLMFactory.generate(prompt, max_retries=2)
+            # Get response from Ollama
+            response = _call_ollama_with_retry(prompt, max_retries=2)
+            response_text = response.get('response', '')
 
             # Parse the response to extract intent and action
             intent, action, entities = self._parse_response(response_text, user_message)
@@ -82,7 +80,7 @@ When user asks about:
                 'success': True
             }
         except Exception as e:
-            logger.error(f"Error in LLM chat processing: {e}")
+            logger.error(f"Error in Ollama chat processing: {e}")
             return {
                 'response': "I apologize, but I encountered an error processing your request. Please try again.",
                 'intent': 'error',
