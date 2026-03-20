@@ -1318,12 +1318,15 @@
 
 <script>
 // Dynamic greeting
+var AFTERNOON_START = 12;
+var EVENING_START = 17;
+
 function setDynamicGreeting() {
   var currentHour = new Date().getHours();
   var el = document.getElementById('greetingText');
   if (!el) return;
-  if (currentHour < 12) el.textContent = 'Good morning';
-  else if (currentHour < 17) el.textContent = 'Good afternoon';
+  if (currentHour < AFTERNOON_START) el.textContent = 'Good morning';
+  else if (currentHour < EVENING_START) el.textContent = 'Good afternoon';
   else el.textContent = 'Good evening';
 }
 
@@ -1336,6 +1339,13 @@ function setHeaderDate() {
 }
 
 // Animated counter
+/**
+ * Animates a numeric counter from 0 to a target value.
+ * @param {HTMLElement} element - The DOM element whose text content is updated.
+ * @param {number} target - The final numeric value to count up to.
+ * @param {string} [prefix='₹'] - Optional prefix prepended to the displayed number.
+ * @param {number} [duration=1500] - Animation duration in milliseconds.
+ */
 function animateCounter(element, target, prefix, duration) {
   prefix = prefix || '\u20b9';
   duration = duration || 1500;
@@ -1448,19 +1458,11 @@ function toggleChat() {
   }
 }
 
-// Send chat message stub (actual implementation in chat.js)
+// sendChatMessage is fully implemented in chat.js and invoked via the chat widget.
+// This stub is intentionally empty to avoid conflicts with chat.js.
+// Do not add message-appending logic here.
 function sendChatMessage() {
-  var input = document.getElementById('chatInput');
-  if (!input || !input.value.trim()) return;
-  var messages = document.getElementById('chatMessages');
-  if (messages) {
-    var bubble = document.createElement('div');
-    bubble.className = 'chat-bubble user';
-    bubble.textContent = input.value;
-    messages.appendChild(bubble);
-    messages.scrollTop = messages.scrollHeight;
-  }
-  input.value = '';
+  // Delegated to chat.js — see app/static/chat.js
 }
 
 // Show watchlist modal
@@ -1487,9 +1489,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   setTimeout(function() {
     var el = document.getElementById('portfolioValue');
+    // Demo portfolio value — replace with live API data when backend portfolio endpoint is available
     if (el) animateCounter(el, 1245320, '\u20b9', 1500);
   }, 300);
 
+  // Demo sparkline data — replace with real historical price data from backend API
   var heroData = [120,125,118,130,128,135,132,140,138,145,142,150,148,155,152,160];
   drawSparkline('heroSparkline', heroData, '#00ff87');
 
