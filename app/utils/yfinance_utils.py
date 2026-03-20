@@ -28,7 +28,7 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
                 info = ticker.info
                 
                 # Map yfinance data to BSE-compatible format
-                bse_compatible_quote = {
+                quote = {
                     'companyName': info.get('longName') or info.get('shortName') or symbol,
                     'securityID': symbol.replace('.BO', '').replace('.NS', ''),
                     'scripCode': info.get('symbol', symbol),
@@ -56,8 +56,8 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
                 }
                 
                 # Check if we got meaningful data
-                if bse_compatible_quote.get('currentValue'):
-                    return bse_compatible_quote
+                if quote.get('currentValue'):
+                    return quote
             except Exception as e:
                 logging.warning(f"Failed to get fast_info for {symbol}, trying info only: {e}")
                 # Fallback to info only
@@ -65,7 +65,7 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
                 if not info:
                     raise ValueError(f"No data available for {symbol}")
                 
-                bse_compatible_quote = {
+                quote = {
                     'companyName': info.get('longName') or info.get('shortName') or symbol,
                     'securityID': symbol.replace('.BO', '').replace('.NS', ''),
                     'scripCode': info.get('symbol', symbol),
@@ -91,7 +91,7 @@ def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> O
                     'buy': {},
                     'sell': {}
                 }
-                return bse_compatible_quote
+                return quote
                 
         except Exception as e:
             last_exception = e
