@@ -59,17 +59,17 @@ def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
     delta = df['Close'].diff()
     gain = delta.where(delta > 0, 0).rolling(window=period).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
+    relative_strength = gain / loss
+    return 100 - (100 / (1 + relative_strength))
 
 def calculate_macd(df: pd.DataFrame,
                   fast_period: int = 12,
                   slow_period: int = 26,
                   signal_period: int = 9) -> tuple:
     """Calculate MACD and Signal line"""
-    exp1 = df['Close'].ewm(span=fast_period, adjust=False).mean()
-    exp2 = df['Close'].ewm(span=slow_period, adjust=False).mean()
-    macd = exp1 - exp2
+    fast_ema = df['Close'].ewm(span=fast_period, adjust=False).mean()
+    slow_ema = df['Close'].ewm(span=slow_period, adjust=False).mean()
+    macd = fast_ema - slow_ema
     signal = macd.ewm(span=signal_period, adjust=False).mean()
     return macd, signal
 
@@ -87,19 +87,19 @@ def create_features(data: pd.DataFrame,
                    volatility_type: str = 'medium') -> pd.DataFrame:
     """Create technical features for stock price prediction with enhanced customization"""
     try:
-        df = data.copy()
+        stock_data = data.copy()
 
         # Handle MultiIndex columns
-        if isinstance(df.columns, pd.MultiIndex):
-            stock_symbol = df.columns.get_level_values('Ticker').unique()[0]
-            df = df.xs(stock_symbol, axis=1, level='Ticker')
+        if isinstance(stock_data.columns, pd.MultiIndex):
+            stock_symbol = stock_data.columns.get_level_values('Ticker').unique()[0]
+            stock_data = stock_data.xs(stock_symbol, axis=1, level='Ticker')
 
         # Validate required columns
         required_columns = ['Close', 'Volume', 'High', 'Low']
         for col in required_columns:
-            if col not in df.columns:
+            if col not in stock_data.columns:
                 raise ValueError(f"Required column {col} not found in data")
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            stock_data[col] = pd.to_numeric(stock_data[col], errors='coerce')
 
         # Adjust periods based on volatility type
         if volatility_type == 'high':
@@ -110,21 +110,21 @@ def create_features(data: pd.DataFrame,
             custom_periods = custom_periods or [5, 10, 20, 50]
 
         # Calculate all technical indicators
-        df = calculate_technical_indicators(df, custom_periods)
+        stock_data = calculate_technical_indicators(stock_data, custom_periods)
 
         # Add market timing features
-        df['Day_of_Week'] = df.index.dayofweek
-        df['Month'] = df.index.month
-        df['Quarter'] = df.index.quarter
+        stock_data['Day_of_Week'] = stock_data.index.dayofweek
+        stock_data['Month'] = stock_data.index.month
+        stock_data['Quarter'] = stock_data.index.quarter
 
         # Calculate returns
-        df['Returns'] = df['Close'].pct_change()
-        df['Returns_Volatility'] = df['Returns'].rolling(window=20).std()
+        stock_data['Returns'] = stock_data['Close'].pct_change()
+        stock_data['Returns_Volatility'] = stock_data['Returns'].rolling(window=20).std()
 
         # Drop any rows with NaN values
-        df = df.dropna()
+        stock_data = stock_data.dropna()
 
-        return df
+        return stock_data
 
     except Exception as e:
         print(f"Error in create_features: {str(e)}")
