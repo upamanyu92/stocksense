@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/alerts.js"></script>
+<script src="{{ url_for('static', filename='services/api.js') }}"></script>
+<script src="{{ url_for('static', filename='alerts.js') }}"></script>
 {% endblock %}
 

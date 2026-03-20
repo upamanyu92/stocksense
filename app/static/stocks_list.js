@@ -66,31 +66,14 @@ function goToPage(page) {
 async function loadStocks() {
   showLoading(true);
 
-  try {
-    const response = await fetch(
-      `/api/stocks/list?page=${currentPage}&per_page=${perPage}&sort_by=${sortBy}&sort_order=${sortOrder}`
-    );
+  const { success, data, error } = await StockAPI.getList({
+    page: currentPage,
+    perPage,
+    sortBy,
+    sortOrder,
+  });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch stocks');
-    }
-
-    const data = await response.json();
-
-    // Update pagination state
-    totalPages = data.pagination.total_pages;
-    totalCount = data.pagination.total_count;
-
-    // Render stocks
-    renderStocks(data.stocks);
-
-    // Update pagination UI
-    updatePaginationUI();
-
-    // Update sort indicators
-    updateSortIndicators();
-
-  } catch (error) {
+  if (!success) {
     console.error('Error loading stocks:', error);
     document.getElementById('stocksTableBody').innerHTML = `
       <tr>
@@ -100,9 +83,24 @@ async function loadStocks() {
         </td>
       </tr>
     `;
-  } finally {
     showLoading(false);
+    return;
   }
+
+  // Update pagination state
+  totalPages = data.pagination.total_pages;
+  totalCount = data.pagination.total_count;
+
+  // Render stocks
+  renderStocks(data.stocks);
+
+  // Update pagination UI
+  updatePaginationUI();
+
+  // Update sort indicators
+  updateSortIndicators();
+
+  showLoading(false);
 }
 
 // Render stocks table
