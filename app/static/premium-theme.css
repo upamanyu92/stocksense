@@ -2521,11 +2521,6 @@ img {
   }
 }
 
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-
 /* Animation utility classes */
 .fade-in-up {
   animation: fadeInUp 0.5s ease forwards;
