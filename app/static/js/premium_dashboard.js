@@ -1172,6 +1172,7 @@
   function openTradeModal() {
     var modal = document.getElementById('tradeModal');
     if (modal) {
+      modal.removeAttribute('hidden');
       modal.style.display = 'flex';
       var symbolInput = document.getElementById('tradeStockSymbol');
       if (symbolInput) symbolInput.focus();
@@ -1180,7 +1181,10 @@
 
   function closeTradeModal() {
     var modal = document.getElementById('tradeModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.style.display = 'none';
+      modal.setAttribute('hidden', '');
+    }
     clearTradeForm();
   }
 
@@ -1267,16 +1271,28 @@
     var modal = document.getElementById('tradeModal');
     if (modal) {
       modal.addEventListener('click', function (e) {
-        if (e.target === modal) closeTradeModal();
+        if (e.target === modal || e.target.classList.contains('modal-backdrop')) closeTradeModal();
       });
     }
+    // Open modal via any [data-action="add-trade"] button
+    document.querySelectorAll('[data-action="add-trade"]').forEach(function (btn) {
+      btn.addEventListener('click', openTradeModal);
+    });
+    // Close buttons (there may be multiple with class trade-modal-close)
+    document.querySelectorAll('.trade-modal-close').forEach(function (btn) {
+      btn.addEventListener('click', closeTradeModal);
+    });
     var closeBtn = document.getElementById('tradeModalClose');
     if (closeBtn) {
       closeBtn.addEventListener('click', closeTradeModal);
     }
-    var submitBtn = document.getElementById('tradeSubmitBtn');
-    if (submitBtn) {
-      submitBtn.addEventListener('click', submitTrade);
+    // Form submission
+    var form = document.getElementById('tradeForm');
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        submitTrade();
+      });
     }
   }
 
