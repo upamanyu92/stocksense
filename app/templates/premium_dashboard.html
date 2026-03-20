@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockSense — Premium Dashboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
+</head>
+<body data-username="{{ username }}">
+
+    <div class="app-shell">
+        <!-- ========== LEFT SIDEBAR ========== -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-brand">
+                <span class="sidebar-brand-icon">
+                    <i class="fas fa-chart-line"></i>
+                </span>
+                <span class="sidebar-brand-text">StockSense</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="sidebar-section-label">Menu</div>
+
+                <a href="#" class="sidebar-link active" data-section="section-dashboard">
+                    <span class="sidebar-link-icon"><i class="fas fa-gauge-high"></i></span>
+                    <span class="sidebar-link-label">Dashboard</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-markets">
+                    <span class="sidebar-link-icon"><i class="fas fa-chart-line"></i></span>
+                    <span class="sidebar-link-label">Markets</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-watchlist">
+                    <span class="sidebar-link-icon"><i class="fas fa-star"></i></span>
+                    <span class="sidebar-link-label">Watchlist</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-predictions">
+                    <span class="sidebar-link-icon"><i class="fas fa-brain"></i></span>
+                    <span class="sidebar-link-label">Predictions</span>
+                    <span class="sidebar-badge">AI</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-portfolio">
+                    <span class="sidebar-link-icon"><i class="fas fa-briefcase"></i></span>
+                    <span class="sidebar-link-label">Portfolio</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-alerts">
+                    <span class="sidebar-link-icon"><i class="fas fa-bell"></i></span>
+                    <span class="sidebar-link-label">Alerts</span>
+                </a>
+
+                <a href="#" class="sidebar-link" data-section="section-settings">
+                    <span class="sidebar-link-icon"><i class="fas fa-gear"></i></span>
+                    <span class="sidebar-link-label">Settings</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="sidebarToggle" class="sidebar-link" aria-label="Toggle sidebar">
+                    <span class="sidebar-link-icon"><i class="fas fa-angles-right"></i></span>
+                    <span class="sidebar-link-label">Collapse</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ========== MAIN CONTENT ========== -->
+        <div class="main-wrapper">
+            <div id="mainContent" class="main-content">
+
+                <!-- Top Header -->
+                <header class="top-header">
+                    <div class="header-search">
+                        <i class="fas fa-search header-search-icon"></i>
+                        <input
+                            type="text"
+                            id="stockSearchInput"
+                            class="header-search-input"
+                            placeholder="Search stocks, ETFs, crypto…"
+                            autocomplete="off"
+                        >
+                        <kbd class="header-search-shortcut">/</kbd>
+                        <div id="stockSearchResults" class="search-results-dropdown"></div>
+                    </div>
+
+                    <div class="header-actions">
+                        <button class="header-action-btn" aria-label="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-dot"></span>
+                        </button>
+
+                        <button class="header-action-btn" data-action="toggle-chat" aria-label="AI Assistant">
+                            <i class="fas fa-robot"></i>
+                            <span id="chatBadge" class="chat-notification-badge" hidden></span>
+                        </button>
+
+                        <div class="header-profile">
+                            <div class="header-profile-avatar">
+                                {{ username[0] | upper if username else 'U' }}
+                            </div>
+                            <span class="header-profile-name">{{ username }}</span>
+                            <div class="profile-dropdown">
+                                <a href="/logout" class="profile-dropdown-item">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="connection-status" hidden>
+                    <span class="status-dot"></span>
+                    <span class="status-text">Reconnecting…</span>
+                </div>
+
+                <!-- Dashboard Content -->
+                <div class="dashboard-content">
+
+                    <!-- ── Greeting + User Level ── -->
+                    <section id="section-dashboard" class="dashboard-section full-width">
+                        <h1 id="greetingText" class="greeting-text">Good evening, {{ username }}</h1>
+
+                        <div id="levelContainer" class="xp-progress-bar">
+                            <div class="xp-progress-header">
+                                <div class="level-badge">
+                                    <span class="level-badge-icon"><i class="fas fa-trophy"></i></span>
+                                    <span class="level-badge-name">—</span>
+                                </div>
+                                <span class="xp-progress-value">— XP</span>
+                            </div>
+                            <div class="xp-progress">
+                                <div class="xp-progress-fill" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="xp-progress-label">
+                                <span class="streak-info"><i class="fas fa-fire"></i> — day streak</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Hero Portfolio Card ── -->
+                    <section id="overviewContainer" class="dashboard-section full-width">
+                        <div class="hero-portfolio glass-card">
+                            <span class="hero-portfolio-label">Total Portfolio Value</span>
+                            <div class="hero-portfolio-value animated" id="portfolio-total-value">
+                                <div class="skeleton skeleton-number">&nbsp;</div>
+                            </div>
+                            <div class="hero-portfolio-change" id="totalPnl">
+                                <span id="pnlPercent" class="counter-percent"></span>
+                            </div>
+                            <div class="hero-portfolio-meta">
+                                <div class="hero-meta-item">
+                                    <span class="hero-meta-label">Holdings</span>
+                                    <span class="hero-meta-value" data-stat="holdings">—</span>
+                                </div>
+                                <div class="hero-meta-item">
+                                    <span class="hero-meta-label">Watchlist</span>
+                                    <span class="hero-meta-value" data-stat="watchlist">—</span>
+                                </div>
+                                <div class="hero-meta-item">
+                                    <span class="hero-meta-label">Predictions</span>
+                                    <span class="hero-meta-value" data-stat="predictions">—</span>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="portfolio-sparkline" aria-label="Portfolio sparkline chart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Live Market Overview ── -->
+                    <section id="section-markets" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-chart-line"></i> Live Markets
+                            </h2>
+                        </div>
+                        <div id="indicesContainer" class="market-indices" data-skeleton-count="4">
+                            <div class="index-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="index-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="index-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="index-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── AI Predictions Panel ── -->
+                    <section id="section-predictions" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-brain"></i> AI Predictions
+                            </h2>
+                            <span class="sidebar-badge">AI Powered</span>
+                        </div>
+                        <div id="predictionsContainer" class="dashboard-grid" data-skeleton-count="3">
+                            <div class="prediction-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                            <div class="prediction-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                            <div class="prediction-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Market Sentiment ── -->
+                    <section id="sentiment-section" class="dashboard-section one-third">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-heart-pulse"></i> Market Sentiment
+                            </h2>
+                        </div>
+                        <div id="sentimentContainer" class="glass-card">
+                            <div class="sentiment-gauge">
+                                <div class="sentiment-gauge-ring">
+                                    <svg viewBox="0 0 120 120" aria-label="Sentiment gauge">
+                                        <circle class="sentiment-gauge-track" cx="60" cy="60" r="52" fill="none" stroke-width="10"></circle>
+                                        <circle class="sentiment-gauge-fill neutral" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-dasharray="327" stroke-dashoffset="163"></circle>
+                                    </svg>
+                                    <div class="sentiment-gauge-value">
+                                        <span class="sentiment-gauge-score">—</span>
+                                        <span class="sentiment-gauge-label">Loading</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sentiment-sources">
+                                <div class="sentiment-source">
+                                    <span class="sentiment-source-dot news"></span> News <span data-sentiment="bullish">—</span>
+                                </div>
+                                <div class="sentiment-source">
+                                    <span class="sentiment-source-dot social"></span> Social <span data-sentiment="bearish">—</span>
+                                </div>
+                                <div class="sentiment-source">
+                                    <span class="sentiment-source-dot analyst"></span> Analyst <span data-sentiment="neutral">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Sector Heatmap ── -->
+                    <section id="heatmap-section" class="dashboard-section two-thirds">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-table-cells"></i> Sector Heatmap
+                            </h2>
+                        </div>
+                        <div id="sectorContainer" class="glass-card">
+                            <div class="heatmap-grid" data-skeleton-count="8">
+                                <div class="heatmap-cell skeleton-card">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-number"></div>
+                                </div>
+                                <div class="heatmap-cell skeleton-card">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-number"></div>
+                                </div>
+                                <div class="heatmap-cell skeleton-card">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-number"></div>
+                                </div>
+                                <div class="heatmap-cell skeleton-card">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-number"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Watchlist Section ── -->
+                    <section id="section-watchlist" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-star"></i> Watchlist
+                            </h2>
+                        </div>
+                        <div id="watchlistContainer" class="watchlist-cards" data-skeleton-count="4">
+                            <div class="watchlist-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="watchlist-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="watchlist-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                            <div class="watchlist-card glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="skeleton skeleton-heading"></div>
+                                <div class="skeleton skeleton-number"></div>
+                                <div class="skeleton skeleton-chart"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── AI Insights Feed ── -->
+                    <section id="section-insights" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-bolt"></i> AI Insights
+                            </h2>
+                        </div>
+                        <div id="insightsContainer" class="insights-feed" data-skeleton-count="3">
+                            <div class="insight-item glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="insight-content">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                            <div class="insight-item glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="insight-content">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                            <div class="insight-item glass-card skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="insight-content">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Portfolio Holdings ── -->
+                    <section id="section-portfolio" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-briefcase"></i> Portfolio
+                            </h2>
+                            <button class="card-section-action" data-action="add-trade" aria-label="Add trade">
+                                <i class="fas fa-plus"></i> Add Trade
+                            </button>
+                        </div>
+                        <div id="portfolioContainer" class="glass-card" data-skeleton-count="3">
+                            <div class="skeleton-card">
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                            <div class="skeleton-card">
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                            <div class="skeleton-card">
+                                <div class="skeleton skeleton-text"></div>
+                                <div class="skeleton skeleton-number"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Recent Activity ── -->
+                    <section id="section-activity" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-clock-rotate-left"></i> Recent Activity
+                            </h2>
+                        </div>
+                        <div id="activityContainer" class="activity-timeline" data-skeleton-count="4">
+                            <div class="activity-item skeleton-card">
+                                <div class="activity-dot skeleton"></div>
+                                <div class="activity-body">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                            <div class="activity-item skeleton-card">
+                                <div class="activity-dot skeleton"></div>
+                                <div class="activity-body">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                            <div class="activity-item skeleton-card">
+                                <div class="activity-dot skeleton"></div>
+                                <div class="activity-body">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                </div><!-- /.dashboard-content -->
+            </div><!-- /#mainContent -->
+        </div><!-- /.main-wrapper -->
+    </div><!-- /.app-shell -->
+
+    <!-- ========== FLOATING AI CHAT WIDGET ========== -->
+    <div id="chat-widget" class="chat-widget-container">
+        <button id="chatToggleBtn" class="chat-toggle-btn" aria-label="Open AI assistant">
+            <i class="fas fa-robot"></i>
+        </button>
+
+        <div id="chatPanel" class="chat-widget" hidden>
+            <div class="chat-header">
+                <div>
+                    <span class="chat-header-dot"></span>
+                    <span class="chat-header-title">AI Assistant</span>
+                    <span class="chat-header-subtitle">Online</span>
+                </div>
+                <button class="chat-minimize-btn" aria-label="Close chat">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-message agent">
+                    <p>Hi {{ username }}, I'm your AI stock assistant. Ask me anything about stocks, predictions, or your portfolio.</p>
+                </div>
+            </div>
+
+            <div id="typingIndicator" class="chat-typing-indicator" hidden>
+                <span></span><span></span><span></span>
+            </div>
+
+            <div class="chat-input-container">
+                <input
+                    type="text"
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Ask about a stock…"
+                    autocomplete="off"
+                >
+                <button id="chatSendBtn" class="chat-send-btn" aria-label="Send message">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== TRADE MODAL ========== -->
+    <div id="tradeModal" class="trade-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="trade-modal-body">
+            <div class="trade-modal-header">
+                <h3 class="trade-modal-title">Record Trade</h3>
+                <button id="tradeModalClose" class="trade-modal-close" aria-label="Close modal">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="tradeForm" autocomplete="off">
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="tradeStockSymbol">Symbol</label>
+                    <input type="text" id="tradeStockSymbol" class="trade-input" placeholder="e.g. AAPL" required>
+                </div>
+
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="tradeCompanyName">Company Name</label>
+                    <input type="text" id="tradeCompanyName" class="trade-input" placeholder="e.g. Apple Inc.">
+                </div>
+
+                <div class="trade-input-group">
+                    <label class="trade-input-label">Type</label>
+                    <div id="tradeType" class="trade-type-toggle">
+                        <label class="trade-type-btn buy">
+                            <input type="radio" name="trade_type" value="BUY" checked> BUY
+                        </label>
+                        <label class="trade-type-btn sell">
+                            <input type="radio" name="trade_type" value="SELL"> SELL
+                        </label>
+                    </div>
+                </div>
+
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="tradeQuantity">Quantity</label>
+                    <input type="number" id="tradeQuantity" class="trade-input" placeholder="0" min="1" step="1" required>
+                </div>
+
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="tradePrice">Price</label>
+                    <input type="number" id="tradePrice" class="trade-input" placeholder="0.00" min="0" step="0.01" required>
+                </div>
+
+                <div class="trade-modal-footer">
+                    <button type="button" class="trade-modal-close" aria-label="Cancel">Cancel</button>
+                    <button type="submit" id="tradeSubmitBtn" class="trade-submit-btn">
+                        <i class="fas fa-check"></i> Submit Trade
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== TOAST CONTAINER ========== -->
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/premium_dashboard.js') }}"></script>
+
+</body>
+</html>
