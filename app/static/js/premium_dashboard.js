@@ -141,11 +141,11 @@
   function hideSkeleton(containerId) {
     var el = document.getElementById(containerId);
     if (!el) return;
-    var original = el.getAttribute('data-original-content');
-    if (original !== null && original !== '') {
-      // Only restore if we haven't already replaced content
-    }
-    // Skeletons will be replaced by the calling render function
+    // Remove skeleton items if still present; render functions replace content directly
+    var skeletons = el.querySelectorAll('.skeleton-item');
+    skeletons.forEach(function (s) {
+      if (s.parentNode) s.parentNode.removeChild(s);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -979,15 +979,10 @@
           var name = item.company_name || item.name || item.symbol || '';
           var symbol = item.symbol || item.security_id || '';
           html +=
-            '<div class="search-result-item" style="padding:10px 14px;cursor:pointer;' +
-            'border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;" ' +
-            'onmouseover="this.style.background=\'rgba(0,212,255,0.08)\'" ' +
-            'onmouseout="this.style.background=\'transparent\'" ' +
-            'onclick="window.PremiumDashboard.selectStock(\'' +
+            '<div class="search-result-item" data-symbol="' +
             escapeHtml(symbol) +
-            "','" +
-            escapeHtml(name).replace(/'/g, "\\'") +
-            '\')">' +
+            '" style="padding:10px 14px;cursor:pointer;' +
+            'border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;">' +
             '<div style="font-weight:600;font-size:13px;">' +
             escapeHtml(name) +
             '</div>' +
@@ -996,6 +991,18 @@
             '</div></div>';
         });
         results.innerHTML = html;
+        // Attach click handlers via event delegation
+        results.querySelectorAll('.search-result-item').forEach(function (el) {
+          el.addEventListener('mouseenter', function () {
+            el.style.background = 'rgba(0,212,255,0.08)';
+          });
+          el.addEventListener('mouseleave', function () {
+            el.style.background = 'transparent';
+          });
+          el.addEventListener('click', function () {
+            selectStock(el.getAttribute('data-symbol'));
+          });
+        });
         results.style.display = 'block';
       } catch (err) {
         console.error('Search error:', err);
