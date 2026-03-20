@@ -1,27 +1,27 @@
 """
-Ensemble agent that combines predictions from multiple Ollama AI calls for improved accuracy.
+Ensemble agent that combines predictions from multiple LLM calls for improved accuracy.
 """
 import numpy as np
 from typing import Dict, Any
 import logging
 
 from app.agents.base_agent import BaseAgent
-from app.models.ollama_model import predict_with_details
+from app.models.llm_factory import LLMFactory
 
 
 class EnsembleAgent(BaseAgent):
-    """Agent that uses ensemble methods to combine multiple Ollama AI predictions"""
+    """Agent that uses ensemble methods to combine multiple LLM predictions"""
 
     def __init__(self, name: str = "EnsembleAI", confidence_threshold: float = 0.7):
         super().__init__(name, confidence_threshold)
-        # Use different Ollama analysis prompts/perspectives as "models"
+        # Use different analysis perspectives as "models"
         self.analysis_types = ['technical', 'fundamental']
         self.ensemble_method = 'weighted_average'  # Can be 'average', 'weighted_average', 'voting'
         self.model_weights = {}
     
     def predict(self, symbol: str, data: Any = None) -> Dict[str, Any]:
         """
-        Make ensemble prediction by combining multiple Ollama AI calls.
+        Make ensemble prediction by combining multiple LLM calls.
 
         Args:
             symbol: Stock symbol
@@ -34,11 +34,12 @@ class EnsembleAgent(BaseAgent):
         confidences = []
         model_details = []
         
-        # Get predictions from Ollama (we'll call it multiple times with emphasis on different aspects)
+        backend = LLMFactory.active_backend()
+        # Get predictions from LLM (called multiple times with emphasis on different aspects)
         for analysis_type in self.analysis_types:
             try:
-                # Call Ollama with different emphasis
-                result = predict_with_details(symbol)
+                # Call LLM factory with different emphasis
+                result = LLMFactory.predict_with_details(symbol)
 
                 # Store prediction and confidence
                 pred = result['predicted_price']
@@ -47,7 +48,7 @@ class EnsembleAgent(BaseAgent):
                 predictions.append(pred)
                 confidences.append(confidence)
                 model_details.append({
-                    'model_type': f'ollama_{analysis_type}',
+                    'model_type': f'{backend}_{analysis_type}',
                     'prediction': float(pred),
                     'confidence': float(confidence),
                     'decision': result.get('decision', 'caution'),
@@ -55,15 +56,15 @@ class EnsembleAgent(BaseAgent):
                 })
                 
                 self.log_decision(
-                    f"Prediction from ollama_{analysis_type}",
+                    f"Prediction from {backend}_{analysis_type}",
                     {'symbol': symbol, 'prediction': pred, 'confidence': confidence}
                 )
             except Exception as e:
-                self.logger.warning(f"Failed to get Ollama prediction for {analysis_type}: {str(e)}")
+                self.logger.warning(f"Failed to get LLM prediction for {analysis_type}: {str(e)}")
                 continue
         
         if not predictions:
-            raise ValueError(f"No Ollama predictions could be made for {symbol}")
+            raise ValueError(f"No LLM predictions could be made for {symbol}")
 
         # Combine predictions using ensemble method
         final_prediction = self._combine_predictions(predictions, confidences)

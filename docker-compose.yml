@@ -17,6 +17,20 @@ services:
       - FLASK_ENV=development
       - PYTHONPATH=/app
       - FLASK_PORT=5005
+      # ── Runtime environment ──────────────────────────────────────────────
+      # Set to "production" to switch from Ollama to a cloud LLM provider.
+      - APP_ENV=${APP_ENV:-dev}
+      # ── Dev / Local LLM (Ollama) ─────────────────────────────────────────
+      # host.docker.internal resolves to the Docker host, where Ollama runs.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3:mini}
+      # ── Production / Cloud LLM ────────────────────────────────────────────
+      # LLM_PROVIDER: anthropic | openai | gemini
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      # Injected at deploy time — never hard-code in this file
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "python3", "-c", "import requests; requests.get('http://localhost:5005/health', timeout=5)" ]
@@ -39,6 +53,13 @@ services:
       - FLASK_ENV=development
       - PYTHONPATH=/app
       - TZ=Asia/Kolkata
+      - APP_ENV=${APP_ENV:-dev}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3:mini}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       predict_main:
         condition: service_started

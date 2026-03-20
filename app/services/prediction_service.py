@@ -1,11 +1,11 @@
-# Prediction service entry point using Ollama local LLM
+# Prediction service entry point — LLM backend selected via APP_ENV
 import json
 import os
 import schedule
 from datetime import datetime
 import logging
 
-from app.models.ollama_model import predict_with_details
+from app.models.llm_factory import LLMFactory
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
 from app.db.data_models import Prediction
@@ -47,33 +47,33 @@ def prediction_executor(data):
                     'timestamp': datetime.now().isoformat()
                 })
             
-            # Use agentic prediction system with Ollama local LLM for improved accuracy
+            # Use agentic prediction system for improved accuracy
             try:
                 result = prediction_coordinator.predict(stock_symbol_yahoo, validate=True)
                 predicted_price = result['prediction']
                 confidence = result['confidence']
                 decision = result['decision']
 
-                # Log agentic prediction details
-                logging.info(f"Ollama LLM prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
+                # Log prediction details
+                logging.info(f"LLM prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
                 logging.info(f"Recommendation: {result['recommendation']}")
 
                 # Only use prediction if decision is 'accept' or 'caution'
                 if decision == 'reject':
-                    logging.warning(f"Prediction rejected due to low confidence. Using Ollama fallback.")
-                    ollama_result = predict_with_details(stock_symbol_yahoo)
-                    predicted_price = ollama_result['predicted_price']
-                    confidence = ollama_result['confidence']
+                    logging.warning(f"Prediction rejected due to low confidence. Using LLM factory fallback.")
+                    llm_result = LLMFactory.predict_with_details(stock_symbol_yahoo)
+                    predicted_price = llm_result['predicted_price']
+                    confidence = llm_result['confidence']
                     decision = 'caution'
             except Exception as e:
-                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to direct Ollama API.")
+                logging.error(f"Agentic prediction failed: {str(e)}. Falling back to LLM factory.")
                 try:
-                    ollama_result = predict_with_details(stock_symbol_yahoo)
-                    predicted_price = ollama_result['predicted_price']
-                    confidence = ollama_result['confidence']
-                    decision = ollama_result.get('decision', 'caution')
+                    llm_result = LLMFactory.predict_with_details(stock_symbol_yahoo)
+                    predicted_price = llm_result['predicted_price']
+                    confidence = llm_result['confidence']
+                    decision = llm_result.get('decision', 'caution')
                 except Exception as fallback_e:
-                    logging.error(f"Fallback Ollama prediction also failed: {str(fallback_e)}")
+                    logging.error(f"Fallback LLM prediction also failed: {str(fallback_e)}")
                     raise
 
             # Handle both string and float values for current_value
