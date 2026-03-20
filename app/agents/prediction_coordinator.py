@@ -275,11 +275,11 @@ class PredictionCoordinator:
             self.performance_metrics['validated_predictions'] += 1
         
         # Update running average of confidence
-        n = self.performance_metrics['total_predictions']
+        total_prediction_count = self.performance_metrics['total_predictions']
         old_avg = self.performance_metrics['average_confidence']
         new_conf = result['confidence']
         self.performance_metrics['average_confidence'] = (
-            (old_avg * (n - 1) + new_conf) / n
+            (old_avg * (total_prediction_count - 1) + new_conf) / total_prediction_count
         )
     
     def _log_decision_record(self, result: Dict[str, Any]):

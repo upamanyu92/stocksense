@@ -100,7 +100,7 @@ def run_alerts_evaluation():
     for alert in alerts:
         if not alert.get('enabled', 1):
             continue
-        res = evaluate_alert(alert)
-        if res:
-            notifications.append(res)
+        alert_evaluation_result = evaluate_alert(alert)
+        if alert_evaluation_result:
+            notifications.append(alert_evaluation_result)
     return notifications

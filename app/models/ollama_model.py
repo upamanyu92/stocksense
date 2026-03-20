@@ -67,15 +67,15 @@ def _parse_ollama_response(response_data):
         json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
-            data = json.loads(json_str)
+            parsed_json_data = json.loads(json_str)
 
             # Ensure required fields exist
-            if 'predicted_price' in data and 'confidence' in data:
+            if 'predicted_price' in parsed_json_data and 'confidence' in parsed_json_data:
                 return {
-                    'predicted_price': float(data['predicted_price']),
-                    'confidence': float(data['confidence']),
-                    'decision': str(data.get('decision', 'caution')),
-                    'reasoning': str(data.get('reasoning', ''))
+                    'predicted_price': float(parsed_json_data['predicted_price']),
+                    'confidence': float(parsed_json_data['confidence']),
+                    'decision': str(parsed_json_data.get('decision', 'caution')),
+                    'reasoning': str(parsed_json_data.get('reasoning', ''))
                 }
 
         # Fallback: extract key-value pairs manually
