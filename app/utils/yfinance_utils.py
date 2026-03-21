@@ -279,7 +279,7 @@ def search_companies_by_name(
             if av_results:
                 logging.info("Alpha Vantage SYMBOL_SEARCH found %d results for '%s'",
                              len(av_results), company_name)
-                # Normalise to the same format as the yfinance path
+                # Normalize to the same format as the yfinance path
                 normalised = [
                     {
                         "symbol": r.get("symbol", ""),

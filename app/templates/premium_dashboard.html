@@ -651,6 +651,18 @@
         `;
     }
 
+    async function avFetch(url) {
+        const r = await fetch(url);
+        if (!r.ok) {
+            const text = await r.text();
+            let err = {};
+            try { err = JSON.parse(text); } catch (_) { err = { error: text || r.statusText }; }
+            err.success = false;
+            return err;
+        }
+        return r.json();
+    }
+
     // Main fetch function
     async function avLoadAll() {
         const raw = document.getElementById('avSymbolInput').value.trim();
@@ -671,11 +683,11 @@
 
         // Fire all requests in parallel (rate-limited server-side)
         const [quoteRes, chartRes, kpiRes, sentimentRes, fundRes] = await Promise.allSettled([
-            fetch(`/api/av/quote/${sym}`).then(r => r.json()),
-            fetch(`/api/av/visualize/${sym}?type=price`).then(r => r.json()),
-            fetch(`/api/av/visualize/${sym}?type=kpi`).then(r => r.json()),
-            fetch(`/api/av/visualize/${sym}?type=sentiment`).then(r => r.json()),
-            fetch(`/api/av/fundamentals/${sym}`).then(r => r.json()),
+            avFetch(`/api/av/quote/${sym}`),
+            avFetch(`/api/av/visualize/${sym}?type=price`),
+            avFetch(`/api/av/visualize/${sym}?type=kpi`),
+            avFetch(`/api/av/visualize/${sym}?type=sentiment`),
+            avFetch(`/api/av/fundamentals/${sym}`),
         ]);
 
         // --- Quote ---

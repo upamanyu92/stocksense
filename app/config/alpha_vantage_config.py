@@ -24,10 +24,10 @@ class AlphaVantageConfig:
     REQUEST_TIMEOUT: int = 30
 
     # Cache duration in seconds (1 hour for quotes, 24 hours for fundamentals)
-    QUOTE_CACHE_TTL: int = 60          # 1 minute for live quotes
-    DAILY_CACHE_TTL: int = 3600        # 1 hour for daily series
-    FUNDAMENTAL_CACHE_TTL: int = 86400 # 24 hours for fundamentals & financials
-    SENTIMENT_CACHE_TTL: int = 1800    # 30 minutes for news sentiment
+    QUOTE_CACHE_TTL: int = 60          # 60 seconds for live quotes
+    DAILY_CACHE_TTL: int = 3600        # 3600 seconds (1 hour) for daily series
+    FUNDAMENTAL_CACHE_TTL: int = 86400 # 86400 seconds (24 hours) for fundamentals & financials
+    SENTIMENT_CACHE_TTL: int = 1800    # 1800 seconds (30 minutes) for news sentiment
 
     # Default output size for time series ('compact' = 100 data points, 'full' = 20+ years)
     DEFAULT_OUTPUTSIZE: str = 'compact'

@@ -104,6 +104,8 @@ class _RateLimiter:
 
 
 _rate_limiter = _RateLimiter(AlphaVantageConfig.RATE_LIMIT_PER_MINUTE)
+# Note: this limiter is per-process. Multi-worker deployments (e.g. gunicorn)
+# should use a shared backend (e.g. Redis) to enforce the global API quota.
 
 
 # ---------------------------------------------------------------------------

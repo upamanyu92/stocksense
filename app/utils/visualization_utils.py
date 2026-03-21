@@ -76,7 +76,7 @@ def plot_price_history(
         return None
 
     _apply_dark_theme()
-    df = df.tail(180).copy()  # Last 6 months for readability
+    df = df.tail(180).copy()  # Last ~180 trading days (approx. 6 months)
 
     # Calculate moving averages
     df['SMA_20'] = df['Close'].rolling(20).mean()
@@ -374,10 +374,12 @@ def plot_income_trends(
 
     dates = [r.get('fiscalDateEnding', '')[:4] for r in reports]
     values = [_parse_float_safe(r.get(metric)) for r in reports]
-    dates, values = zip(*[(d, v) for d, v in zip(dates, values) if v is not None]) if any(v is not None for v in values) else ([], [])
 
-    if not dates:
+    # Filter out pairs where value is None
+    filtered = [(d, v) for d, v in zip(dates, values) if v is not None]
+    if not filtered:
         return None
+    dates, values = zip(*filtered)
 
     fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0d1117')
     ax.set_facecolor('#0d1117')
