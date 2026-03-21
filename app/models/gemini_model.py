@@ -76,9 +76,38 @@ class GeminiModel:
             raise
 
     def _download_stock_data(self, symbol: str, period: str = '2y') -> Any:
-        """Download historical stock data"""
+        """
+        Download historical stock data.
+
+        Primary source: Alpha Vantage TIME_SERIES_DAILY_ADJUSTED.
+        Fallback:       yfinance download.
+
+        Tool: TIME_SERIES_DAILY_ADJUSTED
+        Confidence Score: 95%
+        """
+        from app.config.alpha_vantage_config import AlphaVantageConfig
+
         try:
-            self.logger.debug(f"Downloading stock data for {symbol}")
+            if AlphaVantageConfig.is_configured():
+                try:
+                    from app.utils.alpha_vantage_client import get_time_series_daily
+                    outputsize = 'full' if period in ('2y', '5y', 'max') else 'compact'
+                    stock = get_time_series_daily(symbol, outputsize=outputsize)
+                    if stock is not None and not stock.empty:
+                        self.logger.debug(
+                            "Alpha Vantage TIME_SERIES_DAILY_ADJUSTED: %d rows for %s",
+                            len(stock), symbol,
+                        )
+                        stock = create_features(stock)
+                        return stock
+                except Exception as av_exc:
+                    self.logger.warning(
+                        "Alpha Vantage download failed for %s: %s — falling back to yfinance",
+                        symbol, av_exc,
+                    )
+
+            # Fallback: yfinance
+            self.logger.debug(f"Downloading stock data for {symbol} via yfinance")
             stock = yf.download(symbol, period=period, auto_adjust=True, progress=False)
 
             if stock.empty:

@@ -59,6 +59,12 @@
                     <span class="sidebar-link-label">Alerts</span>
                 </a>
 
+                <a href="#" class="sidebar-link" data-section="section-alpha-vantage">
+                    <span class="sidebar-link-icon"><i class="fas fa-satellite-dish"></i></span>
+                    <span class="sidebar-link-label">Data Hub</span>
+                    <span class="sidebar-badge" style="background:var(--color-accent-green)">AV</span>
+                </a>
+
                 <a href="#" class="sidebar-link" data-section="section-settings">
                     <span class="sidebar-link-icon"><i class="fas fa-gear"></i></span>
                     <span class="sidebar-link-label">Settings</span>
@@ -424,6 +430,84 @@
                         </div>
                     </section>
 
+                    <!-- ========== ALPHA VANTAGE DATA HUB ========== -->
+                    <section id="section-alpha-vantage" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-satellite-dish"></i> Alpha Vantage Data Hub
+                                <span class="badge-av" style="font-size:11px;font-weight:600;
+                                    background:rgba(63,185,80,.15);color:#3fb950;
+                                    border:1px solid rgba(63,185,80,.35);border-radius:4px;
+                                    padding:2px 7px;margin-left:8px;">MCP</span>
+                            </h2>
+                            <p style="color:var(--color-text-muted);font-size:13px;margin-top:4px;">
+                                Financial data, KPIs, sentiment &amp; visualisations powered by Alpha Vantage API
+                            </p>
+                        </div>
+
+                        <!-- Search bar -->
+                        <div style="display:flex;gap:10px;margin-bottom:24px;align-items:center;flex-wrap:wrap;">
+                            <input id="avSymbolInput" type="text" placeholder="Enter symbol  e.g. RELIANCE.BO"
+                                   style="flex:1;min-width:200px;padding:10px 14px;
+                                          background:var(--color-surface-raised);
+                                          border:1px solid var(--color-border);border-radius:8px;
+                                          color:var(--color-text-primary);font-size:14px;" />
+                            <button onclick="avLoadAll()" class="btn-primary"
+                                    style="padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;
+                                           background:var(--color-accent-blue);color:#fff;border:none;">
+                                <i class="fas fa-search"></i> Fetch Data
+                            </button>
+                        </div>
+
+                        <!-- Tab navigation -->
+                        <div id="avTabs" style="display:flex;gap:8px;border-bottom:1px solid var(--color-border);margin-bottom:20px;flex-wrap:wrap;">
+                            <button class="av-tab active" data-tab="av-tab-quote"   onclick="avSwitchTab(this,'av-tab-quote')"><i class="fas fa-bolt"></i> Live Quote</button>
+                            <button class="av-tab"        data-tab="av-tab-chart"   onclick="avSwitchTab(this,'av-tab-chart')"><i class="fas fa-chart-area"></i> Price Chart</button>
+                            <button class="av-tab"        data-tab="av-tab-kpi"     onclick="avSwitchTab(this,'av-tab-kpi')"><i class="fas fa-table-cells"></i> KPIs</button>
+                            <button class="av-tab"        data-tab="av-tab-sentiment" onclick="avSwitchTab(this,'av-tab-sentiment')"><i class="fas fa-newspaper"></i> Sentiment</button>
+                            <button class="av-tab"        data-tab="av-tab-fundamentals" onclick="avSwitchTab(this,'av-tab-fundamentals')"><i class="fas fa-file-invoice-dollar"></i> Financials</button>
+                        </div>
+
+                        <!-- ---- LIVE QUOTE tab ---- -->
+                        <div id="av-tab-quote" class="av-tab-content" style="display:block;">
+                            <div id="avQuoteGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+                                <div class="av-placeholder">Enter a symbol above and click Fetch Data</div>
+                            </div>
+                            <div id="avQuoteMeta" class="av-meta" style="display:none;"></div>
+                        </div>
+
+                        <!-- ---- PRICE CHART tab ---- -->
+                        <div id="av-tab-chart" class="av-tab-content" style="display:none;">
+                            <div id="avChartWrap" style="text-align:center;min-height:300px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);">
+                                <span><i class="fas fa-chart-area fa-2x"></i><br>Price chart loads after Fetch Data</span>
+                            </div>
+                        </div>
+
+                        <!-- ---- KPI tab ---- -->
+                        <div id="av-tab-kpi" class="av-tab-content" style="display:none;">
+                            <div id="avKpiWrap" style="text-align:center;min-height:300px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);">
+                                <span><i class="fas fa-table-cells fa-2x"></i><br>KPI dashboard loads after Fetch Data</span>
+                            </div>
+                        </div>
+
+                        <!-- ---- SENTIMENT tab ---- -->
+                        <div id="av-tab-sentiment" class="av-tab-content" style="display:none;">
+                            <div id="avSentimentWrap" style="text-align:center;min-height:300px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);">
+                                <span><i class="fas fa-newspaper fa-2x"></i><br>Sentiment chart loads after Fetch Data</span>
+                            </div>
+                            <div id="avSentimentFeed" style="margin-top:20px;"></div>
+                        </div>
+
+                        <!-- ---- FINANCIALS tab ---- -->
+                        <div id="av-tab-fundamentals" class="av-tab-content" style="display:none;">
+                            <div id="avFundamentalsWrap">
+                                <p style="color:var(--color-text-muted);text-align:center;padding:40px 0;">
+                                    <i class="fas fa-file-invoice-dollar fa-2x"></i><br>Financial statements load after Fetch Data
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
                 </div><!-- /.dashboard-content -->
             </div><!-- /#mainContent -->
         </div><!-- /.main-wrapper -->
@@ -534,5 +618,304 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/premium_dashboard.js') }}"></script>
 
-</body>
-</html>
+    <!-- ========== ALPHA VANTAGE DATA HUB SCRIPTS ========== -->
+    <script>
+    /* -------------------------------------------------------
+       Alpha Vantage Data Hub — inline JS
+       Communicates with /api/av/* endpoints added during the
+       yfinance → Alpha Vantage MCP migration.
+    ------------------------------------------------------- */
+
+    // Tab switcher
+    function avSwitchTab(btn, tabId) {
+        document.querySelectorAll('.av-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.av-tab-content').forEach(el => el.style.display = 'none');
+        btn.classList.add('active');
+        document.getElementById(tabId).style.display = 'block';
+    }
+
+    // Render meta badge
+    function avRenderMeta(meta, containerId) {
+        if (!meta) return;
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        el.style.display = 'block';
+        el.innerHTML = `
+            <span title="MCP Tool"><i class="fas fa-satellite-dish"></i> ${meta.tool_used || 'N/A'}</span>
+            &nbsp;|&nbsp;
+            <span title="Data Source"><i class="fas fa-database"></i> ${meta.data_source || 'unknown'}</span>
+            &nbsp;|&nbsp;
+            <span title="Confidence"><i class="fas fa-percent"></i> Confidence: ${meta.confidence_pct || 0}%</span>
+            &nbsp;|&nbsp;
+            <span title="Generated"><i class="fas fa-clock"></i> ${meta._meta ? new Date(meta._meta.timestamp).toLocaleTimeString() : ''}</span>
+        `;
+    }
+
+    // Main fetch function
+    async function avLoadAll() {
+        const raw = document.getElementById('avSymbolInput').value.trim();
+        if (!raw) { alert('Please enter a stock symbol'); return; }
+        const sym = encodeURIComponent(raw);
+
+        // Show loading state
+        document.getElementById('avQuoteGrid').innerHTML =
+            '<div class="av-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading live quote…</div>';
+        document.getElementById('avChartWrap').innerHTML =
+            '<span><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading chart…</span>';
+        document.getElementById('avKpiWrap').innerHTML =
+            '<span><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading KPIs…</span>';
+        document.getElementById('avSentimentWrap').innerHTML =
+            '<span><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading sentiment…</span>';
+        document.getElementById('avFundamentalsWrap').innerHTML =
+            '<p style="text-align:center;padding:40px 0;color:var(--color-text-muted)"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading financials…</p>';
+
+        // Fire all requests in parallel (rate-limited server-side)
+        const [quoteRes, chartRes, kpiRes, sentimentRes, fundRes] = await Promise.allSettled([
+            fetch(`/api/av/quote/${sym}`).then(r => r.json()),
+            fetch(`/api/av/visualize/${sym}?type=price`).then(r => r.json()),
+            fetch(`/api/av/visualize/${sym}?type=kpi`).then(r => r.json()),
+            fetch(`/api/av/visualize/${sym}?type=sentiment`).then(r => r.json()),
+            fetch(`/api/av/fundamentals/${sym}`).then(r => r.json()),
+        ]);
+
+        // --- Quote ---
+        avRenderQuote(quoteRes.status === 'fulfilled' ? quoteRes.value : null, raw);
+
+        // --- Price Chart ---
+        avRenderChart(chartRes.status === 'fulfilled' ? chartRes.value : null, 'avChartWrap');
+
+        // --- KPI ---
+        avRenderChart(kpiRes.status === 'fulfilled' ? kpiRes.value : null, 'avKpiWrap');
+
+        // --- Sentiment ---
+        avRenderChart(sentimentRes.status === 'fulfilled' ? sentimentRes.value : null, 'avSentimentWrap');
+        if (sentimentRes.status === 'fulfilled' && sentimentRes.value.success) {
+            avRenderSentimentFeed(sentimentRes.value);
+        }
+
+        // --- Financials ---
+        avRenderFundamentals(fundRes.status === 'fulfilled' ? fundRes.value : null);
+    }
+
+    function avRenderQuote(data, symbol) {
+        const grid = document.getElementById('avQuoteGrid');
+        const metaEl = document.getElementById('avQuoteMeta');
+        if (!data || !data.success) {
+            grid.innerHTML = `<div class="av-placeholder" style="color:var(--color-danger)">
+                <i class="fas fa-exclamation-triangle"></i>
+                Could not fetch quote for <strong>${symbol}</strong>.
+                ${data && data.error ? '— ' + data.error : '(Alpha Vantage key may not be configured — check ALPHA_VANTAGE_API_KEY in .env)'}
+            </div>`;
+            return;
+        }
+        const q = data.quote;
+        const pChange = parseFloat(q.pChange || 0);
+        const dir = pChange >= 0 ? 'up' : 'down';
+        const dirClass = pChange >= 0 ? 'av-kpi-up' : 'av-kpi-down';
+        const kpis = [
+            ['Price',       `₹${parseFloat(q.currentValue||0).toFixed(2)}`, ''],
+            ['Change',      `₹${parseFloat(q.change||0).toFixed(2)}`,       dirClass],
+            ['% Change',    `${pChange.toFixed(2)}%`,                        dirClass],
+            ['Day High',    `₹${parseFloat(q.dayHigh||0).toFixed(2)}`,      ''],
+            ['Day Low',     `₹${parseFloat(q.dayLow||0).toFixed(2)}`,       ''],
+            ['Prev Close',  `₹${parseFloat(q.previousClose||0).toFixed(2)}`,''],
+            ['52W High',    `₹${parseFloat(q['52weekHigh']||0).toFixed(2)}`,''],
+            ['52W Low',     `₹${parseFloat(q['52weekLow']||0).toFixed(2)}`, ''],
+            ['Industry',    q.industry || '—',                               ''],
+            ['Sector',      q.group    || '—',                               ''],
+        ];
+        grid.innerHTML = kpis.map(([lbl, val, cls]) => `
+            <div class="av-kpi-card ${cls}">
+                <div class="av-kpi-label">${lbl}</div>
+                <div class="av-kpi-value">${val}</div>
+            </div>`).join('');
+
+        if (data._meta) {
+            avRenderMeta(data._meta, 'avQuoteMeta');
+        } else if (data['_meta']) {
+            metaEl.style.display = 'block';
+            metaEl.textContent = JSON.stringify(data['_meta']);
+        }
+    }
+
+    function avRenderChart(data, wrapperId) {
+        const wrap = document.getElementById(wrapperId);
+        if (!data || !data.success || !data.chart_b64) {
+            wrap.innerHTML = `<span style="color:var(--color-text-muted)">
+                <i class="fas fa-chart-area fa-2x"></i><br>
+                ${data && data.error ? data.error : 'No chart data available'}
+            </span>`;
+            return;
+        }
+        wrap.innerHTML = `<img src="data:image/png;base64,${data.chart_b64}"
+            style="max-width:100%;border-radius:8px;" alt="Chart for ${data.symbol}" />`;
+    }
+
+    function avRenderSentimentFeed(data) {
+        const feed = (data.feed || []).slice(0, 8);
+        if (!feed.length) return;
+        const html = feed.map(a => {
+            const score = parseFloat(a.overall_sentiment_score || 0);
+            const label = a.overall_sentiment_label || 'Neutral';
+            const colour = score > 0.1 ? 'var(--color-accent-green)' :
+                           score < -0.1 ? 'var(--color-danger)' :
+                           'var(--color-text-muted)';
+            return `<div class="av-feed-item">
+                <a href="${a.url}" target="_blank" rel="noopener" class="av-feed-title">${a.title || 'Untitled'}</a>
+                <span class="av-feed-meta">
+                    <span style="color:${colour};font-weight:600">${label} (${score.toFixed(3)})</span>
+                    &nbsp;·&nbsp; ${a.source || ''} &nbsp;·&nbsp;
+                    ${a.time_published ? a.time_published.slice(0, 8) : ''}
+                </span>
+            </div>`;
+        }).join('');
+        document.getElementById('avSentimentFeed').innerHTML =
+            `<h4 style="color:var(--color-text-secondary);margin-bottom:10px">Recent News Articles</h4>${html}`;
+    }
+
+    function avRenderFundamentals(data) {
+        const wrap = document.getElementById('avFundamentalsWrap');
+        if (!data || !data.success) {
+            wrap.innerHTML = `<p style="text-align:center;padding:40px 0;color:var(--color-text-muted)">
+                <i class="fas fa-exclamation-triangle"></i>
+                ${data && data.error ? data.error : 'No financial data available'}
+            </p>`;
+            return;
+        }
+
+        let html = '';
+
+        // Company overview KPIs table
+        if (data.overview) {
+            const ov = data.overview;
+            const fields = [
+                ['Name', ov.Name], ['Sector', ov.Sector], ['Industry', ov.Industry],
+                ['Exchange', ov.Exchange], ['Currency', ov.Currency],
+                ['Market Cap', ov.MarketCapitalization ? `$${parseInt(ov.MarketCapitalization).toLocaleString()}` : '—'],
+                ['P/E Ratio', ov.PERatio], ['EPS', ov.EPS], ['Beta', ov.Beta],
+                ['Div. Yield', ov.DividendYield ? `${(parseFloat(ov.DividendYield)*100).toFixed(2)}%` : '—'],
+                ['52W High', ov['52WeekHigh']], ['52W Low', ov['52WeekLow']],
+                ['Profit Margin', ov.ProfitMargin ? `${(parseFloat(ov.ProfitMargin)*100).toFixed(2)}%` : '—'],
+                ['ROE', ov.ReturnOnEquityTTM ? `${(parseFloat(ov.ReturnOnEquityTTM)*100).toFixed(2)}%` : '—'],
+                ['Revenue TTM', ov.RevenueTTM ? `$${parseInt(ov.RevenueTTM).toLocaleString()}` : '—'],
+                ['Analyst Target', ov.AnalystTargetPrice],
+            ];
+            html += `<h4 style="color:var(--color-text-secondary);margin:16px 0 10px">
+                         <i class="fas fa-building"></i> Company Overview
+                         <span style="font-size:11px;font-weight:400;margin-left:8px;color:var(--color-text-muted)">(COMPANY_OVERVIEW · Confidence 90%)</span>
+                     </h4>
+                     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:20px;">
+                     ${fields.map(([k, v]) => v ? `<div class="av-fund-cell"><span class="av-fund-label">${k}</span><span class="av-fund-val">${v}</span></div>` : '').join('')}
+                     </div>`;
+
+            if (ov.Description) {
+                html += `<p style="color:var(--color-text-muted);font-size:13px;line-height:1.6;margin-bottom:20px">${ov.Description.slice(0,400)}…</p>`;
+            }
+        }
+
+        // Income statement table
+        if (data.income_statement && data.income_statement.annual && data.income_statement.annual.length) {
+            const reports = data.income_statement.annual.slice(0, 4);
+            const keys = ['fiscalDateEnding', 'totalRevenue', 'grossProfit', 'netIncome', 'ebitda', 'eps'];
+            html += avFinTable('Income Statement (Annual)', 'INCOME_STATEMENT', keys, reports);
+        }
+
+        // Balance sheet table
+        if (data.balance_sheet && data.balance_sheet.annual && data.balance_sheet.annual.length) {
+            const reports = data.balance_sheet.annual.slice(0, 4);
+            const keys = ['fiscalDateEnding', 'totalAssets', 'totalLiabilities', 'totalShareholderEquity', 'cashAndCashEquivalentsAtCarryingValue'];
+            html += avFinTable('Balance Sheet (Annual)', 'BALANCE_SHEET', keys, reports);
+        }
+
+        // Cash flow table
+        if (data.cash_flow && data.cash_flow.annual && data.cash_flow.annual.length) {
+            const reports = data.cash_flow.annual.slice(0, 4);
+            const keys = ['fiscalDateEnding', 'operatingCashflow', 'capitalExpenditures', 'freeCashFlow', 'dividendPayout'];
+            html += avFinTable('Cash Flow (Annual)', 'CASH_FLOW', keys, reports);
+        }
+
+        wrap.innerHTML = html || '<p style="text-align:center;padding:40px;color:var(--color-text-muted)">No financial data returned</p>';
+    }
+
+    function avFinTable(title, tool, keys, reports) {
+        const labels = {
+            fiscalDateEnding: 'Period',
+            totalRevenue: 'Revenue', grossProfit: 'Gross Profit', netIncome: 'Net Income',
+            ebitda: 'EBITDA', eps: 'EPS',
+            totalAssets: 'Total Assets', totalLiabilities: 'Total Liabilities',
+            totalShareholderEquity: 'Equity',
+            cashAndCashEquivalentsAtCarryingValue: 'Cash & Equivalents',
+            operatingCashflow: 'Operating CF', capitalExpenditures: 'CapEx',
+            freeCashFlow: 'Free CF', dividendPayout: 'Dividends'
+        };
+        const fmtNum = v => {
+            const n = parseInt(v);
+            if (isNaN(n)) return v || '—';
+            if (Math.abs(n) >= 1e9) return `$${(n/1e9).toFixed(2)}B`;
+            if (Math.abs(n) >= 1e6) return `$${(n/1e6).toFixed(2)}M`;
+            return `$${n.toLocaleString()}`;
+        };
+        const rows = keys.filter(k => k !== 'fiscalDateEnding').map(k =>
+            `<tr><td style="color:var(--color-text-muted);padding:6px 10px;white-space:nowrap">${labels[k] || k}</td>
+             ${reports.map(r => `<td style="text-align:right;padding:6px 10px">${fmtNum(r[k])}</td>`).join('')}
+             </tr>`
+        ).join('');
+        const dateCols = reports.map(r => `<th style="padding:6px 10px;font-weight:500">${r.fiscalDateEnding || ''}</th>`).join('');
+        return `<h4 style="color:var(--color-text-secondary);margin:16px 0 8px">
+                    <i class="fas fa-table"></i> ${title}
+                    <span style="font-size:11px;font-weight:400;margin-left:8px;color:var(--color-text-muted)">(${tool} · Confidence 90%)</span>
+                </h4>
+                <div style="overflow-x:auto;margin-bottom:20px;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead><tr style="border-bottom:1px solid var(--color-border)">
+                        <th style="text-align:left;padding:6px 10px;font-weight:500;color:var(--color-text-muted)">Metric</th>
+                        ${dateCols}
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>`;
+    }
+    </script>
+
+    <style>
+    /* --- Alpha Vantage Data Hub styles --- */
+    .av-tab {
+        padding: 8px 16px; border: none; background: transparent;
+        color: var(--color-text-muted); font-size: 13px; cursor: pointer;
+        border-bottom: 2px solid transparent; transition: all .15s;
+    }
+    .av-tab.active, .av-tab:hover {
+        color: var(--color-text-primary); border-bottom-color: var(--color-accent-blue);
+    }
+    .av-tab-content { min-height: 260px; }
+    .av-placeholder {
+        grid-column: 1 / -1; color: var(--color-text-muted);
+        font-size: 13px; padding: 20px 0;
+    }
+    .av-kpi-card {
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-border);
+        border-radius: 8px; padding: 14px 16px;
+        display: flex; flex-direction: column; gap: 4px;
+    }
+    .av-kpi-label { font-size: 11px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .av-kpi-value { font-size: 18px; font-weight: 700; color: var(--color-text-primary); }
+    .av-kpi-up  .av-kpi-value { color: var(--color-accent-green); }
+    .av-kpi-down .av-kpi-value { color: var(--color-danger); }
+    .av-meta {
+        margin-top: 12px; font-size: 11px; color: var(--color-text-muted);
+        background: var(--color-surface-raised); border-radius: 6px;
+        padding: 8px 12px; display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .av-feed-item { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .av-feed-title { color: var(--color-accent-blue); font-size: 13px; font-weight: 500; text-decoration: none; display: block; margin-bottom: 4px; }
+    .av-feed-title:hover { text-decoration: underline; }
+    .av-feed-meta { font-size: 11px; color: var(--color-text-muted); }
+    .av-fund-cell {
+        background: var(--color-surface-raised); border: 1px solid var(--color-border);
+        border-radius: 6px; padding: 8px 12px;
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .av-fund-label { font-size: 10px; color: var(--color-text-muted); text-transform: uppercase; }
+    .av-fund-val   { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+    </style>
+
