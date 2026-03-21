@@ -59,3 +59,5 @@ grpcio>=1.50.0
 grpcio-status>=1.50.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
+# GitHub Copilot SDK – OpenAI-compatible async client for GitHub Models
+openai>=1.0.0

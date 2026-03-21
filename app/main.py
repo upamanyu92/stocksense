@@ -13,6 +13,7 @@ from app.api.alpha_vantage_routes import alpha_vantage_bp
 from app.api.auth_routes import auth_bp
 from app.api.backtest_routes import backtest_bp
 from app.api.chat_routes import chat_bp
+from app.api.copilot_routes import copilot_bp
 from app.api.dashboard_routes import dashboard_bp
 from app.api.llm_routes import llm_bp
 from app.api.notification_routes import notification_bp
@@ -113,6 +114,7 @@ login_manager.login_message = 'Please log in to access this page.'
 # Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(alpha_vantage_bp)
+app.register_blueprint(copilot_bp)
 app.register_blueprint(watchlist_bp)
 app.register_blueprint(prediction_bp)
 app.register_blueprint(stock_bp)
