@@ -855,9 +855,10 @@ async function searchStock(symbol, name) {
   searchResults.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div> Loading...</div>';
   
   try {
-    // Get stock quote
-    const quoteResponse = await fetch(`/api/stocks/search/${encodeURIComponent(name)}`);
-    const quotes = await quoteResponse.json();
+    // Get stock quote (prefer identifier for local DB, fallback to name)
+    const lookupId = symbol || name;
+    const quoteResponse = await fetch(`/api/stocks/lookup?id=${encodeURIComponent(lookupId)}`);
+    const quotePayload = await quoteResponse.json();
     
     // Get prediction if available
     let prediction = null;
@@ -871,8 +872,8 @@ async function searchStock(symbol, name) {
       console.log('No prediction available yet');
     }
     
-    if (quotes && quotes.length > 0) {
-      const quote = quotes[0];
+    if (quotePayload && quotePayload.success && quotePayload.quote) {
+      const quote = quotePayload.quote;
       
       searchResults.innerHTML = `
         <div class="card" style="background: rgba(0, 212, 255, 0.05); margin-top: 15px;">

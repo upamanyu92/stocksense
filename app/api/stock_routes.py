@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import sqlite3
 from typing import Any, Dict, List, Optional
 
 from flask import Blueprint, request, jsonify
@@ -115,6 +118,23 @@ def _collect_suggestions(cursor, query: str, limit: int) -> List[Dict[str, str]]
             }
             for row in rows
         ]
+
+    # Fallback: static stk.json when DB tables are empty (first-run experience)
+    try:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        static_stk_path = os.path.join(base_dir, 'static', 'stk.json')
+        if os.path.exists(static_stk_path):
+            with open(static_stk_path, 'r', encoding='utf-8') as f:
+                stk_data = json.load(f)
+            # Filter by query
+            matched = [
+                {'company_name': name, 'scrip_code': code, 'security_id': code}
+                for code, name in stk_data.items()
+                if query.lower() in name.lower() or query.lower() in str(code).lower()
+            ]
+            return matched[:limit]
+    except Exception as exc:
+        logging.error("Failed to load fallback STK data: %s", exc, exc_info=True)
 
     return []
 
@@ -234,7 +254,7 @@ def get_quote_by_name():
         if quote:
             return jsonify({
                 'success': True,
-                'quote': quote
+                'quote': _normalize_quote(quote)
             }), 200
         else:
             return jsonify({
@@ -245,6 +265,33 @@ def get_quote_by_name():
     except Exception as e:
         logging.error(f"Error fetching quote by company name: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
+@stock_bp.route('/lookup', methods=['GET'])
+def lookup_stock():
+    """
+    Lookup a stock by identifier (symbol, security_id, or company name).
+    Uses local database first for instant responses, then external quote fetch.
+    """
+    identifier = request.args.get('id') or request.args.get('symbol') or ''
+    identifier = identifier.strip()
+    if not identifier:
+        return jsonify({'success': False, 'error': 'Query parameter \"id\" is required'}), 400
+
+    # Local lookup first
+    local_quote = _find_local_quote(identifier)
+    if local_quote:
+        return jsonify({'success': True, 'quote': local_quote, 'source': 'local'}), 200
+
+    # Fallback: try external resolution by treating identifier as company name
+    try:
+        quote = get_quote_by_company_name(company_name=identifier, max_search_results=5)
+        if quote:
+            return jsonify({'success': True, 'quote': _normalize_quote(quote), 'source': 'external'}), 200
+        return jsonify({'success': False, 'error': f'Could not find quote for {identifier}'}), 404
+    except Exception as exc:
+        logging.error("Error looking up stock %s: %s", identifier, exc, exc_info=True)
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 @stock_bp.route('/list', methods=['GET'])
