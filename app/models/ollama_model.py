@@ -126,13 +126,47 @@ def _parse_ollama_response(response_data):
         }
 
 
+def _fetch_stock_history(symbol: str, period_months: int = 1) -> 'pd.DataFrame':
+    """
+    Fetch recent stock price history.
+
+    Primary source: Alpha Vantage TIME_SERIES_DAILY_ADJUSTED.
+    Fallback:       yfinance Ticker.history().
+
+    Tool: TIME_SERIES_DAILY_ADJUSTED
+    Confidence Score: 95%
+    """
+    import pandas as pd
+    from app.config.alpha_vantage_config import AlphaVantageConfig
+
+    if AlphaVantageConfig.is_configured():
+        try:
+            from app.utils.alpha_vantage_client import get_time_series_daily
+            df = get_time_series_daily(symbol, outputsize='compact')
+            if df is not None and not df.empty:
+                # Limit to approximately the requested number of months
+                cutoff = pd.Timestamp.now() - pd.DateOffset(months=period_months)
+                df = df[df.index >= cutoff]
+                if not df.empty:
+                    logger.info("Alpha Vantage data loaded for %s (%d rows)", symbol, len(df))
+                    return df
+        except Exception as exc:
+            logger.warning("Alpha Vantage history fetch failed for %s: %s", symbol, exc)
+
+    # Fallback: yfinance
+    import yfinance as yf
+    period_map = {1: '1mo', 2: '2mo', 3: '3mo', 6: '6mo', 12: '1y'}
+    period_str = period_map.get(period_months, '1mo')
+    stock = yf.Ticker(symbol)
+    hist = stock.history(period=period_str)
+    return hist
+
+
 def predict_with_ollama(symbol):
     """Simple prediction interface using Ollama"""
     try:
-        # Get current stock data
-        import yfinance as yf
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="1mo")
+        # Get current stock data (Alpha Vantage → yfinance fallback)
+        hist = _fetch_stock_history(symbol, period_months=1)
         if hist.empty:
             raise ValueError(f"No data found for symbol {symbol}")
 
@@ -170,10 +204,8 @@ JSON Response:"""
 def predict_with_details(symbol):
     """Enhanced prediction with detailed analysis using Ollama"""
     try:
-        # Get current stock data
-        import yfinance as yf
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="3mo")
+        # Get current stock data (Alpha Vantage → yfinance fallback)
+        hist = _fetch_stock_history(symbol, period_months=3)
         if hist.empty:
             raise ValueError(f"No data found for symbol {symbol}")
 
