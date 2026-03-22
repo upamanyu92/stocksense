@@ -3,6 +3,8 @@
 {% block content %}
 <div class="container mt-4">
   <h2>System Admin</h2>
+
+  <!-- Background Worker -->
   <div class="card mb-3">
     <div class="card-body">
       <h4>Background Worker</h4>
@@ -11,6 +13,8 @@
       <button id="stopWorker" class="btn btn-danger">Stop Worker</button>
     </div>
   </div>
+
+  <!-- Daily Digest Email -->
   <div class="card mb-3">
     <div class="card-body">
       <h4>Daily Digest Email</h4>
@@ -19,7 +23,37 @@
       <button id="disableDigest" class="btn btn-secondary">Disable Digest</button>
     </div>
   </div>
+
+  <!-- External Integrations Status -->
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">External Integrations</h4>
+      <button id="refreshIntegrations" class="btn btn-sm btn-outline-secondary">
+        <span id="refreshIcon">&#8635;</span> Refresh
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="integrationsLoading" class="text-muted">Checking integrations&hellip;</div>
+      <div id="integrationsError" class="alert alert-danger d-none"></div>
+      <div id="integrationsGrid" class="row g-3 d-none"></div>
+      <small id="integrationsCheckedAt" class="text-muted d-none mt-2 d-block"></small>
+    </div>
+  </div>
 </div>
-<script src="/static/admin_system.js"></script>
+
+<style>
+  .integration-card .badge-status {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+    border-radius: 0.5rem;
+  }
+  .integration-card .detail-text {
+    font-size: 0.8rem;
+    color: #6c757d;
+    word-break: break-word;
+  }
+</style>
+
+<script src="{{ url_for('static', filename='admin_system.js') }}"></script>
 {% endblock %}
 

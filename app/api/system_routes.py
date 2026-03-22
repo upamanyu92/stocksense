@@ -214,6 +214,240 @@ def background_status():
     return jsonify(background_worker.get_status())
 
 
+@system_bp.route('/integrations/status', methods=['GET'])
+@login_required
+def integrations_status():
+    """
+    Check connectivity and configuration for all external integrations.
+
+    Returns a list of integration status objects, each with:
+      - name         : Human-readable service name
+      - key          : Machine-readable identifier
+      - online       : True if reachable / configured, False otherwise
+      - detail       : Short explanation (e.g. API key status, error message)
+      - checked_at   : ISO-8601 timestamp of the check
+    """
+    from flask_login import current_user
+    from app.db.services.user_service import UserService
+
+    user = UserService.get_by_id(current_user.id)
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    import importlib.util
+    import os
+    import requests as _req
+
+    results = []
+    now = datetime.now().isoformat()
+
+    # ------------------------------------------------------------------
+    # 1. Alpha Vantage REST API
+    # ------------------------------------------------------------------
+    try:
+        from app.config.alpha_vantage_config import AlphaVantageConfig
+
+        if not AlphaVantageConfig.is_configured():
+            results.append({
+                'name': 'Alpha Vantage API',
+                'key': 'alpha_vantage',
+                'online': False,
+                'detail': 'API key not configured (using demo key)',
+                'checked_at': now,
+            })
+        else:
+            # Lightweight probe: fetch a single quote for MSFT
+            url = (
+                f"{AlphaVantageConfig.BASE_URL}"
+                f"?function=GLOBAL_QUOTE&symbol=MSFT"
+                f"&apikey={AlphaVantageConfig.API_KEY}"
+            )
+            resp = _req.get(url, timeout=10)
+            resp.raise_for_status()
+            payload = resp.json()
+            # Alpha Vantage returns an error message field when the key is invalid
+            if 'Error Message' in payload or 'Information' in payload:
+                detail = payload.get('Error Message') or payload.get('Information', 'Unexpected response')
+                results.append({
+                    'name': 'Alpha Vantage API',
+                    'key': 'alpha_vantage',
+                    'online': False,
+                    'detail': detail[:120],
+                    'checked_at': now,
+                })
+            else:
+                results.append({
+                    'name': 'Alpha Vantage API',
+                    'key': 'alpha_vantage',
+                    'online': True,
+                    'detail': 'Reachable – API key valid',
+                    'checked_at': now,
+                })
+    except Exception as exc:
+        results.append({
+            'name': 'Alpha Vantage API',
+            'key': 'alpha_vantage',
+            'online': False,
+            'detail': f'Connection error: {str(exc)[:100]}',
+            'checked_at': now,
+        })
+
+    # ------------------------------------------------------------------
+    # 2. GitHub Copilot AI (OpenAI-compatible endpoint)
+    # ------------------------------------------------------------------
+    try:
+        github_token = os.getenv('GITHUB_TOKEN', '')
+        copilot_model = os.getenv('COPILOT_MODEL', 'gpt-4o')
+        openai_installed = importlib.util.find_spec('openai') is not None
+
+        if not github_token:
+            results.append({
+                'name': 'Copilot AI',
+                'key': 'copilot',
+                'online': False,
+                'detail': 'GITHUB_TOKEN not set',
+                'checked_at': now,
+            })
+        elif not openai_installed:
+            results.append({
+                'name': 'Copilot AI',
+                'key': 'copilot',
+                'online': False,
+                'detail': 'openai package not installed',
+                'checked_at': now,
+            })
+        else:
+            from app.agents.copilot_agent import CopilotClient
+            client = CopilotClient()
+            available = client.is_available()
+            results.append({
+                'name': 'Copilot AI',
+                'key': 'copilot',
+                'online': available,
+                'detail': f'Token set, model={copilot_model}' if available else 'Endpoint unreachable',
+                'checked_at': now,
+            })
+    except Exception as exc:
+        results.append({
+            'name': 'Copilot AI',
+            'key': 'copilot',
+            'online': False,
+            'detail': f'Check failed: {str(exc)[:100]}',
+            'checked_at': now,
+        })
+
+    # ------------------------------------------------------------------
+    # 3. Google Gemini AI
+    # ------------------------------------------------------------------
+    try:
+        gemini_key = os.getenv('GEMINI_API_KEY', '')
+        gemini_model = os.getenv('GEMINI_MODEL_NAME', '')
+
+        if not gemini_key:
+            results.append({
+                'name': 'Google Gemini AI',
+                'key': 'gemini',
+                'online': False,
+                'detail': 'GEMINI_API_KEY not set',
+                'checked_at': now,
+            })
+        else:
+            # Probe the Gemini REST API with a minimal models list call
+            probe_url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models"
+                f"?key={gemini_key}"
+            )
+            resp = _req.get(probe_url, timeout=10)
+            if resp.status_code == 200:
+                results.append({
+                    'name': 'Google Gemini AI',
+                    'key': 'gemini',
+                    'online': True,
+                    'detail': f'Reachable – model={gemini_model or "default"}',
+                    'checked_at': now,
+                })
+            else:
+                results.append({
+                    'name': 'Google Gemini AI',
+                    'key': 'gemini',
+                    'online': False,
+                    'detail': f'API returned HTTP {resp.status_code}',
+                    'checked_at': now,
+                })
+    except Exception as exc:
+        results.append({
+            'name': 'Google Gemini AI',
+            'key': 'gemini',
+            'online': False,
+            'detail': f'Connection error: {str(exc)[:100]}',
+            'checked_at': now,
+        })
+
+    # ------------------------------------------------------------------
+    # 4. Ollama Local LLM
+    # ------------------------------------------------------------------
+    try:
+        from app.config.ollama_config import OllamaConfig
+
+        resp = _req.get(f"{OllamaConfig.OLLAMA_HOST}/api/tags", timeout=5)
+        if resp.status_code == 200:
+            models = [m.get('name', '') for m in resp.json().get('models', [])]
+            model_found = any(OllamaConfig.MODEL_NAME in m for m in models)
+            results.append({
+                'name': 'Ollama Local LLM',
+                'key': 'ollama',
+                'online': True,
+                'detail': (
+                    f'Running – model={OllamaConfig.MODEL_NAME} ✓'
+                    if model_found
+                    else f'Running – model={OllamaConfig.MODEL_NAME} not pulled yet'
+                ),
+                'checked_at': now,
+            })
+        else:
+            results.append({
+                'name': 'Ollama Local LLM',
+                'key': 'ollama',
+                'online': False,
+                'detail': f'Ollama returned HTTP {resp.status_code}',
+                'checked_at': now,
+            })
+    except Exception as exc:
+        results.append({
+            'name': 'Ollama Local LLM',
+            'key': 'ollama',
+            'online': False,
+            'detail': f'Not reachable at {OllamaConfig.OLLAMA_HOST}: {str(exc)[:80]}',
+            'checked_at': now,
+        })
+
+    # ------------------------------------------------------------------
+    # 5. YFinance (Yahoo Finance)
+    # ------------------------------------------------------------------
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker('MSFT')
+        # fast_info raises if there is no connectivity or the symbol is bad
+        price = ticker.fast_info.get('last_price') or ticker.fast_info.get('regularMarketPrice')
+        results.append({
+            'name': 'YFinance (Yahoo Finance)',
+            'key': 'yfinance',
+            'online': True,
+            'detail': f'Reachable – last MSFT price: {price}',
+            'checked_at': now,
+        })
+    except Exception as exc:
+        results.append({
+            'name': 'YFinance (Yahoo Finance)',
+            'key': 'yfinance',
+            'online': False,
+            'detail': f'Error: {str(exc)[:100]}',
+            'checked_at': now,
+        })
+
+    return jsonify({'integrations': results, 'checked_at': now}), 200
+
+
 @system_bp.route('/ui', methods=['GET'])
 @login_required
 def admin_ui():
