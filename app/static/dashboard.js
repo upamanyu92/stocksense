@@ -578,16 +578,17 @@ async function showAddToWatchlist() {
     }
     
     try {
-      const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
-      const suggestions = await response.json();
-      console.log('Suggestions fetched for add to watchlist modal:', suggestions);
-      if (suggestions.length > 0) {
-        dropdown.innerHTML = suggestions.map(stock => `
-          <div class="autocomplete-item" data-symbol="${stock.scrip_code}" data-name="${stock.company_name}">
-            <strong>${stock.company_name}</strong>
+    const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
+    const data = await response.json();
+    const suggestions = Array.isArray(data) ? data : (data.suggestions || []);
+    console.log('Suggestions fetched for add to watchlist modal:', suggestions);
+    if (suggestions.length > 0) {
+      dropdown.innerHTML = suggestions.map(stock => `
+        <div class="autocomplete-item" data-symbol="${stock.scrip_code}" data-name="${stock.company_name}">
+          <strong>${stock.company_name}</strong>
 //            <br><small style="color: var(--text-muted);">${stock.scrip_code} ${stock.company_name ? '- ' + stock.company_name : ''}</small>
-          </div>
-        `).join('');
+        </div>
+      `).join('');
         
         dropdown.style.display = 'block';
         
@@ -819,7 +820,8 @@ async function initStockSearch() {
 async function fetchSuggestions(query, dropdown) {
   try {
     const response = await fetch(`/api/stocks/suggestions?q=${encodeURIComponent(query)}&limit=10`);
-    const suggestions = await response.json();
+    const data = await response.json();
+    const suggestions = Array.isArray(data) ? data : (data.suggestions || []);
     if (suggestions.length > 0) {
       dropdown.innerHTML = suggestions.map(stock => `
         <div class="autocomplete-item" data-symbol="${stock.scrip_code}" data-name="${stock.company_name}">
