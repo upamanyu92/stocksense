@@ -1,38 +1,163 @@
+import json
 import logging
+import os
+import sqlite3
+from typing import Any, Dict, List, Optional
+
 from flask import Blueprint, request, jsonify
+
 from app.utils.util import get_db_connection
-from app.utils.yfinance_utils import search_companies_by_name, get_quote_by_company_name
+from app.utils.yfinance_utils import get_quote_by_company_name, search_companies_by_name
 
 stock_bp = Blueprint('stock', __name__, url_prefix='/api/stocks')
 
 
+def _normalize_quote(quote: Any) -> Optional[Dict[str, Any]]:
+    """Return a consistent, snake_case quote payload for UI consumption."""
+    if not quote:
+        return None
+
+    # Support sqlite Row and plain dict objects
+    data = dict(quote)
+
+    def pick(*keys, default=None):
+        for key in keys:
+            if key in data and data[key] not in (None, ''):
+                return data[key]
+        return default
+
+    security_id = pick('security_id', 'securityID', 'scrip_code', 'scripCode', 'stock_symbol', 'symbol')
+    scrip_code = pick('scrip_code', 'scripCode', 'security_id', 'securityID', 'stock_symbol', 'symbol')
+
+    return {
+        'company_name': pick('company_name', 'companyName', 'name', default=security_id),
+        'security_id': security_id,
+        'scrip_code': scrip_code,
+        'stock_symbol': pick('stock_symbol', 'symbol', default=security_id or scrip_code),
+        'current_value': pick('current_value', 'currentValue', 'current_price', 'currentPrice', 'lastPrice'),
+        'change': pick('change', 'regularMarketChange'),
+        'p_change': pick('p_change', 'pChange', 'regularMarketChangePercent'),
+        'day_high': pick('day_high', 'dayHigh'),
+        'day_low': pick('day_low', 'dayLow'),
+        'industry': pick('industry', 'sector'),
+        'stock_status': pick('stock_status', 'status'),
+        'updated_on': pick('updated_on', 'updatedOn'),
+    }
+
+
+def _find_local_quote(identifier: str) -> Optional[Dict[str, Any]]:
+    """Try to resolve a quote from the local stock_quotes table."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        like_value = f'%{identifier}%'
+        cursor.execute(
+            '''
+            SELECT company_name, security_id, scrip_code, current_value, change, p_change,
+                   day_high, day_low, industry, stock_status, updated_on
+            FROM stock_quotes
+            WHERE company_name LIKE ? OR security_id LIKE ? OR scrip_code LIKE ?
+            ORDER BY company_name ASC
+            LIMIT 1
+            ''',
+            (like_value, like_value, like_value)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return _normalize_quote(row)
+    except Exception as exc:
+        logging.error("Error fetching local quote: %s", exc, exc_info=True)
+    return None
+
+
+def _collect_suggestions(cursor, query: str, limit: int) -> List[Dict[str, str]]:
+    """Return suggestions from stock_quotes and STK with graceful fallbacks."""
+    like_value = f'%{query}%'
+
+    # Primary: stock_quotes (already populated by ETL)
+    cursor.execute(
+        '''
+        SELECT company_name, security_id, scrip_code
+        FROM stock_quotes
+        WHERE company_name LIKE ? OR security_id LIKE ? OR scrip_code LIKE ?
+        ORDER BY company_name ASC
+        LIMIT ?
+        ''',
+        (like_value, like_value, like_value, limit)
+    )
+    rows = cursor.fetchall()
+    if rows:
+        return [
+            {
+                'company_name': row['company_name'],
+                'scrip_code': row['security_id'] or row['scrip_code'],
+                'security_id': row['security_id']
+            }
+            for row in rows
+        ]
+
+    # Fallback: STK master table
+    cursor.execute(
+        '''
+        SELECT company_name, scrip_code
+        FROM STK
+        WHERE company_name LIKE ? OR scrip_code LIKE ?
+        ORDER BY company_name ASC
+        LIMIT ?
+        ''',
+        (like_value, like_value, limit)
+    )
+    rows = cursor.fetchall()
+    if rows:
+        return [
+            {
+                'company_name': row['company_name'],
+                'scrip_code': row['scrip_code'],
+                'security_id': row['scrip_code']
+            }
+            for row in rows
+        ]
+
+    # Fallback: static stk.json when DB tables are empty (first-run experience)
+    try:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        static_stk_path = os.path.join(base_dir, 'static', 'stk.json')
+        if os.path.exists(static_stk_path):
+            with open(static_stk_path, 'r', encoding='utf-8') as f:
+                stk_data = json.load(f)
+            # Filter by query
+            matched = [
+                {'company_name': name, 'scrip_code': code, 'security_id': code}
+                for code, name in stk_data.items()
+                if query.lower() in name.lower() or query.lower() in str(code).lower()
+            ]
+            return matched[:limit]
+    except Exception as exc:
+        logging.error("Failed to load fallback STK data: %s", exc, exc_info=True)
+
+    return []
+
+
 @stock_bp.route('suggestions', methods=['GET'])
 def get_stock_suggestions():
-    """Get stock suggestions based on query parameter 'q'"""
+    """Get stock suggestions based on query parameter 'q'."""
     query = request.args.get('q', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+    limit = max(1, min(limit, 25))  # prevent abuse
+
     if not query:
         return jsonify({'error': 'Query parameter "q" is required'}), 400
 
     try:
         conn = get_db_connection()
+        conn.row_factory = sqlite3.Row  # ensure named access
         cursor = conn.cursor()
 
-        # Use parameterized query to prevent SQL injection
-        cursor.execute('''
-            SELECT company_name, scrip_code
-            FROM STK
-            WHERE company_name LIKE ?
-            ORDER BY company_name ASC
-            LIMIT 10
-        ''', (f'%{query}%',))
-
-        rows = cursor.fetchall()
+        suggestions = _collect_suggestions(cursor, query, limit)
         conn.close()
 
-        suggestions = [{'company_name': row[0], 'scrip_code': row[1]} for row in rows]
-        logging.info(suggestions)
-
-        return suggestions, 200
+        return jsonify({'suggestions': suggestions, 'count': len(suggestions)}), 200
 
     except Exception as e:
         logging.error(f"Error fetching stock suggestions: {e}", exc_info=True)
@@ -41,17 +166,7 @@ def get_stock_suggestions():
 
 @stock_bp.route('/search', methods=['GET'])
 def search_stocks():
-    """
-    Search for companies by name using yfinance Search API.
-
-    Query parameters:
-    - q (required): Company name to search for
-    - max_results (optional): Maximum number of results (default: 10)
-    - indian_only (optional): Filter to Indian stocks only (default: true)
-
-    Returns:
-        List of search results with symbol, name, exchange, type, etc.
-    """
+    """Search companies by name using local data first, then external APIs."""
     company_name = request.args.get('q', '').strip()
     if not company_name:
         return jsonify({'error': 'Query parameter "q" (company name) is required'}), 400
@@ -64,13 +179,34 @@ def search_stocks():
         if max_results < 1 or max_results > 50:
             return jsonify({'error': 'max_results must be between 1 and 50'}), 400
 
-        results = search_companies_by_name(
-            company_name=company_name,
-            max_results=max_results,
-            indian_only=indian_only,
-            max_retries=3,
-            delay=1
-        )
+        # First, try local DB to avoid API latency and missing results
+        conn = get_db_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        local_matches = _collect_suggestions(cursor, company_name, max_results)
+        conn.close()
+
+        results = local_matches
+
+        # Fallback to external search if nothing local
+        if not results:
+            api_results = search_companies_by_name(
+                company_name=company_name,
+                max_results=max_results,
+                indian_only=indian_only,
+                max_retries=3,
+                delay=1
+            )
+            results = [
+                {
+                    'company_name': r.get('name') or r.get('company_name'),
+                    'scrip_code': r.get('symbol'),
+                    'security_id': r.get('symbol'),
+                    'exchange': r.get('exchange'),
+                    'type': r.get('type')
+                }
+                for r in api_results
+            ]
 
         return jsonify({
             'query': company_name,
@@ -118,7 +254,7 @@ def get_quote_by_name():
         if quote:
             return jsonify({
                 'success': True,
-                'quote': quote
+                'quote': _normalize_quote(quote)
             }), 200
         else:
             return jsonify({
@@ -129,6 +265,33 @@ def get_quote_by_name():
     except Exception as e:
         logging.error(f"Error fetching quote by company name: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
+
+@stock_bp.route('/lookup', methods=['GET'])
+def lookup_stock():
+    """
+    Lookup a stock by identifier (symbol, security_id, or company name).
+    Uses local database first for instant responses, then external quote fetch.
+    """
+    identifier = request.args.get('id') or request.args.get('symbol') or ''
+    identifier = identifier.strip()
+    if not identifier:
+        return jsonify({'success': False, 'error': 'Query parameter \"id\" is required'}), 400
+
+    # Local lookup first
+    local_quote = _find_local_quote(identifier)
+    if local_quote:
+        return jsonify({'success': True, 'quote': local_quote, 'source': 'local'}), 200
+
+    # Fallback: try external resolution by treating identifier as company name
+    try:
+        quote = get_quote_by_company_name(company_name=identifier, max_search_results=5)
+        if quote:
+            return jsonify({'success': True, 'quote': _normalize_quote(quote), 'source': 'external'}), 200
+        return jsonify({'success': False, 'error': f'Could not find quote for {identifier}'}), 404
+    except Exception as exc:
+        logging.error("Error looking up stock %s: %s", identifier, exc, exc_info=True)
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 @stock_bp.route('/list', methods=['GET'])
