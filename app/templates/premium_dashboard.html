@@ -11,7 +11,7 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/premium.css') }}?v=2.0">
 </head>
 <body data-username="{{ username }}">
 
@@ -49,14 +49,25 @@
                     <span class="sidebar-badge">AI</span>
                 </a>
 
+                <a href="#" class="sidebar-link" data-section="section-stockdetail">
+                    <span class="sidebar-link-icon"><i class="fas fa-chart-candlestick"></i></span>
+                    <span class="sidebar-link-label">Stock Detail</span>
+                </a>
+
                 <a href="#" class="sidebar-link" data-section="section-portfolio">
                     <span class="sidebar-link-icon"><i class="fas fa-briefcase"></i></span>
                     <span class="sidebar-link-label">Portfolio</span>
                 </a>
 
+                <a href="#" class="sidebar-link" data-section="section-risk">
+                    <span class="sidebar-link-icon"><i class="fas fa-shield-halved"></i></span>
+                    <span class="sidebar-link-label">Risk Meter</span>
+                </a>
+
                 <a href="#" class="sidebar-link" data-section="section-alerts">
                     <span class="sidebar-link-icon"><i class="fas fa-bell"></i></span>
                     <span class="sidebar-link-label">Alerts</span>
+                    <span id="alertsBadge" class="sidebar-badge" hidden></span>
                 </a>
 
                 <a href="#" class="sidebar-link" data-section="section-alpha-vantage">
@@ -508,6 +519,168 @@
                         </div>
                     </section>
 
+                    <!-- ── Stock Detail Panel (Expandable) ── -->
+                    <section id="section-stockdetail" class="dashboard-section full-width stock-detail-section">
+                        <!-- Kill Criteria Banner (slides in when triggered) -->
+                        <div id="killBanner" class="kill-banner" hidden>
+                            <div class="kill-banner-inner">
+                                <span class="kill-banner-icon"><i class="fas fa-triangle-exclamation"></i></span>
+                                <div class="kill-banner-text">
+                                    <strong id="killBannerTitle">Kill Criterion Triggered</strong>
+                                    <span id="killBannerMsg">AI has detected a critical risk signal for this stock</span>
+                                </div>
+                                <div class="kill-banner-actions">
+                                    <button class="kill-btn-paper" onclick="window.PremiumDashboard.openPaperTrade()">
+                                        <i class="fas fa-flask"></i> Simulate Exit
+                                    </button>
+                                    <button class="kill-btn-debate" onclick="window.PremiumDashboard.scrollToDebate()">
+                                        <i class="fas fa-comments"></i> Bear's Argument
+                                    </button>
+                                    <button class="kill-banner-close" onclick="document.getElementById('killBanner').setAttribute('hidden','')">
+                                        <i class="fas fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="kill-banner-trust">
+                                <i class="fas fa-shield-check"></i> Verified via NSE Real-Time Feed &bull; Not financial advice
+                            </div>
+                        </div>
+
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-chart-candlestick"></i>
+                                Stock Detail — <span id="detailStockName">Select a stock</span>
+                            </h2>
+                            <div class="detail-header-actions">
+                                <div class="chart-timeframe-tabs" id="chartTimeTabs">
+                                    <button class="chart-tab active" data-period="1mo" data-interval="1d">1M</button>
+                                    <button class="chart-tab" data-period="3mo" data-interval="1d">3M</button>
+                                    <button class="chart-tab" data-period="6mo" data-interval="1d">6M</button>
+                                    <button class="chart-tab" data-period="1y" data-interval="1wk">1Y</button>
+                                </div>
+                                <button class="card-section-action" onclick="window.PremiumDashboard.openPaperTrade()">
+                                    <i class="fas fa-flask"></i> Paper Trade
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Candlestick Chart -->
+                        <div class="glass-card candlestick-wrapper">
+                            <div id="candlestickChart" class="candlestick-container">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-chart-candlestick"></i>
+                                    <p>Search for a stock or click "View Full Analysis" on a prediction card</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Indicators + Agent Debate Row -->
+                        <div class="detail-lower-row">
+                            <!-- Technical Indicators -->
+                            <div class="glass-card detail-card">
+                                <div class="detail-card-header">
+                                    <h3><i class="fas fa-sliders"></i> Technical Indicators</h3>
+                                    <span id="techOverallSignal" class="tech-overall-badge">—</span>
+                                </div>
+                                <div id="techIndicatorsContainer" class="tech-indicators-body">
+                                    <div class="tech-placeholder">
+                                        <i class="fas fa-sliders"></i>
+                                        <p>Select a stock to see indicators</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Agent Reasoning Debate -->
+                            <div class="glass-card detail-card" id="agentDebateCard">
+                                <div class="detail-card-header">
+                                    <h3><i class="fas fa-comments"></i> Agent Debate</h3>
+                                    <span class="debate-live-badge"><span class="pulse-dot"></span> AI Analysis</span>
+                                </div>
+                                <!-- Sentiment Summary Gauge -->
+                                <div id="debateSentimentGauge" class="debate-sentiment-gauge">
+                                    <div class="debate-gauge-ring">
+                                        <svg viewBox="0 0 120 60" class="gauge-svg" aria-hidden="true">
+                                            <path d="M10,60 A50,50 0 0,1 110,60" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>
+                                            <path id="gaugeFill" d="M10,60 A50,50 0 0,1 110,60" fill="none" stroke="#ffaa00" stroke-width="10" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="79"/>
+                                        </svg>
+                                        <div class="gauge-center-text">
+                                            <span id="gaugeLabel" class="gauge-label">—</span>
+                                            <span id="gaugeConf" class="gauge-conf">Loading</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Debate Thread -->
+                                <div id="agentDebateContainer" class="debate-thread">
+                                    <div class="debate-placeholder">
+                                        <i class="fas fa-robot"></i>
+                                        <p>Select a stock to see the agent debate</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Portfolio Risk Meter ── -->
+                    <section id="section-risk" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-shield-halved"></i> Portfolio Risk Meter
+                            </h2>
+                            <span class="sidebar-badge">AI Scoring</span>
+                        </div>
+                        <div id="riskMeterContainer" class="risk-meter-layout glass-card">
+                            <div class="risk-gauge-col">
+                                <svg class="risk-ring-svg" viewBox="0 0 200 200" aria-label="Risk meter ring">
+                                    <circle class="risk-ring-track" cx="100" cy="100" r="80" fill="none" stroke-width="14"/>
+                                    <circle id="riskRingFill" class="risk-ring-fill" cx="100" cy="100" r="80" fill="none" stroke-width="14"
+                                        stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"
+                                        transform="rotate(-90 100 100)"/>
+                                </svg>
+                                <div class="risk-ring-center">
+                                    <span id="riskScore" class="risk-score-number">—</span>
+                                    <span id="riskLabel" class="risk-score-label">Loading</span>
+                                </div>
+                            </div>
+                            <div class="risk-breakdown-col" id="riskBreakdown">
+                                <div class="risk-message" id="riskMessage"></div>
+                                <div class="risk-breakdown-list" id="riskBreakdownList">
+                                    <div class="skeleton skeleton-text" style="margin-bottom:8px;"></div>
+                                    <div class="skeleton skeleton-text" style="margin-bottom:8px;"></div>
+                                    <div class="skeleton skeleton-text" style="margin-bottom:8px;"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Alerts Feed ── -->
+                    <section id="section-alerts" class="dashboard-section full-width">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-bell"></i> Alerts &amp; Notifications
+                            </h2>
+                            <button class="card-section-action" data-action="add-trade">
+                                <i class="fas fa-plus"></i> Add Trade
+                            </button>
+                        </div>
+                        <div id="alertsFeedContainer" class="alerts-feed glass-card" data-skeleton-count="4">
+                            <div class="alert-feed-item skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="alert-feed-body">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                            <div class="alert-feed-item skeleton-card">
+                                <div class="skeleton skeleton-avatar"></div>
+                                <div class="alert-feed-body">
+                                    <div class="skeleton skeleton-heading"></div>
+                                    <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
                 </div><!-- /.dashboard-content -->
             </div><!-- /#mainContent -->
         </div><!-- /.main-wrapper -->
@@ -610,13 +783,59 @@
         </div>
     </div>
 
+    <!-- ========== PAPER TRADE SIMULATION MODAL ========== -->
+    <div id="paperTradeModal" class="trade-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="trade-modal-body paper-modal-body">
+            <div class="trade-modal-header">
+                <h3 class="trade-modal-title">
+                    <i class="fas fa-flask" style="color:#00d4ff;"></i> Simulate Exit
+                    <span class="paper-mode-badge">Simulation Mode</span>
+                </h3>
+                <button id="paperTradeClose" class="trade-modal-close" aria-label="Close">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="paper-trade-disclaimer">
+                <i class="fas fa-shield-check"></i>
+                <span>This is a simulation only. No real trade will be executed. <strong>Verified via NSE Real-Time Feed.</strong></span>
+            </div>
+
+            <form id="paperTradeForm" autocomplete="off">
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="paperSymbol">Symbol</label>
+                    <input type="text" id="paperSymbol" class="trade-input" placeholder="e.g. TCS" required>
+                </div>
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="paperQty">Quantity</label>
+                    <input type="number" id="paperQty" class="trade-input" placeholder="0" min="1" step="1">
+                </div>
+                <div class="trade-input-group">
+                    <label class="trade-input-label" for="paperPrice">Exit Price (optional)</label>
+                    <input type="number" id="paperPrice" class="trade-input" placeholder="Leave blank to use current price" min="0" step="0.01">
+                </div>
+
+                <div id="paperTradeResult" class="paper-result" hidden></div>
+
+                <div class="trade-modal-footer">
+                    <button type="button" id="paperTradeClose2" class="trade-modal-close">Cancel</button>
+                    <button type="submit" id="paperTradeSubmit" class="trade-submit-btn" style="background:rgba(0,212,255,0.15);color:#00d4ff;border-color:rgba(0,212,255,0.3);">
+                        <i class="fas fa-calculator"></i> Run Simulation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- ========== TOAST CONTAINER ========== -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
     <!-- ========== SCRIPTS ========== -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/premium_dashboard.js') }}"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="{{ url_for('static', filename='js/premium_dashboard.js') }}?v=2.0"></script>
 
     <!-- ========== ALPHA VANTAGE DATA HUB SCRIPTS ========== -->
     <script>

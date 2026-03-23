@@ -3100,3 +3100,896 @@ a:hover {
     background: rgba(255, 255, 255, 0.06);
   }
 }
+
+/* ==========================================================================
+   25. Stock Detail Panel — Candlestick, Indicators, Agent Debate
+   ========================================================================== */
+
+.stock-detail-section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-lg);
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Candlestick chart wrapper */
+.candlestick-wrapper {
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.candlestick-container {
+  width: 100%;
+  height: 380px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: transparent;
+}
+
+.chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-sm);
+  color: var(--text-muted);
+}
+
+.chart-placeholder i {
+  font-size: 2.5rem;
+  opacity: 0.4;
+}
+
+/* Detail lower row: indicators + debate side by side */
+.detail-lower-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+@media (max-width: 900px) {
+  .detail-lower-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-card {
+  padding: var(--space-lg);
+  min-height: 360px;
+}
+
+.detail-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-card-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tech-placeholder,
+.debate-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  gap: var(--space-sm);
+}
+
+.tech-placeholder i,
+.debate-placeholder i {
+  font-size: 2rem;
+  opacity: 0.35;
+}
+
+/* ==========================================================================
+   26. Technical Indicators Grid
+   ========================================================================== */
+
+.tech-overall-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 170, 0, 0.12);
+  color: var(--color-warning);
+  border: 1px solid rgba(255, 170, 0, 0.2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tech-overall-badge.bullish {
+  background: rgba(0, 255, 135, 0.12);
+  color: var(--color-profit);
+  border-color: rgba(0, 255, 135, 0.25);
+}
+
+.tech-overall-badge.bearish {
+  background: rgba(255, 71, 87, 0.12);
+  color: var(--color-loss);
+  border-color: rgba(255, 71, 87, 0.25);
+}
+
+.tech-indicators-body {
+  overflow-y: auto;
+  max-height: 420px;
+}
+
+.tech-indicators-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.tech-indicator-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid rgba(255, 255, 255, 0.1);
+  transition: background var(--transition-fast);
+}
+
+.tech-indicator-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tech-indicator-card.tech-bullish {
+  border-left-color: var(--color-profit);
+  background: rgba(0, 255, 135, 0.04);
+}
+
+.tech-indicator-card.tech-bearish {
+  border-left-color: var(--color-loss);
+  background: rgba(255, 71, 87, 0.04);
+}
+
+.tech-indicator-card.tech-neutral {
+  border-left-color: var(--color-warning);
+}
+
+.tech-ind-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 4px;
+}
+
+.tech-ind-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tech-ind-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tech-ind-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tech-ind-plain {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+  line-height: 1.4;
+}
+
+.tech-ind-why {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   27. Agent Debate Thread
+   ========================================================================== */
+
+.debate-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-ai);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.pulse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-ai);
+  animation: pulseDot 1.5s ease infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Sentiment Gauge (half-donut) */
+.debate-sentiment-gauge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+.debate-gauge-ring {
+  position: relative;
+  width: 160px;
+  height: 80px;
+}
+
+.gauge-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gauge-center-text {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  line-height: 1.1;
+}
+
+.gauge-label {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.gauge-conf {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+/* Debate messages */
+.debate-thread {
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.debate-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.debate-message-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.debate-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.debate-bubble {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.debate-bubble-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.debate-agent-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.debate-stance-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.debate-evidence-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  margin-left: auto;
+}
+
+.debate-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.debate-args {
+  margin: 0;
+  padding-left: var(--space-md);
+  list-style: disc;
+}
+
+.debate-args li {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.debate-conf-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.debate-conf-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.debate-conf-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.8s var(--ease-out-expo);
+}
+
+.debate-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 215, 0, 0.06);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.debate-verdict-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   28. Portfolio Risk Meter Ring
+   ========================================================================== */
+
+.risk-meter-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: var(--space-xl);
+  padding: var(--space-xl);
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .risk-meter-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.risk-gauge-col {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.risk-ring-svg {
+  width: 200px;
+  height: 200px;
+}
+
+.risk-ring-track {
+  stroke: rgba(255, 255, 255, 0.07);
+}
+
+.risk-ring-fill {
+  stroke: var(--color-warning);
+  transition: stroke-dashoffset 1s var(--ease-out-expo), stroke 0.5s ease;
+  stroke-linecap: round;
+}
+
+.risk-ring-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.risk-score-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+.risk-score-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.risk-breakdown-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.risk-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  padding: var(--space-sm) 0;
+}
+
+.risk-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.risk-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.risk-breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-breakdown-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.risk-breakdown-score {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-breakdown-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.risk-breakdown-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.8s var(--ease-out-expo);
+}
+
+.risk-breakdown-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   29. Kill Criteria Banner
+   ========================================================================== */
+
+.kill-banner {
+  background: rgba(255, 71, 87, 0.08);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-lg);
+  animation: killBannerPulse 2s ease infinite;
+}
+
+@keyframes killBannerPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 71, 87, 0.12); }
+}
+
+.kill-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.kill-banner-icon {
+  font-size: 1.4rem;
+  color: var(--color-loss);
+  flex-shrink: 0;
+  animation: killIconPulse 1s ease infinite;
+}
+
+@keyframes killIconPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.kill-banner-text {
+  flex: 1;
+  min-width: 180px;
+}
+
+.kill-banner-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--color-loss);
+  margin-bottom: 2px;
+}
+
+.kill-banner-text span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.kill-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.kill-btn-paper,
+.kill-btn-debate {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kill-btn-paper {
+  background: rgba(0, 212, 255, 0.1);
+  color: #00d4ff;
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.kill-btn-paper:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.kill-btn-debate {
+  background: rgba(255, 71, 87, 0.1);
+  color: var(--color-loss);
+  border-color: rgba(255, 71, 87, 0.3);
+}
+
+.kill-btn-debate:hover {
+  background: rgba(255, 71, 87, 0.2);
+}
+
+.kill-banner-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color var(--transition-fast);
+}
+
+.kill-banner-close:hover {
+  color: var(--color-loss);
+}
+
+.kill-banner-trust {
+  margin-top: var(--space-xs);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ==========================================================================
+   30. Alerts Feed
+   ========================================================================== */
+
+.alerts-feed {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.alert-feed-item {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid rgba(255, 255, 255, 0.06);
+  transition: background var(--transition-fast);
+}
+
+.alert-feed-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.alert-feed-item.severity-high {
+  border-left-color: var(--color-loss);
+  background: rgba(255, 71, 87, 0.04);
+}
+
+.alert-feed-item.severity-medium {
+  border-left-color: var(--color-warning);
+  background: rgba(255, 170, 0, 0.04);
+}
+
+.alert-feed-item.severity-low {
+  border-left-color: var(--color-ai);
+}
+
+.alert-feed-item.severity-critical {
+  border-left-color: #ff0040;
+  background: rgba(255, 0, 64, 0.06);
+  animation: criticalPulse 2s ease infinite;
+}
+
+.alert-feed-item.kill-item {
+  border-left-width: 4px;
+}
+
+@keyframes criticalPulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: inset 0 0 0 1px rgba(255, 0, 64, 0.12); }
+}
+
+.alert-feed-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 20px;
+  text-align: center;
+}
+
+.alert-feed-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-feed-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: 4px;
+}
+
+.alert-feed-symbol {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alert-feed-type {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kill-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 71, 87, 0.15);
+  color: var(--color-loss);
+  border: 1px solid rgba(255, 71, 87, 0.25);
+}
+
+.alert-feed-msg {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.alert-feed-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.alert-paper-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 212, 255, 0.1);
+  color: #00d4ff;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background var(--transition-fast);
+  font-family: inherit;
+}
+
+.alert-paper-btn:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+/* ==========================================================================
+   31. Paper Trade Simulation Modal
+   ========================================================================== */
+
+.paper-modal-body {
+  max-width: 520px;
+}
+
+.paper-mode-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 212, 255, 0.12);
+  color: #00d4ff;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  margin-left: var(--space-sm);
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+}
+
+.paper-trade-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(0, 212, 255, 0.06);
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.paper-trade-disclaimer i {
+  color: #00d4ff;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.paper-result {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+.paper-result-inner {
+  padding: var(--space-md);
+}
+
+.paper-result-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.paper-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.paper-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.paper-stat span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.paper-stat strong {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.paper-recommendation {
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.paper-disclaimer {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding: var(--space-sm);
+  border-top: 1px solid var(--border-subtle);
+}
+

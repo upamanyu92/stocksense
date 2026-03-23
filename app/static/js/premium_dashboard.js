@@ -473,8 +473,532 @@
   }
 
   function viewPrediction(symbol) {
-    window.location.href = '/stocks?symbol=' + encodeURIComponent(symbol);
+    currentDetailSymbol = symbol;
+    var section = document.getElementById('section-stockdetail');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var nameEl = document.getElementById('detailStockName');
+    if (nameEl) nameEl.textContent = symbol;
+    // Load all detail panels
+    loadCandlestick(symbol, currentChartPeriod, currentChartInterval);
+    loadTechnicalIndicators(symbol);
+    loadAgentDebate(symbol);
+    checkKillCriteria(symbol);
+    // Update sidebar active
+    document.querySelectorAll('[data-section]').forEach(function (l) { l.classList.remove('active'); });
+    var detailLink = document.querySelector('[data-section="section-stockdetail"]');
+    if (detailLink) detailLink.classList.add('active');
   }
+
+  // ---------------------------------------------------------------------------
+  // Stock detail state
+  // ---------------------------------------------------------------------------
+  var currentDetailSymbol = null;
+  var currentChartPeriod = '3mo';
+  var currentChartInterval = '1d';
+  var lwChart = null;
+  var lwCandleSeries = null;
+  var lwLineSeries = null;
+
+  // ---------------------------------------------------------------------------
+  // NEW: Candlestick chart (TradingView Lightweight Charts)
+  // ---------------------------------------------------------------------------
+
+  function initChartTimeTabs() {
+    var tabs = document.querySelectorAll('#chartTimeTabs .chart-tab');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        currentChartPeriod = tab.getAttribute('data-period');
+        currentChartInterval = tab.getAttribute('data-interval');
+        if (currentDetailSymbol) {
+          loadCandlestick(currentDetailSymbol, currentChartPeriod, currentChartInterval);
+        }
+      });
+    });
+  }
+
+  async function loadCandlestick(symbol, period, interval) {
+    var container = document.getElementById('candlestickChart');
+    if (!container) return;
+    period = period || '3mo';
+    interval = interval || '1d';
+
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:360px;color:#666;"><i class="fas fa-spinner fa-spin" style="font-size:28px;"></i></div>';
+
+    var data = await apiFetch('/api/dashboard/candlestick/' + encodeURIComponent(symbol) + '?period=' + period + '&interval=' + interval);
+    if (!data || !data.success || !data.candles || data.candles.length === 0) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:360px;color:#888;flex-direction:column;gap:10px;"><i class="fas fa-chart-line" style="font-size:36px;"></i><p>No chart data available</p></div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    container.style.height = '380px';
+
+    // Use LightweightCharts if available
+    if (typeof LightweightCharts !== 'undefined') {
+      if (lwChart) {
+        try { lwChart.remove(); } catch (e) {}
+        lwChart = null;
+      }
+
+      lwChart = LightweightCharts.createChart(container, {
+        width: container.clientWidth || 800,
+        height: 380,
+        layout: {
+          background: { color: 'transparent' },
+          textColor: '#a0a0b8',
+        },
+        grid: {
+          vertLines: { color: 'rgba(255,255,255,0.04)' },
+          horzLines: { color: 'rgba(255,255,255,0.04)' },
+        },
+        crosshair: {
+          mode: LightweightCharts.CrosshairMode.Normal,
+          vertLine: { color: 'rgba(0,212,255,0.4)', width: 1, style: 3 },
+          horzLine: { color: 'rgba(0,212,255,0.4)', width: 1, style: 3 },
+        },
+        rightPriceScale: {
+          borderColor: 'rgba(255,255,255,0.08)',
+        },
+        timeScale: {
+          borderColor: 'rgba(255,255,255,0.08)',
+          timeVisible: true,
+        },
+      });
+
+      lwCandleSeries = lwChart.addCandlestickSeries({
+        upColor: '#00ff87',
+        downColor: '#ff4757',
+        borderUpColor: '#00ff87',
+        borderDownColor: '#ff4757',
+        wickUpColor: '#00ff87',
+        wickDownColor: '#ff4757',
+      });
+
+      var candleData = data.candles.map(function (c) {
+        return { time: c.x, open: c.o, high: c.h, low: c.l, close: c.c };
+      });
+      lwCandleSeries.setData(candleData);
+
+      // SMA-20 overlay
+      var smaData = data.sma20.filter(function (s) { return s.y !== null; }).map(function (s) {
+        return { time: s.x, value: s.y };
+      });
+      if (smaData.length > 0) {
+        lwLineSeries = lwChart.addLineSeries({
+          color: 'rgba(0,212,255,0.7)',
+          lineWidth: 1.5,
+          title: 'SMA 20',
+          priceLineVisible: false,
+        });
+        lwLineSeries.setData(smaData);
+      }
+
+      lwChart.timeScale().fitContent();
+
+      // Responsive resize
+      var resizeObs = new ResizeObserver(function () {
+        if (lwChart && container) {
+          lwChart.resize(container.clientWidth, 380);
+        }
+      });
+      resizeObs.observe(container);
+    } else {
+      // Fallback: Chart.js line chart
+      var canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width:100%;height:360px;';
+      container.appendChild(canvas);
+      var closes = data.candles.map(function (c) { return c.c; });
+      var labels = data.candles.map(function (c) { return c.x; });
+      var existing = Chart.getChart(canvas);
+      if (existing) existing.destroy();
+      new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: symbol,
+            data: closes,
+            borderColor: '#00d4ff',
+            borderWidth: 2,
+            fill: true,
+            backgroundColor: 'rgba(0,212,255,0.06)',
+            tension: 0.3,
+            pointRadius: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#666', maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { ticks: { color: '#666' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+          }
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Technical indicators with plain-English translation
+  // ---------------------------------------------------------------------------
+
+  async function loadTechnicalIndicators(symbol) {
+    var container = document.getElementById('techIndicatorsContainer');
+    var badge = document.getElementById('techOverallSignal');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#666;"><i class="fas fa-spinner fa-spin"></i></div>';
+
+    var data = await apiFetch('/api/dashboard/technical-indicators/' + encodeURIComponent(symbol));
+    if (!data || !data.success || !data.indicators) {
+      container.innerHTML = '<div style="color:#888;text-align:center;padding:16px;">No indicator data available</div>';
+      return;
+    }
+
+    // Update overall badge
+    if (badge) {
+      badge.textContent = data.overall_signal || '—';
+      badge.className = 'tech-overall-badge';
+      if (data.overall_signal === 'Bullish') badge.classList.add('bullish');
+      else if (data.overall_signal === 'Bearish') badge.classList.add('bearish');
+    }
+
+    var html = '<div class="tech-indicators-grid">';
+    data.indicators.forEach(function (ind) {
+      var signalClass = ind.signal === 'bullish' ? 'tech-bullish' : ind.signal === 'bearish' ? 'tech-bearish' : 'tech-neutral';
+      var signalColor = ind.signal === 'bullish' ? '#00ff87' : ind.signal === 'bearish' ? '#ff4757' : '#ffaa00';
+      html += '<div class="tech-indicator-card ' + signalClass + '">' +
+        '<div class="tech-ind-header">' +
+        '<span class="tech-ind-emoji">' + escapeHtml(ind.emoji) + '</span>' +
+        '<span class="tech-ind-name">' + escapeHtml(ind.name) + '</span>' +
+        '<span class="tech-ind-value" style="color:' + signalColor + ';">' + ind.value + '</span>' +
+        '</div>' +
+        '<div class="tech-ind-plain">' + escapeHtml(ind.plain_english) + '</div>' +
+        '<div class="tech-ind-why"><i class="fas fa-circle-info" style="color:#3b82f6;font-size:10px;"></i> ' + escapeHtml(ind.why) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Agent Debate (Bull / Bear / Skeptic)
+  // ---------------------------------------------------------------------------
+
+  async function loadAgentDebate(symbol) {
+    var container = document.getElementById('agentDebateContainer');
+    var gaugeLabel = document.getElementById('gaugeLabel');
+    var gaugeConf = document.getElementById('gaugeConf');
+    var gaugeFill = document.getElementById('gaugeFill');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#666;"><i class="fas fa-spinner fa-spin"></i></div>';
+
+    var data = await apiFetch('/api/dashboard/agent-reasoning/' + encodeURIComponent(symbol));
+    if (!data || !data.success || !data.debate) {
+      container.innerHTML = '<div style="color:#888;text-align:center;padding:16px;">No agent analysis available</div>';
+      return;
+    }
+
+    var d = data.debate;
+
+    // Update gauge
+    if (gaugeLabel) {
+      gaugeLabel.textContent = d.verdict || '—';
+      gaugeLabel.style.color = d.verdict === 'Bull' ? '#00ff87' : d.verdict === 'Bear' ? '#ff4757' : '#ffaa00';
+    }
+    if (gaugeConf) {
+      gaugeConf.textContent = d.verdict_summary || '';
+    }
+    if (gaugeFill) {
+      var bullAgent = d.agents.find(function (a) { return a.id === 'bull'; });
+      var bearAgent = d.agents.find(function (a) { return a.id === 'bear'; });
+      var bullConf = bullAgent ? bullAgent.confidence_pct : 50;
+      var bearConf = bearAgent ? bearAgent.confidence_pct : 50;
+      var netBullish = (bullConf - bearConf + 100) / 200;  // 0-1
+      var circumference = 157;
+      var offset = circumference - (netBullish * circumference);
+      gaugeFill.style.strokeDashoffset = offset;
+      gaugeFill.style.stroke = netBullish > 0.6 ? '#00ff87' : netBullish < 0.4 ? '#ff4757' : '#ffaa00';
+    }
+
+    // Build debate thread
+    var html = '<div class="debate-messages">';
+    d.agents.forEach(function (agent) {
+      var agentClass = 'debate-' + agent.id;
+      var gradeColors = { 'High': '#00ff87', 'Medium': '#ffaa00', 'Low': '#ff4757' };
+      var gradeColor = gradeColors[agent.evidence_grade] || '#aaa';
+
+      html += '<div class="debate-message-row ' + agentClass + '">' +
+        '<div class="debate-avatar" style="background:' + agent.color + '18;border:1px solid ' + agent.color + '40;">' +
+        escapeHtml(agent.avatar) + '</div>' +
+        '<div class="debate-bubble" style="border-left:3px solid ' + agent.color + ';">' +
+        '<div class="debate-bubble-header">' +
+        '<span class="debate-agent-name" style="color:' + agent.color + ';">' + escapeHtml(agent.name) + '</span>' +
+        '<span class="debate-stance-badge" style="background:' + agent.color + '18;color:' + agent.color + ';">' + escapeHtml(agent.stance) + '</span>' +
+        '<span class="debate-evidence-badge" style="color:' + gradeColor + ';border-color:' + gradeColor + '40;">' +
+        '<i class="fas fa-check-circle" style="font-size:9px;"></i> ' + escapeHtml(agent.evidence_grade) + ' Confidence' +
+        ' &bull; ' + agent.evidence_sources + ' Sources</span>' +
+        '</div>' +
+        '<p class="debate-summary">' + escapeHtml(agent.summary) + '</p>' +
+        '<ul class="debate-args">';
+      agent.arguments.forEach(function (arg) {
+        html += '<li>' + escapeHtml(arg) + '</li>';
+      });
+      html += '</ul>' +
+        '<div class="debate-conf-bar">' +
+        '<span style="font-size:11px;color:#777;">Conviction</span>' +
+        '<div class="debate-conf-track"><div class="debate-conf-fill" style="width:' + agent.confidence_pct + '%;background:' + agent.color + ';"></div></div>' +
+        '<span style="font-size:11px;color:' + agent.color + ';">' + agent.confidence_pct + '%</span>' +
+        '</div>' +
+        '</div></div>';
+    });
+    html += '</div>';
+
+    // Verdict summary
+    html += '<div class="debate-verdict">' +
+      '<i class="fas fa-gavel" style="color:#ffd700;"></i>' +
+      '<span class="debate-verdict-text">' + escapeHtml(d.verdict_summary) + '</span>' +
+      '</div>';
+
+    container.innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Portfolio Risk Meter
+  // ---------------------------------------------------------------------------
+
+  async function loadRiskMeter() {
+    var data = await apiFetch('/api/dashboard/risk-meter');
+    var scoreEl = document.getElementById('riskScore');
+    var labelEl = document.getElementById('riskLabel');
+    var fillEl = document.getElementById('riskRingFill');
+    var msgEl = document.getElementById('riskMessage');
+    var breakdownEl = document.getElementById('riskBreakdownList');
+
+    if (!data || !data.success || !data.risk) {
+      if (scoreEl) scoreEl.textContent = '—';
+      if (labelEl) labelEl.textContent = 'No Data';
+      return;
+    }
+
+    var r = data.risk;
+    var score = r.score || 0;
+
+    // Animate ring
+    if (fillEl) {
+      var circumference = 502;
+      var offset = circumference - (score / 100) * circumference;
+      fillEl.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.16,1,0.3,1)';
+      fillEl.style.stroke = r.color || '#ffaa00';
+      fillEl.style.strokeDashoffset = offset;
+    }
+    if (scoreEl) scoreEl.textContent = score;
+    if (labelEl) {
+      labelEl.textContent = r.label || '—';
+      labelEl.style.color = r.color || '#ffaa00';
+    }
+    if (msgEl) {
+      msgEl.innerHTML = '<span style="color:' + (r.color || '#aaa') + ';">' +
+        escapeHtml(r.icon || '') + ' ' + escapeHtml(r.message || '') + '</span>';
+    }
+
+    if (breakdownEl && r.breakdown) {
+      var html = '';
+      r.breakdown.forEach(function (item) {
+        var pct = Math.min(item.score / 40 * 100, 100);
+        html += '<div class="risk-breakdown-item">' +
+          '<div class="risk-breakdown-header">' +
+          '<span class="risk-breakdown-label">' + escapeHtml(item.label) + '</span>' +
+          '<span class="risk-breakdown-score">' + Math.round(item.score) + '</span>' +
+          '</div>' +
+          '<div class="risk-breakdown-bar"><div class="risk-breakdown-fill" style="width:' + pct + '%;background:' + (r.color || '#ffaa00') + ';"></div></div>' +
+          '<div class="risk-breakdown-detail">' + escapeHtml(item.detail) + '</div>' +
+          '</div>';
+      });
+      breakdownEl.innerHTML = html;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Kill criteria checker
+  // ---------------------------------------------------------------------------
+
+  async function checkKillCriteria(symbol) {
+    var data = await apiFetch('/api/dashboard/kill-criteria/' + encodeURIComponent(symbol));
+    if (!data || !data.success) return;
+
+    if (data.triggered) {
+      var banner = document.getElementById('killBanner');
+      var titleEl = document.getElementById('killBannerTitle');
+      var msgEl = document.getElementById('killBannerMsg');
+      if (banner) banner.removeAttribute('hidden');
+      if (titleEl) titleEl.textContent = (data.notification && data.notification.title) || ('Kill Criterion: ' + symbol);
+      if (msgEl) msgEl.textContent = data.reasons && data.reasons[0] ? data.reasons[0] : 'Threshold breached';
+      showToast((data.notification && data.notification.body) || 'Kill criterion triggered for ' + symbol, 'warning');
+    }
+  }
+
+  async function checkKillCriteriaBatch() {
+    var data = await apiFetch('/api/dashboard/kill-criteria-batch');
+    if (!data || !data.success) return;
+    if (data.triggered && data.triggered.length > 0) {
+      var badge = document.getElementById('alertsBadge');
+      if (badge) {
+        badge.textContent = data.triggered.length;
+        badge.removeAttribute('hidden');
+      }
+      data.triggered.forEach(function (item) {
+        if (item.severity === 'critical') {
+          showToast('⚠️ ' + item.message, 'error');
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Alerts feed
+  // ---------------------------------------------------------------------------
+
+  async function loadAlertsFeed() {
+    var container = document.getElementById('alertsFeedContainer');
+    if (!container) return;
+
+    var data = await apiFetch('/api/dashboard/alerts-feed');
+    if (!data || !data.success || !data.alerts || data.alerts.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:#888;padding:32px;"><i class="fas fa-bell-slash" style="font-size:28px;margin-bottom:10px;"></i><p>No alerts yet. Set price targets to receive notifications.</p></div>';
+      return;
+    }
+
+    // Update sidebar badge
+    if (data.kill_criteria_count > 0) {
+      var badge = document.getElementById('alertsBadge');
+      if (badge) {
+        badge.textContent = data.kill_criteria_count;
+        badge.removeAttribute('hidden');
+      }
+    }
+
+    var severityIcons = {
+      high: { icon: 'fa-triangle-exclamation', color: '#ff4757' },
+      medium: { icon: 'fa-circle-exclamation', color: '#ffaa00' },
+      low: { icon: 'fa-circle-info', color: '#3b82f6' },
+      critical: { icon: 'fa-skull-crossbones', color: '#ff0040' },
+    };
+
+    var html = '';
+    data.alerts.forEach(function (alert) {
+      var cfg = severityIcons[alert.severity] || severityIcons.low;
+      var isKill = alert.is_kill_criteria;
+      var borderColor = isKill ? '#ff4757' : cfg.color;
+      html += '<div class="alert-feed-item severity-' + escapeHtml(alert.severity) + (isKill ? ' kill-item' : '') + '">' +
+        '<div class="alert-feed-icon" style="color:' + cfg.color + ';">' +
+        '<i class="fas ' + cfg.icon + '"></i></div>' +
+        '<div class="alert-feed-body">' +
+        '<div class="alert-feed-header">' +
+        '<span class="alert-feed-symbol">' + escapeHtml(alert.symbol || '') + '</span>' +
+        '<span class="alert-feed-type" style="color:' + cfg.color + ';">' + escapeHtml(alert.type || '') + '</span>' +
+        (isKill ? '<span class="kill-badge">⚠️ Kill Criterion</span>' : '') +
+        '</div>' +
+        '<p class="alert-feed-msg">' + escapeHtml(alert.message || '') + '</p>' +
+        '<div class="alert-feed-meta">' +
+        (alert.timestamp ? new Date(alert.timestamp).toLocaleString('en-IN') : '') +
+        (isKill ? ' &bull; <button class="alert-paper-btn" onclick="window.PremiumDashboard.viewPrediction(\'' + escapeHtml(alert.symbol) + '\')"><i class="fas fa-flask"></i> Simulate Exit</button>' : '') +
+        '</div>' +
+        '</div></div>';
+    });
+    container.innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Paper trade modal
+  // ---------------------------------------------------------------------------
+
+  function openPaperTrade(symbol) {
+    var modal = document.getElementById('paperTradeModal');
+    if (!modal) return;
+    var symInput = document.getElementById('paperSymbol');
+    var resultDiv = document.getElementById('paperTradeResult');
+    if (symInput) symInput.value = symbol || currentDetailSymbol || '';
+    if (resultDiv) resultDiv.setAttribute('hidden', '');
+    modal.removeAttribute('hidden');
+    modal.style.display = 'flex';
+  }
+
+  function closePaperTrade() {
+    var modal = document.getElementById('paperTradeModal');
+    if (modal) { modal.style.display = 'none'; modal.setAttribute('hidden', ''); }
+  }
+
+  function initPaperTradeModal() {
+    var form = document.getElementById('paperTradeForm');
+    if (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var symbol = (document.getElementById('paperSymbol')?.value || '').trim();
+        var qty = parseInt(document.getElementById('paperQty')?.value || '0', 10);
+        var price = parseFloat(document.getElementById('paperPrice')?.value || '0');
+        var submitBtn = document.getElementById('paperTradeSubmit');
+        if (!symbol) { showToast('Enter a symbol', 'warning'); return; }
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Simulating…'; }
+
+        var data = await apiFetch('/api/dashboard/paper-trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: symbol, quantity: qty || null, exit_price: price || null, action: 'sell' }),
+        });
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-calculator"></i> Run Simulation'; }
+        var resultDiv = document.getElementById('paperTradeResult');
+        if (!resultDiv) return;
+
+        if (data && data.success && data.simulation) {
+          var sim = data.simulation;
+          var pnlPositive = sim.gross_pnl >= 0;
+          var pnlColor = pnlPositive ? '#00ff87' : '#ff4757';
+          resultDiv.removeAttribute('hidden');
+          resultDiv.innerHTML =
+            '<div class="paper-result-inner">' +
+            '<div class="paper-result-header">Simulation Result — ' + escapeHtml(sim.company) + '</div>' +
+            '<div class="paper-result-grid">' +
+            '<div class="paper-stat"><span>Avg Buy</span><strong>' + formatCurrency(sim.avg_buy_price) + '</strong></div>' +
+            '<div class="paper-stat"><span>Exit Price</span><strong>' + formatCurrency(sim.exit_price) + '</strong></div>' +
+            '<div class="paper-stat"><span>Qty</span><strong>' + sim.quantity + '</strong></div>' +
+            '<div class="paper-stat"><span>Gross P&L</span><strong style="color:' + pnlColor + ';">' + (pnlPositive ? '+' : '') + formatCurrency(sim.gross_pnl) + ' (' + (pnlPositive ? '+' : '') + sim.pnl_pct.toFixed(2) + '%)</strong></div>' +
+            '<div class="paper-stat"><span>Tax Est.</span><strong style="color:#ffaa00;">-' + formatCurrency(sim.tax_estimate) + '</strong></div>' +
+            '<div class="paper-stat"><span>Net Proceeds</span><strong>' + formatCurrency(sim.net_proceeds) + '</strong></div>' +
+            '</div>' +
+            '<div class="paper-recommendation" style="color:' + pnlColor + ';">' +
+            '<i class="fas fa-robot"></i> ' + escapeHtml(sim.recommendation) +
+            '</div>' +
+            '<div class="paper-disclaimer">' + escapeHtml(sim.disclaimer) + '</div>' +
+            '</div>';
+        } else {
+          resultDiv.removeAttribute('hidden');
+          resultDiv.innerHTML = '<div style="color:#ff4757;text-align:center;padding:12px;">Simulation failed. Please try again.</div>';
+        }
+      });
+    }
+
+    var closes = [document.getElementById('paperTradeClose'), document.getElementById('paperTradeClose2')];
+    closes.forEach(function (btn) {
+      if (btn) btn.addEventListener('click', closePaperTrade);
+    });
+    var modal = document.getElementById('paperTradeModal');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal || e.target.classList.contains('modal-backdrop')) closePaperTrade();
+      });
+    }
+  }
+
+  function scrollToDebate() {
+    var card = document.getElementById('agentDebateCard');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+
 
   // ---------------------------------------------------------------------------
   // 4. Watchlist
@@ -1453,6 +1977,8 @@
     initSidebar();
     initTradeModal();
     initChatWidget();
+    initChartTimeTabs();
+    initPaperTradeModal();
     initWebSocket();
 
     // Load all sections in parallel
@@ -1467,7 +1993,12 @@
       loadSentiment(),
       loadUserLevel(),
       loadPortfolio(),
+      loadRiskMeter(),
+      loadAlertsFeed(),
     ]);
+
+    // Check kill criteria batch after watchlist loads
+    checkKillCriteriaBatch();
 
     startAutoRefresh();
   }
@@ -1483,6 +2014,13 @@
     openTradeModal: openTradeModal,
     closeTradeModal: closeTradeModal,
     toggleChat: toggleChat,
+    openPaperTrade: openPaperTrade,
+    closePaperTrade: closePaperTrade,
+    scrollToDebate: scrollToDebate,
+    loadCandlestick: loadCandlestick,
+    loadTechnicalIndicators: loadTechnicalIndicators,
+    loadAgentDebate: loadAgentDebate,
+    checkKillCriteria: checkKillCriteria,
     refresh: function () {
       loadPortfolioOverview();
       loadMarketIndices();
@@ -1494,6 +2032,9 @@
       loadSentiment();
       loadUserLevel();
       loadPortfolio();
+      loadRiskMeter();
+      loadAlertsFeed();
+      checkKillCriteriaBatch();
     },
     formatCurrency: formatCurrency,
     formatPercent: formatPercent,

@@ -2,3 +2,12 @@
 line-length = 120
 skip-string-normalization = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+markers = [
+  "api: backend API endpoint tests",
+  "ui: UI endpoint tests",
+  "integration: integration flow tests"
+]

@@ -661,3 +661,4 @@ def _update_user_xp(user_id, xp_amount, action_type):
         conn.close()
     except Exception as e:
         logger.error(f"Error updating user XP: {e}", exc_info=True)
+

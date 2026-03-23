@@ -88,6 +88,55 @@ Access: http://localhost:5005
 docker-compose up
 ```
 
+### Docker Build With Mandatory Tests
+
+Use the pre-build script to run backend API, UI endpoint, and integration tests before image build:
+
+```bash
+chmod +x scripts/docker_build_with_tests.sh
+./scripts/docker_build_with_tests.sh
+```
+
+---
+
+## ✅ Testing
+
+Run all new endpoint and integration tests:
+
+```bash
+python -m pytest tests/api tests/ui tests/integration -q
+```
+
+Run only backend API tests:
+
+```bash
+python -m pytest tests/api -q
+```
+
+Run only UI endpoint tests:
+
+```bash
+python -m pytest tests/ui -q
+```
+
+Run only integration tests:
+
+```bash
+python -m pytest tests/integration -q
+```
+
+### Makefile Shortcuts
+
+```bash
+make test
+make test-api
+make test-ui
+make test-integration
+make docker-build
+make docker-up
+make docker-down
+```
+
 ---
 
 ## 📊 API Endpoints

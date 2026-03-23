@@ -1,0 +1,53 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Test / CI
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.log
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large model files (mounted as volume anyway)
+model/saved_models/
+
+# Git
+.git/
+.gitignore
+
+# Certs (mounted separately if needed)
+certs/
+
+# Temporary / local DB backups
+*.db.bak
+*.db.malformed
+/tmp/
+
+# Docker artifacts
+docker-compose.override.yml
+
