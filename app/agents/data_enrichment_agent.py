@@ -73,16 +73,8 @@ class DataEnrichmentAgent(BaseAgent):
     
     def _load_stock_data(self, symbol: str) -> pd.DataFrame:
         """
-        Load historical OHLCV stock data.
-
-        Primary source: Alpha Vantage TIME_SERIES_DAILY_ADJUSTED.
-        Fallback:       yfinance download.
-
-        Tool: TIME_SERIES_DAILY_ADJUSTED
-        Confidence Score: 95%
+        Load historical OHLCV stock data via yfinance.
         """
-        from app.config.alpha_vantage_config import AlphaVantageConfig
-
         cache_key = f"{symbol}_data"
         
         # Check cache
@@ -91,23 +83,7 @@ class DataEnrichmentAgent(BaseAgent):
             if (datetime.now() - cached_time).seconds < self.cache_expiry:
                 return cached_data
 
-        data = None
-
-        # --- Primary: Alpha Vantage ---
-        if AlphaVantageConfig.is_configured():
-            try:
-                from app.utils.alpha_vantage_client import get_time_series_daily
-                data = get_time_series_daily(symbol, outputsize='full')
-                if data is not None and not data.empty:
-                    logging.info("Alpha Vantage TIME_SERIES_DAILY_ADJUSTED loaded for %s (%d rows)",
-                                 symbol, len(data))
-            except Exception as exc:
-                logging.warning("Alpha Vantage daily series failed for %s: %s", symbol, exc)
-                data = None
-
-        # --- Fallback: yfinance ---
-        if data is None or (hasattr(data, 'empty') and data.empty):
-            data = yf.download(symbol, start='2010-01-01', progress=False)
+        data = yf.download(symbol, start='2010-01-01', progress=False)
 
         self.cache[cache_key] = (datetime.now(), data)
         return data

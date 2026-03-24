@@ -462,11 +462,7 @@ only. It does not constitute financial advice.*
 
 def fetch_market_data(ticker: str) -> Dict[str, Any]:
     """
-    Tool 1 – Retrieves historical OHLCV price, volume, and sector KPIs.
-
-    Primary source: Alpha Vantage TIME_SERIES_DAILY_ADJUSTED + GLOBAL_QUOTE
-                    + COMPANY_OVERVIEW.
-    Fallback:       yfinance.
+    Tool 1 – Retrieves historical OHLCV price, volume, and sector KPIs via yfinance.
 
     Returns a structured dict consumed by the LLM and the chart tool.
     """
@@ -482,41 +478,27 @@ def fetch_market_data(ticker: str) -> Dict[str, Any]:
         "error": None,
     }
 
-    # --- Try Alpha Vantage first ---
     try:
-        from app.utils.alpha_vantage_client import (
-            get_global_quote,
-            get_time_series_daily,
-            get_company_overview,
-        )
+        import yfinance as yf
 
-        quote = get_global_quote(ticker)
-        overview = get_company_overview(ticker)
-        daily_df = get_time_series_daily(ticker, outputsize="compact")
+        yf_ticker = yf.Ticker(ticker)
+        hist = yf_ticker.history(period="3mo")
+        info = yf_ticker.info
 
-        if quote:
-            result["quote"] = quote
-            result["source"] = "alpha_vantage"
+        if not hist.empty:
+            hist_reset = hist.reset_index()
+            hist_reset["Date"] = hist_reset["Date"].astype(str)
+            result["daily_series"] = hist_reset.tail(60).to_dict(orient="records")
+            result["source"] = "yfinance"
 
-        if overview:
-            result["overview"] = overview
-
-        if daily_df is not None and not daily_df.empty:
-            series = daily_df.tail(60).reset_index()
-            series["Date"] = series["Date"].astype(str)
-            result["daily_series"] = series.to_dict(orient="records")
-
-            # Compute simple technical indicators from the series
-            closes = daily_df["Close"].tail(60)
+            closes = hist["Close"]
             result["technical_indicators"] = {
                 "sma_20": round(float(closes.tail(20).mean()), 2),
                 "sma_50": round(float(closes.tail(50).mean()), 2),
                 "rsi_14": round(_compute_rsi(closes), 2),
-                "52_week_high": round(float(daily_df["High"].tail(252).max()), 2),
-                "52_week_low": round(float(daily_df["Low"].tail(252).min()), 2),
-                "avg_volume_30d": round(
-                    float(daily_df["Volume"].tail(30).mean()), 0
-                ),
+                "52_week_high": round(float(info.get("fiftyTwoWeekHigh", 0)), 2),
+                "52_week_low": round(float(info.get("fiftyTwoWeekLow", 0)), 2),
+                "avg_volume_30d": round(float(hist["Volume"].tail(30).mean()), 0),
                 "price_change_7d_pct": round(
                     float(
                         (closes.iloc[-1] - closes.iloc[-7]) / closes.iloc[-7] * 100
@@ -524,71 +506,33 @@ def fetch_market_data(ticker: str) -> Dict[str, Any]:
                     2,
                 ) if len(closes) >= 7 else 0.0,
                 "volatility_30d": round(
-                    float(closes.pct_change().tail(30).std() * 100),
-                    2,
+                    float(closes.pct_change().tail(30).std() * 100), 2
                 ),
             }
 
-    except Exception as av_exc:
-        logger.warning("Alpha Vantage market data failed for %s: %s", ticker, av_exc)
+        if info:
+            result["quote"] = {
+                "currentValue": info.get("currentPrice", 0),
+                "change": info.get("regularMarketChange", 0),
+                "pChange": info.get("regularMarketChangePercent", 0),
+                "dayHigh": info.get("dayHigh", 0),
+                "dayLow": info.get("dayLow", 0),
+                "previousClose": info.get("previousClose", 0),
+                "companyName": info.get("longName", ticker),
+            }
+            result["overview"] = {
+                "Sector": info.get("sector", ""),
+                "Industry": info.get("industry", ""),
+                "MarketCapitalization": info.get("marketCap", ""),
+                "PERatio": info.get("trailingPE", ""),
+                "EPS": info.get("trailingEps", ""),
+                "DividendYield": info.get("dividendYield", ""),
+                "Beta": info.get("beta", ""),
+            }
 
-    # --- Fallback: yfinance ---
-    if not result["quote"] or not result["daily_series"]:
-        try:
-            import yfinance as yf
-
-            yf_ticker = yf.Ticker(ticker)
-            hist = yf_ticker.history(period="3mo")
-            info = yf_ticker.info
-
-            if not hist.empty:
-                hist_reset = hist.reset_index()
-                hist_reset["Date"] = hist_reset["Date"].astype(str)
-                result["daily_series"] = hist_reset.tail(60).to_dict(orient="records")
-                result["source"] = "yfinance"
-
-                closes = hist["Close"]
-                result["technical_indicators"] = {
-                    "sma_20": round(float(closes.tail(20).mean()), 2),
-                    "sma_50": round(float(closes.tail(50).mean()), 2),
-                    "rsi_14": round(_compute_rsi(closes), 2),
-                    "52_week_high": round(float(info.get("fiftyTwoWeekHigh", 0)), 2),
-                    "52_week_low": round(float(info.get("fiftyTwoWeekLow", 0)), 2),
-                    "avg_volume_30d": round(float(hist["Volume"].tail(30).mean()), 0),
-                    "price_change_7d_pct": round(
-                        float(
-                            (closes.iloc[-1] - closes.iloc[-7]) / closes.iloc[-7] * 100
-                        ),
-                        2,
-                    ) if len(closes) >= 7 else 0.0,
-                    "volatility_30d": round(
-                        float(closes.pct_change().tail(30).std() * 100), 2
-                    ),
-                }
-
-            if info:
-                result["quote"] = {
-                    "currentValue": info.get("currentPrice", 0),
-                    "change": info.get("regularMarketChange", 0),
-                    "pChange": info.get("regularMarketChangePercent", 0),
-                    "dayHigh": info.get("dayHigh", 0),
-                    "dayLow": info.get("dayLow", 0),
-                    "previousClose": info.get("previousClose", 0),
-                    "companyName": info.get("longName", ticker),
-                }
-                result["overview"] = {
-                    "Sector": info.get("sector", ""),
-                    "Industry": info.get("industry", ""),
-                    "MarketCapitalization": info.get("marketCap", ""),
-                    "PERatio": info.get("trailingPE", ""),
-                    "EPS": info.get("trailingEps", ""),
-                    "DividendYield": info.get("dividendYield", ""),
-                    "Beta": info.get("beta", ""),
-                }
-
-        except Exception as yf_exc:
-            result["error"] = f"All data sources failed. Last error: {yf_exc}"
-            logger.error("yfinance fallback failed for %s: %s", ticker, yf_exc)
+    except Exception as yf_exc:
+        result["error"] = f"Data fetch failed: {yf_exc}"
+        logger.error("yfinance market data failed for %s: %s", ticker, yf_exc)
 
     result["latency_ms"] = round((time.monotonic() - start_ts) * 1000, 1)
     return result
@@ -596,10 +540,10 @@ def fetch_market_data(ticker: str) -> Dict[str, Any]:
 
 def run_nlp_sentiment(ticker: str) -> Dict[str, Any]:
     """
-    Tool 2 – Processes recent news to generate an NLP sentiment score.
+    Tool 2 – Retrieves recent news articles via yfinance.
 
-    Primary source: Alpha Vantage NEWS_SENTIMENT.
-    Returns sentiment score, label distribution, and article summaries.
+    Returns article summaries and basic counts.
+    Note: ML-derived sentiment scoring is not available via yfinance.
     """
     start_ts = time.monotonic()
     result: Dict[str, Any] = {
@@ -617,42 +561,40 @@ def run_nlp_sentiment(ticker: str) -> Dict[str, Any]:
     }
 
     try:
-        from app.utils.alpha_vantage_client import get_news_sentiment
+        import yfinance as yf
 
-        data = get_news_sentiment(ticker, limit=30)
-        if data:
-            summary = data.get("sentiment_summary", {})
-            result.update({
-                "source": "alpha_vantage_news_sentiment",
-                "sentiment_score": summary.get("average_sentiment_score", 0.0),
-                "bullish_count": summary.get("bullish_count", 0),
-                "bearish_count": summary.get("bearish_count", 0),
-                "neutral_count": summary.get("neutral_count", 0),
-                "total_articles": summary.get("total_articles", 0),
-                "top_headlines": [
-                    {
-                        "title": a.get("title", ""),
-                        "sentiment": a.get("overall_sentiment_label", "Neutral"),
-                        "score": round(
-                            float(a.get("overall_sentiment_score", 0)), 3
-                        ),
-                        "source": a.get("source", ""),
-                        "published": a.get("time_published", "")[:8],
-                    }
-                    for a in data.get("feed", [])[:5]
-                ],
-            })
-            avg = result["sentiment_score"]
-            if avg > 0.15:
-                result["sentiment_label"] = "Bullish"
-            elif avg < -0.15:
-                result["sentiment_label"] = "Bearish"
-            else:
-                result["sentiment_label"] = "Neutral"
+        yf_ticker = yf.Ticker(ticker)
+        news = yf_ticker.news or []
+
+        top_headlines = [
+            {
+                "title": item.get("content", {}).get("title", "") or item.get("title", ""),
+                "sentiment": "Neutral",
+                "score": 0.0,
+                "source": (
+                    item.get("content", {}).get("provider", {}).get("displayName", "")
+                    or item.get("publisher", "")
+                ),
+                "published": str(
+                    item.get("content", {}).get("pubDate", "")
+                    or item.get("providerPublishTime", "")
+                )[:8],
+            }
+            for item in news[:5]
+        ]
+
+        result.update({
+            "source": "yfinance_news",
+            "sentiment_score": 0.0,
+            "sentiment_label": "Neutral",
+            "neutral_count": len(news),
+            "total_articles": len(news),
+            "top_headlines": top_headlines,
+        })
 
     except Exception as exc:
         result["error"] = str(exc)
-        logger.error("NLP sentiment failed for %s: %s", ticker, exc)
+        logger.error("News fetch failed for %s: %s", ticker, exc)
 
     result["latency_ms"] = round((time.monotonic() - start_ts) * 1000, 1)
     return result
@@ -1105,7 +1047,7 @@ _OFFLINE_FALLBACK_RESPONSE = (
     "the offline fallback also encountered an error.\n\n"
     "Please ensure:\n"
     "1. `GITHUB_TOKEN` is set to a valid GitHub PAT with `models:read` scope.\n"
-    "2. The Alpha Vantage API key is configured via `ALPHA_VANTAGE_API_KEY`.\n"
+    "2. Internet connectivity is available for yfinance market data.\n"
 )
 
 

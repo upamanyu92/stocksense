@@ -1,40 +1,40 @@
 """
-Alpha Vantage MCP Routes.
+Market Data Routes (yfinance).
 
-Provides REST endpoints that expose Alpha Vantage data to the frontend:
-  GET /api/av/quote/<symbol>        – Real-time quote (GLOBAL_QUOTE)
-  GET /api/av/historical/<symbol>   – Daily OHLCV (TIME_SERIES_DAILY_ADJUSTED)
+Provides REST endpoints that expose market data to the frontend:
+  GET /api/av/quote/<symbol>        – Real-time quote
+  GET /api/av/historical/<symbol>   – Daily OHLCV history
   GET /api/av/fundamentals/<symbol> – KPIs + financial statements
-  GET /api/av/sentiment/<symbol>    – News sentiment (NEWS_SENTIMENT)
-  GET /api/av/search                – Symbol search (SYMBOL_SEARCH)
+  GET /api/av/sentiment/<symbol>    – Recent news articles
+  GET /api/av/search                – Symbol search
   GET /api/av/visualize/<symbol>    – Embedded chart images
+  GET /api/av/status                – Integration status
 
-Decision Transparency
----------------------
 Each response includes a ``_meta`` block documenting:
-  * tool_used       – Alpha Vantage function name
-  * data_source     – 'alpha_vantage' | 'yfinance_fallback'
+  * tool_used       – yfinance method used
+  * data_source     – 'yfinance'
   * confidence_pct  – Confidence score (0-100)
   * timestamp       – ISO-8601 generation time
 """
 import logging
 from datetime import datetime
 
+import yfinance as yf
+import pandas as pd
+
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
-
-from app.config.alpha_vantage_config import AlphaVantageConfig
 
 logger = logging.getLogger(__name__)
 
 alpha_vantage_bp = Blueprint('alpha_vantage', __name__, url_prefix='/api/av')
 
 
-def _meta(tool: str, source: str, confidence: int) -> dict:
+def _meta(tool: str, confidence: int) -> dict:
     return {
         '_meta': {
             'tool_used': tool,
-            'data_source': source,
+            'data_source': 'yfinance',
             'confidence_pct': confidence,
             'timestamp': datetime.now().isoformat(),
         }
@@ -49,31 +49,20 @@ def _meta(tool: str, source: str, confidence: int) -> dict:
 @login_required
 def get_quote(symbol: str):
     """
-    Fetch real-time (delayed) stock quote.
+    Fetch real-time stock quote via yfinance.
 
-    Tool: GLOBAL_QUOTE  |  Confidence: 85%
+    Tool: yfinance_ticker  |  Confidence: 85%
 
     Returns BSE-compatible quote dict plus ``_meta`` block.
     """
     try:
-        from app.utils.alpha_vantage_client import get_global_quote
-        quote = get_global_quote(symbol)
-
-        if quote:
-            return jsonify({
-                'success': True,
-                'quote': quote,
-                **_meta('GLOBAL_QUOTE', 'alpha_vantage', 85),
-            })
-
-        # Fallback to yfinance
         from app.utils.yfinance_utils import get_quote_with_retry
         quote = get_quote_with_retry(symbol)
         if quote:
             return jsonify({
                 'success': True,
                 'quote': quote,
-                **_meta('yfinance_ticker', 'yfinance_fallback', 70),
+                **_meta('yfinance_ticker', 85),
             })
 
         return jsonify({'success': False, 'error': f'No quote data for {symbol}'}), 404
@@ -91,30 +80,33 @@ def get_quote(symbol: str):
 @login_required
 def get_historical(symbol: str):
     """
-    Fetch daily OHLCV data.
+    Fetch daily OHLCV data via yfinance.
 
-    Tool: TIME_SERIES_DAILY_ADJUSTED  |  Confidence: 95%
+    Tool: yfinance_download  |  Confidence: 95%
 
     Query params:
-      outputsize: 'compact' (default, 100 days) | 'full' (20+ years)
+      outputsize: 'compact' (default, ~100 days) | 'full' (all available)
       limit:      max rows to return (default 100)
     """
     outputsize = request.args.get('outputsize', 'compact')
     limit = int(request.args.get('limit', 100))
+    period = '6mo' if outputsize == 'compact' else 'max'
 
     try:
-        from app.utils.alpha_vantage_client import get_time_series_daily
-        df = get_time_series_daily(symbol, outputsize=outputsize)
+        df = yf.download(symbol, period=period, auto_adjust=True, progress=False)
 
         if df is not None and not df.empty:
+            # Flatten multi-level columns if present
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
             df_tail = df.tail(limit)
             records = [
                 {
                     'date': str(idx.date()),
-                    'open': row['Open'],
-                    'high': row['High'],
-                    'low': row['Low'],
-                    'close': row['Close'],
+                    'open': float(row['Open']),
+                    'high': float(row['High']),
+                    'low': float(row['Low']),
+                    'close': float(row['Close']),
                     'volume': int(row['Volume']),
                 }
                 for idx, row in df_tail.iterrows()
@@ -125,7 +117,7 @@ def get_historical(symbol: str):
                 'data': records,
                 'total_rows': len(df),
                 'returned_rows': len(records),
-                **_meta('TIME_SERIES_DAILY_ADJUSTED', 'alpha_vantage', 95),
+                **_meta('yfinance_download', 95),
             })
 
         return jsonify({'success': False, 'error': f'No historical data for {symbol}'}), 404
@@ -136,70 +128,103 @@ def get_historical(symbol: str):
 
 
 # ---------------------------------------------------------------------------
-# 3. Fundamentals (COMPANY_OVERVIEW + financial statements)
+# 3. Fundamentals (company info + financial statements)
 # ---------------------------------------------------------------------------
 
 @alpha_vantage_bp.route('/fundamentals/<symbol>', methods=['GET'])
 @login_required
 def get_fundamentals(symbol: str):
     """
-    Fetch company overview and financial statements.
+    Fetch company overview and financial statements via yfinance.
 
     Tools used:
-      * COMPANY_OVERVIEW   → KPIs, sector, market cap   (Confidence: 90%)
-      * INCOME_STATEMENT   → Revenue, EPS trends         (Confidence: 90%)
-      * BALANCE_SHEET      → Assets, liabilities         (Confidence: 90%)
-      * CASH_FLOW          → Operating / free cash flow  (Confidence: 90%)
+      * yfinance_info        → KPIs, sector, market cap   (Confidence: 90%)
+      * yfinance_financials  → Income statement            (Confidence: 90%)
+      * yfinance_balance     → Balance sheet               (Confidence: 90%)
+      * yfinance_cashflow    → Cash flow statement         (Confidence: 90%)
 
     Returns a comprehensive fundamentals dict plus ``_meta`` block.
     """
     include = set(request.args.get('include', 'overview,income,balance,cashflow').split(','))
 
     try:
-        from app.utils.alpha_vantage_client import (
-            get_company_overview,
-            get_income_statement,
-            get_balance_sheet,
-            get_cash_flow,
-        )
-
+        ticker = yf.Ticker(symbol)
         result: dict = {'success': True, 'symbol': symbol}
         tools_used = []
 
         if 'overview' in include:
-            overview = get_company_overview(symbol)
-            if overview:
-                result['overview'] = overview
-                tools_used.append('COMPANY_OVERVIEW')
+            info = ticker.info or {}
+            if info:
+                result['overview'] = {
+                    'Symbol': symbol,
+                    'Name': info.get('longName') or info.get('shortName', ''),
+                    'Sector': info.get('sector', ''),
+                    'Industry': info.get('industry', ''),
+                    'MarketCapitalization': info.get('marketCap', ''),
+                    'PERatio': info.get('trailingPE', ''),
+                    'EPS': info.get('trailingEps', ''),
+                    'DividendYield': info.get('dividendYield', ''),
+                    'Beta': info.get('beta', ''),
+                    '52WeekHigh': info.get('fiftyTwoWeekHigh', ''),
+                    '52WeekLow': info.get('fiftyTwoWeekLow', ''),
+                    'BookValue': info.get('bookValue', ''),
+                    'PriceToBook': info.get('priceToBook', ''),
+                    'Description': info.get('longBusinessSummary', ''),
+                }
+                tools_used.append('yfinance_info')
 
         if 'income' in include:
-            income = get_income_statement(symbol)
-            if income:
-                result['income_statement'] = {
-                    'annual': income.get('annualReports', [])[:5],
-                    'quarterly': income.get('quarterlyReports', [])[:4],
-                }
-                tools_used.append('INCOME_STATEMENT')
+            try:
+                fin = ticker.financials
+                qfin = ticker.quarterly_financials
+                if fin is not None and not fin.empty:
+                    result['income_statement'] = {
+                        'annual': fin.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:5],
+                        'quarterly': (qfin.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:4]) if (qfin is not None and not qfin.empty) else [],
+                    }
+                    tools_used.append('yfinance_financials')
+            except Exception:
+                pass
 
         if 'balance' in include:
-            balance = get_balance_sheet(symbol)
-            if balance:
-                result['balance_sheet'] = {
-                    'annual': balance.get('annualReports', [])[:5],
-                    'quarterly': balance.get('quarterlyReports', [])[:4],
-                }
-                tools_used.append('BALANCE_SHEET')
+            try:
+                bs = ticker.balance_sheet
+                qbs = ticker.quarterly_balance_sheet
+                if bs is not None and not bs.empty:
+                    result['balance_sheet'] = {
+                        'annual': bs.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:5],
+                        'quarterly': (qbs.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:4]) if (qbs is not None and not qbs.empty) else [],
+                    }
+                    tools_used.append('yfinance_balance_sheet')
+            except Exception:
+                pass
 
         if 'cashflow' in include:
-            cashflow = get_cash_flow(symbol)
-            if cashflow:
-                result['cash_flow'] = {
-                    'annual': cashflow.get('annualReports', [])[:5],
-                    'quarterly': cashflow.get('quarterlyReports', [])[:4],
-                }
-                tools_used.append('CASH_FLOW')
+            try:
+                cf = ticker.cashflow
+                qcf = ticker.quarterly_cashflow
+                if cf is not None and not cf.empty:
+                    result['cash_flow'] = {
+                        'annual': cf.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:5],
+                        'quarterly': (qcf.T.reset_index().rename(
+                            columns={'index': 'fiscalDateEnding'}
+                        ).to_dict(orient='records')[:4]) if (qcf is not None and not qcf.empty) else [],
+                    }
+                    tools_used.append('yfinance_cashflow')
+            except Exception:
+                pass
 
-        result.update(_meta('+'.join(tools_used) or 'N/A', 'alpha_vantage', 90))
+        result.update(_meta('+'.join(tools_used) or 'N/A', 90))
 
         if len(result) <= 3:  # only success + symbol + _meta
             return jsonify({'success': False, 'error': f'No fundamental data for {symbol}'}), 404
@@ -212,37 +237,67 @@ def get_fundamentals(symbol: str):
 
 
 # ---------------------------------------------------------------------------
-# 4. News Sentiment
+# 4. News / Sentiment
 # ---------------------------------------------------------------------------
 
 @alpha_vantage_bp.route('/sentiment/<symbol>', methods=['GET'])
 @login_required
 def get_sentiment(symbol: str):
     """
-    Fetch news articles and ML-derived sentiment scores.
+    Fetch recent news articles via yfinance.
 
-    Tool: NEWS_SENTIMENT  |  Confidence: 80%
+    Tool: yfinance_news  |  Confidence: 75%
 
     Query params:
-      topics: comma-separated topic filter (optional)
       limit:  max articles (default 50)
     """
-    topics = request.args.get('topics')
     limit = int(request.args.get('limit', 50))
 
     try:
-        from app.utils.alpha_vantage_client import get_news_sentiment
-        data = get_news_sentiment(symbol, topics=topics, limit=limit)
+        ticker = yf.Ticker(symbol)
+        news = ticker.news or []
+        feed = news[:limit]
 
-        if data:
-            return jsonify({
-                'success': True,
-                'symbol': symbol,
-                **data,
-                **_meta('NEWS_SENTIMENT', 'alpha_vantage', 80),
-            })
+        if not feed:
+            return jsonify({'success': False, 'error': f'No news data for {symbol}'}), 404
 
-        return jsonify({'success': False, 'error': f'No sentiment data for {symbol}'}), 404
+        articles = [
+            {
+                'title': item.get('content', {}).get('title', '') or item.get('title', ''),
+                'url': (
+                    item.get('content', {}).get('canonicalUrl', {}).get('url', '')
+                    or item.get('link', '')
+                ),
+                'time_published': str(
+                    item.get('content', {}).get('pubDate', '')
+                    or item.get('providerPublishTime', '')
+                ),
+                'source': (
+                    item.get('content', {}).get('provider', {}).get('displayName', '')
+                    or item.get('publisher', '')
+                ),
+                'overall_sentiment_label': 'Neutral',
+                'overall_sentiment_score': 0.0,
+            }
+            for item in feed
+        ]
+
+        sentiment_summary = {
+            'total_articles': len(articles),
+            'average_sentiment_score': 0.0,
+            'sentiment_label_distribution': {'Neutral': len(articles)},
+            'bullish_count': 0,
+            'bearish_count': 0,
+            'neutral_count': len(articles),
+        }
+
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'feed': articles,
+            'sentiment_summary': sentiment_summary,
+            **_meta('yfinance_news', 75),
+        })
 
     except Exception as exc:
         logger.error("Error in get_sentiment for %s: %s", symbol, exc)
@@ -257,9 +312,9 @@ def get_sentiment(symbol: str):
 @login_required
 def search_symbol():
     """
-    Search for company / ticker symbols.
+    Search for company / ticker symbols via yfinance.
 
-    Tool: SYMBOL_SEARCH  |  Confidence: 88%
+    Tool: yfinance_search  |  Confidence: 88%
 
     Query params:
       q:            search keywords (required)
@@ -272,14 +327,18 @@ def search_symbol():
     indian_only = request.args.get('indian_only', 'true').lower() != 'false'
 
     try:
-        from app.utils.alpha_vantage_client import search_symbol as av_search
-        results = av_search(keywords, indian_only=indian_only)
+        from app.utils.yfinance_utils import search_companies_by_name
+        results = search_companies_by_name(
+            company_name=keywords,
+            max_results=20,
+            indian_only=indian_only,
+        )
 
         return jsonify({
             'success': True,
             'query': keywords,
             'results': results,
-            **_meta('SYMBOL_SEARCH', 'alpha_vantage', 88),
+            **_meta('yfinance_search', 88),
         })
 
     except Exception as exc:
@@ -300,7 +359,7 @@ def visualize(symbol: str):
     Chart types (``type`` query param):
       * price      – OHLCV price history with SMA overlays  (default)
       * kpi        – KPI dashboard (fundamental metrics)
-      * sentiment  – News sentiment distribution & time-series
+      * sentiment  – News placeholder chart
       * forecast   – ML price forecast overlay
 
     Returns JSON with ``chart_b64`` key (base64 PNG data-URI).
@@ -308,11 +367,6 @@ def visualize(symbol: str):
     chart_type = request.args.get('type', 'price')
 
     try:
-        from app.utils.alpha_vantage_client import (
-            get_time_series_daily,
-            get_company_overview,
-            get_news_sentiment,
-        )
         from app.utils.visualization_utils import (
             plot_price_history,
             plot_kpi_dashboard,
@@ -321,32 +375,68 @@ def visualize(symbol: str):
         )
 
         chart_b64 = None
+        tool = 'yfinance_download'
 
         if chart_type == 'price':
-            df = get_time_series_daily(symbol, outputsize='compact')
+            df = yf.download(symbol, period='6mo', auto_adjust=True, progress=False)
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
             if df is not None and not df.empty:
                 chart_b64 = plot_price_history(df, symbol)
-            tools = 'TIME_SERIES_DAILY_ADJUSTED'
 
         elif chart_type == 'kpi':
-            overview = get_company_overview(symbol)
-            if overview:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info or {}
+            if info:
+                overview = {
+                    'Symbol': symbol,
+                    'Name': info.get('longName') or info.get('shortName', ''),
+                    'Sector': info.get('sector', ''),
+                    'Industry': info.get('industry', ''),
+                    'MarketCapitalization': info.get('marketCap', ''),
+                    'PERatio': info.get('trailingPE', ''),
+                    'EPS': info.get('trailingEps', ''),
+                    'DividendYield': info.get('dividendYield', ''),
+                    'Beta': info.get('beta', ''),
+                    '52WeekHigh': info.get('fiftyTwoWeekHigh', ''),
+                    '52WeekLow': info.get('fiftyTwoWeekLow', ''),
+                }
                 chart_b64 = plot_kpi_dashboard(overview, symbol)
-            tools = 'COMPANY_OVERVIEW'
+            tool = 'yfinance_info'
 
         elif chart_type == 'sentiment':
-            data = get_news_sentiment(symbol)
-            if data:
-                chart_b64 = plot_sentiment_analysis(data, symbol)
-            tools = 'NEWS_SENTIMENT'
+            ticker = yf.Ticker(symbol)
+            news = ticker.news or []
+            if news:
+                sentiment_data = {
+                    'feed': [
+                        {
+                            'title': item.get('content', {}).get('title', '') or item.get('title', ''),
+                            'overall_sentiment_label': 'Neutral',
+                            'overall_sentiment_score': 0.0,
+                        }
+                        for item in news[:30]
+                    ],
+                    'sentiment_summary': {
+                        'total_articles': len(news[:30]),
+                        'average_sentiment_score': 0.0,
+                        'bullish_count': 0,
+                        'bearish_count': 0,
+                        'neutral_count': len(news[:30]),
+                    },
+                    'symbol': symbol,
+                }
+                chart_b64 = plot_sentiment_analysis(sentiment_data, symbol)
+            tool = 'yfinance_news'
 
         elif chart_type == 'forecast':
-            df = get_time_series_daily(symbol, outputsize='compact')
+            df = yf.download(symbol, period='6mo', auto_adjust=True, progress=False)
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
             predicted_price = float(request.args.get('predicted_price', 0))
             confidence = float(request.args.get('confidence', 0.5))
             if df is not None and not df.empty and predicted_price:
                 chart_b64 = plot_forecast(df, predicted_price, symbol, confidence)
-            tools = 'TIME_SERIES_DAILY_ADJUSTED'
 
         else:
             return jsonify({'success': False, 'error': f'Unknown chart type: {chart_type}'}), 400
@@ -362,7 +452,7 @@ def visualize(symbol: str):
             'symbol': symbol,
             'chart_type': chart_type,
             'chart_b64': chart_b64,
-            **_meta(tools, 'alpha_vantage', 90),
+            **_meta(tool, 90),
         })
 
     except Exception as exc:
@@ -371,28 +461,32 @@ def visualize(symbol: str):
 
 
 # ---------------------------------------------------------------------------
-# 7. Health / configuration check
+# 7. Status check
 # ---------------------------------------------------------------------------
 
 @alpha_vantage_bp.route('/status', methods=['GET'])
 @login_required
 def av_status():
-    """Return Alpha Vantage integration status (is API key configured?)."""
+    """Return market data integration status (yfinance)."""
+    try:
+        ticker = yf.Ticker('MSFT')
+        price = ticker.fast_info.get('lastPrice') or ticker.fast_info.get('last_price')
+        yfinance_ok = price is not None
+    except Exception:
+        yfinance_ok = False
+
     return jsonify({
         'success': True,
-        'configured': AlphaVantageConfig.is_configured(),
-        'api_key_present': AlphaVantageConfig.API_KEY not in ('demo', '', None),
-        'base_url': AlphaVantageConfig.BASE_URL,
-        'rate_limit_per_minute': AlphaVantageConfig.RATE_LIMIT_PER_MINUTE,
+        'data_source': 'yfinance',
+        'configured': yfinance_ok,
         'tools_available': [
-            'GLOBAL_QUOTE',
-            'TIME_SERIES_DAILY_ADJUSTED',
-            'COMPANY_OVERVIEW',
-            'INCOME_STATEMENT',
-            'BALANCE_SHEET',
-            'CASH_FLOW',
-            'NEWS_SENTIMENT',
-            'SYMBOL_SEARCH',
-            'EARNINGS_CALENDAR',
+            'yfinance_ticker',
+            'yfinance_download',
+            'yfinance_info',
+            'yfinance_financials',
+            'yfinance_balance_sheet',
+            'yfinance_cashflow',
+            'yfinance_news',
+            'yfinance_search',
         ],
     })

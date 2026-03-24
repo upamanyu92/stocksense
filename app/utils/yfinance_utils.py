@@ -5,68 +5,21 @@ import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Optional, List
 
-from app.config.alpha_vantage_config import AlphaVantageConfig
-
 logger = logging.getLogger(__name__)
-
-
-def _get_quote_via_alpha_vantage(symbol: str) -> Optional[Dict[str, Any]]:
-    """
-    Attempt to fetch a stock quote from Alpha Vantage GLOBAL_QUOTE.
-
-    This is the primary data source; yfinance is used as a fallback when
-    Alpha Vantage is not configured or returns no data.
-
-    Tool: GLOBAL_QUOTE
-    Confidence Score: 85%
-    """
-    if not AlphaVantageConfig.is_configured():
-        return None
-    try:
-        from app.utils.alpha_vantage_client import get_global_quote, get_company_overview
-        quote = get_global_quote(symbol)
-        if not quote or not quote.get('currentValue'):
-            return None
-
-        # Enrich with company overview (sector, industry, 52-week range)
-        overview = get_company_overview(symbol)
-        if overview:
-            quote['companyName'] = overview.get('Name') or quote['companyName']
-            quote['industry'] = overview.get('Industry', '')
-            quote['group'] = overview.get('Sector', '')
-            quote['marketCapFull'] = overview.get('MarketCapitalization', '')
-            quote['marketCapFreeFloat'] = overview.get('MarketCapitalization', '')
-            quote['52weekHigh'] = float(overview.get('52WeekHigh', 0) or 0)
-            quote['52weekLow'] = float(overview.get('52WeekLow', 0) or 0)
-
-        logging.info("Alpha Vantage GLOBAL_QUOTE succeeded for %s", symbol)
-        return quote
-    except Exception as exc:
-        logging.warning("Alpha Vantage quote fetch failed for %s: %s", symbol, exc)
-        return None
 
 
 def get_quote_with_retry(symbol: str, max_retries: int = 3, delay: int = 1) -> Optional[Dict[str, Any]]:
     """
-    Get stock quote with retry logic.
-
-    Primary source: Alpha Vantage GLOBAL_QUOTE (when API key is configured).
-    Fallback:       yfinance Ticker.
+    Get stock quote with retry logic via yfinance.
 
     Args:
         symbol: Stock symbol (e.g., 'RELIANCE.BO' for BSE stocks)
-        max_retries: Maximum number of retry attempts (applied to yfinance fallback)
+        max_retries: Maximum number of retry attempts
         delay: Delay between retries in seconds
 
     Returns:
         Dictionary containing stock quote data in BSE-compatible format, or None if failed
     """
-    # --- Primary: Alpha Vantage ---
-    av_quote = _get_quote_via_alpha_vantage(symbol)
-    if av_quote:
-        return av_quote
-
-    # --- Fallback: yfinance ---
     last_exception = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -255,10 +208,7 @@ def search_companies_by_name(
     delay: int = 1
 ) -> List[Dict[str, Any]]:
     """
-    Search for companies by name.
-
-    Primary source: Alpha Vantage SYMBOL_SEARCH (when API key is configured).
-    Fallback:       yfinance Search API.
+    Search for companies by name via yfinance.
 
     Args:
         company_name: Name of the company to search for
@@ -271,31 +221,6 @@ def search_companies_by_name(
         List of dictionaries containing search results with symbol, name, exchange, and type
         Returns empty list if search fails after all retries
     """
-    # --- Primary: Alpha Vantage SYMBOL_SEARCH ---
-    if AlphaVantageConfig.is_configured():
-        try:
-            from app.utils.alpha_vantage_client import search_symbol
-            av_results = search_symbol(company_name, indian_only=indian_only)
-            if av_results:
-                logging.info("Alpha Vantage SYMBOL_SEARCH found %d results for '%s'",
-                             len(av_results), company_name)
-                # Normalize to the same format as the yfinance path
-                normalised = [
-                    {
-                        "symbol": r.get("symbol", ""),
-                        "name": r.get("name", ""),
-                        "exchange": r.get("region", ""),
-                        "type": r.get("type", ""),
-                        "industry": "",
-                        "sector": "",
-                    }
-                    for r in av_results[:max_results]
-                ]
-                return normalised
-        except Exception as exc:
-            logging.warning("Alpha Vantage symbol search failed for '%s': %s", company_name, exc)
-
-    # --- Fallback: yfinance ---
     last_exception = None
     indian_exchanges = {"NSE", "BSE", "NSI", "BOM", "INDIA"}
 

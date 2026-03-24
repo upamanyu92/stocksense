@@ -242,58 +242,7 @@ def integrations_status():
     now = datetime.now().isoformat()
 
     # ------------------------------------------------------------------
-    # 1. Alpha Vantage REST API
-    # ------------------------------------------------------------------
-    try:
-        from app.config.alpha_vantage_config import AlphaVantageConfig
-
-        if not AlphaVantageConfig.is_configured():
-            results.append({
-                'name': 'Alpha Vantage API',
-                'key': 'alpha_vantage',
-                'online': False,
-                'detail': 'API key not configured (using demo key)',
-                'checked_at': now,
-            })
-        else:
-            # Lightweight probe: fetch a single quote for MSFT
-            url = (
-                f"{AlphaVantageConfig.BASE_URL}"
-                f"?function=GLOBAL_QUOTE&symbol=MSFT"
-                f"&apikey={AlphaVantageConfig.API_KEY}"
-            )
-            resp = _req.get(url, timeout=10)
-            resp.raise_for_status()
-            payload = resp.json()
-            # Alpha Vantage returns an error message field when the key is invalid
-            if 'Error Message' in payload or 'Information' in payload:
-                detail = payload.get('Error Message') or payload.get('Information', 'Unexpected response')
-                results.append({
-                    'name': 'Alpha Vantage API',
-                    'key': 'alpha_vantage',
-                    'online': False,
-                    'detail': detail[:120],
-                    'checked_at': now,
-                })
-            else:
-                results.append({
-                    'name': 'Alpha Vantage API',
-                    'key': 'alpha_vantage',
-                    'online': True,
-                    'detail': 'Reachable – API key valid',
-                    'checked_at': now,
-                })
-    except Exception as exc:
-        results.append({
-            'name': 'Alpha Vantage API',
-            'key': 'alpha_vantage',
-            'online': False,
-            'detail': f'Connection error: {str(exc)[:100]}',
-            'checked_at': now,
-        })
-
-    # ------------------------------------------------------------------
-    # 2. GitHub Copilot AI (OpenAI-compatible endpoint)
+    # 1. GitHub Copilot AI (OpenAI-compatible endpoint)
     # ------------------------------------------------------------------
     try:
         github_token = os.getenv('GITHUB_TOKEN', '')
