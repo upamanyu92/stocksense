@@ -10,7 +10,6 @@ This script shows:
 """
 
 import logging
-from datetime import datetime
 from app.agents import PredictionCoordinator
 
 # Setup logging
@@ -34,12 +33,15 @@ def example_basic_prediction():
     # Make a prediction
     symbol = "AAPL"
     result = coordinator.predict(symbol, validate=True)
-    
+    evaluation = result.get('evaluation', {})
+
     # Display results
     print(f"Stock: {result['symbol']}")
     print(f"Predicted Price: ${result['prediction']:.2f}")
     print(f"Confidence: {result['confidence']:.2%}")
     print(f"Decision: {result['decision']}")
+    print(f"Serving Action: {result['serving_action']}")
+    print(f"Evaluation Score: {evaluation.get('score_pct', 0)}")
     print(f"Market Regime: {result['market_regime']}")
     print(f"\nPrediction Interval: ${result['prediction_interval'][0]:.2f} - ${result['prediction_interval'][1]:.2f}")
     print(f"Uncertainty: {result['uncertainty']:.2f}")
@@ -66,13 +68,15 @@ def example_adaptive_learning(coordinator, previous_result):
     print(f"Error: {abs(actual_price - predicted_price) / actual_price:.2%}")
     
     # Update the system with feedback
-    coordinator.update_with_actual(
+    outcome_evaluation = coordinator.update_with_actual(
         symbol=previous_result['symbol'],
         predicted=predicted_price,
         actual=actual_price
     )
     
     print("\n✓ System updated with actual results")
+    print(f"  Outcome evaluation score: {outcome_evaluation['score_pct']}")
+    print(f"  Outcome action: {outcome_evaluation['action']}")
     print("  The adaptive learning agent has learned from this prediction")
     print("  and will adjust future predictions accordingly.")
 

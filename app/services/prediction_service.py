@@ -1,13 +1,11 @@
 # Prediction service entry point using Ollama local LLM
 from flask import Flask, jsonify
 import schedule
-import yfinance as yf
 from datetime import datetime
 import logging
 
 from app.db.db_executor import execute_query
 from app.models.ollama_model import predict_with_details
-from app.utils.util import check_index_existence
 from app.agents.prediction_coordinator import PredictionCoordinator
 from app.db.services.prediction_service import PredictionService
 from app.db.data_models import Prediction
@@ -51,11 +49,15 @@ def prediction_executor(data):
                 })
             
             # Use agentic prediction system with Ollama local LLM for improved accuracy
+            evaluation = None
+            serving_action = 'proceed_with_caution'
             try:
                 result = prediction_coordinator.predict(stock_symbol_yahoo, validate=True)
                 predicted_price = result['prediction']
                 confidence = result['confidence']
                 decision = result['decision']
+                evaluation = result.get('evaluation')
+                serving_action = result.get('serving_action', serving_action)
 
                 # Log agentic prediction details
                 logging.info(f"Ollama LLM prediction: {predicted_price:.2f}, Confidence: {confidence:.2f}, Decision: {decision}")
@@ -68,6 +70,8 @@ def prediction_executor(data):
                     predicted_price = ollama_result['predicted_price']
                     confidence = ollama_result['confidence']
                     decision = 'caution'
+                    serving_action = 'proceed_with_caution'
+                    evaluation = None
             except Exception as e:
                 logging.error(f"Agentic prediction failed: {str(e)}. Falling back to direct Ollama API.")
                 try:
@@ -75,6 +79,8 @@ def prediction_executor(data):
                     predicted_price = ollama_result['predicted_price']
                     confidence = ollama_result['confidence']
                     decision = ollama_result.get('decision', 'caution')
+                    serving_action = 'proceed_with_caution'
+                    evaluation = None
                 except Exception as fallback_e:
                     logging.error(f"Fallback Ollama prediction also failed: {str(fallback_e)}")
                     raise
@@ -107,6 +113,8 @@ def prediction_executor(data):
                     'profit_percentage': profit_percentage,
                     'confidence': confidence if 'confidence' in locals() else 0.5,
                     'decision': decision if 'decision' in locals() else 'fallback',
+                    'serving_action': serving_action,
+                    'evaluation': evaluation,
                     'prediction_date': datetime.now().isoformat(),
                     'timestamp': datetime.now().isoformat()
                 })

@@ -104,7 +104,7 @@ def feedback():
         coordinator = get_coordinator()
         
         # Update with actual
-        coordinator.update_with_actual(
+        evaluation = coordinator.update_with_actual(
             symbol=data['symbol'],
             predicted=float(data['predicted']),
             actual=float(data['actual'])
@@ -112,7 +112,8 @@ def feedback():
         
         return jsonify({
             'success': True,
-            'message': 'Feedback received and processed'
+            'message': 'Feedback received and processed',
+            'data': evaluation
         }), 200
         
     except Exception as e:
@@ -166,6 +167,8 @@ def health():
             'metrics': {
                 'total_predictions': report['metrics']['total_predictions'],
                 'average_confidence': report['metrics']['average_confidence'],
+                'average_evaluation_score': report['metrics'].get('average_evaluation_score', 0.0),
+                'blocked_predictions': report['metrics'].get('blocked_predictions', 0),
                 'agents_initialized': True
             }
         }), 200

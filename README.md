@@ -22,6 +22,7 @@ docker-compose up
 - 📊 **Real-time Analytics** - Live WebSocket updates
 - 📈 **Advanced ML** - Ensemble prediction models
 - 🧠 **Adaptive Learning** - Self-improving from errors
+- 🧪 **Evaluative Agents** - Deterministic pre-serve and post-outcome scoring for forecast quality
 - 🔔 **Smart Alerts** - Automated notifications
 - 📱 **Responsive UI** - Mobile, tablet, desktop
 - 🐳 **Docker Ready** - Production deployment
@@ -72,6 +73,22 @@ docker-compose up
    ```
 
 Access: http://localhost:5005
+
+---
+
+## 🤖 Evaluative Agents
+
+The agentic prediction pipeline now includes two deterministic evaluator stages:
+
+- **`PredictionEvaluatorAgent`** - scores prediction quality before a forecast is served
+- **`OutcomeEvaluatorAgent`** - scores realized prediction quality after actual prices arrive
+
+Agentic prediction responses now include:
+
+- `evaluation.score` / `evaluation.score_pct`
+- `evaluation.action` (`proceed`, `proceed_with_caution`, `shadow_only`, `block_prediction`)
+- `serving_action` for the final delivery gate
+- post-feedback outcome evaluation data from `POST /api/agentic/feedback`
 
 ---
 
@@ -144,6 +161,12 @@ make docker-down
 ### Predictions
 - `POST /api/predictions` - Make stock prediction
 - `GET /api/predictions` - List predictions
+
+### Agentic Predictions
+- `GET /api/agentic/predict/<symbol>` - Run agentic prediction with evaluation metadata
+- `POST /api/agentic/feedback` - Submit actual prices and receive outcome evaluation
+- `GET /api/agentic/performance` - Get coordinator, evaluator, and learning metrics
+- `GET /api/agentic/health` - Health status for the agentic subsystem
 
 ### Stock Data
 - `GET /api/stocks` - Get stock information

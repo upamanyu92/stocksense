@@ -8,6 +8,7 @@ from flask_cors import CORS
 from flask_login import LoginManager
 from flask_socketio import SocketIO, emit
 
+from app.api.agentic_routes import agentic_api
 from app.api.alert_routes import bp as alert_bp
 from app.api.alpha_vantage_routes import alpha_vantage_bp
 from app.api.auth_routes import auth_bp
@@ -128,6 +129,7 @@ app.register_blueprint(backtest_bp)
 app.register_blueprint(llm_bp)
 app.register_blueprint(nse_bp)
 app.register_blueprint(premium_dashboard_bp)
+app.register_blueprint(agentic_api)
 
 @login_manager.user_loader
 def load_user(user_id):
