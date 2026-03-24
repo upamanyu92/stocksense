@@ -158,7 +158,7 @@ class ChatService:
                 params.append(user_id)
                 
                 # Use explicit field names - safe from SQL injection
-                query = 'UPDATE chat_user_preferences SET ' + ', '.join(update_clauses) + ' WHERE user_id = ?'
+                query = 'UPDATE chat_user_preferences SET ' + ', '.join(update_clauses) + ' WHERE user_id = ?'  # nosec B608
                 db.update(query, tuple(params))
         else:
             # Insert new preferences

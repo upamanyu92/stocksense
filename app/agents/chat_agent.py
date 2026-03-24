@@ -155,7 +155,7 @@ class ChatAgent(BaseAgent):
             "Greetings! I'm here to help you make informed investment decisions. Ask me about stocks, predictions, or your watchlist!"
         ]
         
-        response = random.choice(greetings)
+        response = random.choice(greetings)  # nosec B311
         
         # Personalize based on history
         if len(history) > 0:
@@ -182,7 +182,7 @@ class ChatAgent(BaseAgent):
         ]
         
         return {
-            'message': random.choice(farewells),
+            'message': random.choice(farewells),  # nosec B311
             'intent': 'goodbye',
             'context': {}
         }
@@ -200,8 +200,7 @@ class ChatAgent(BaseAgent):
         self.metadata['successful_predictions'] += 1
         
         return {
-            'message': random.choice(responses),
-            'intent': 'thanks',
+            'message': random.choice(responses),  # nosec B311
             'context': {}
         }
     
@@ -455,11 +454,11 @@ class ChatAgent(BaseAgent):
             "I'm great at providing stock prices, predictions, and watchlist information. What can I help you with?"
         ]
         
-        response = random.choice(responses)
+        response = random.choice(responses)  # nosec B311
         
         # Suggest based on preferences
         if preferences.get('preferred_stocks'):
-            stock = random.choice(preferences['preferred_stocks'])
+            stock = random.choice(preferences['preferred_stocks'])  # nosec B311
             response += f"\n\nBy the way, would you like an update on {stock}? I remember you're interested in it!"
         
         return {

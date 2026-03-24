@@ -3,9 +3,19 @@ Authentication routes for login/logout functionality.
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
+from urllib.parse import urlparse, urljoin
 from app.services.auth_service import User
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _is_safe_redirect_url(target: str) -> bool:
+    """Return True only if the redirect target is a local URL."""
+    if not target:
+        return False
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -30,7 +40,9 @@ def login():
                 
                 # Redirect to next page or dashboard
                 next_page = request.args.get('next')
-                return redirect(next_page if next_page else url_for('dashboard.user_dashboard'))
+                if next_page and _is_safe_redirect_url(next_page):
+                    return redirect(next_page)
+                return redirect(url_for('dashboard.user_dashboard'))
             else:
                 flash('User account is inactive', 'error')
         else:

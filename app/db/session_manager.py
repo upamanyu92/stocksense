@@ -89,15 +89,15 @@ class DatabaseSessionManager:
                 # Close any open transactions
                 try:
                     conn.rollback()
-                except:
-                    pass
+                except Exception:
+                    pass  # nosec B110 – best-effort rollback during connection return; errors are non-fatal
                 self._connection_pool.put(conn, timeout=5)
             except Exception as e:
                 logger.error(f"Failed to return connection to pool: {e}")
                 try:
                     conn.close()
-                except:
-                    pass
+                except Exception:
+                    pass  # nosec B110 – best-effort close; nothing more we can do at this point
 
     @contextmanager
     def get_session(self, timeout: Optional[float] = None):

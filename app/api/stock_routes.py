@@ -362,7 +362,7 @@ def list_stocks():
             FROM stock_quotes
             ORDER BY {sort_by} {sort_order}
             LIMIT ? OFFSET ?
-        '''
+        '''  # nosec B608
 
         cursor.execute(query, (per_page, offset))
         rows = cursor.fetchall()

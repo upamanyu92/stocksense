@@ -187,8 +187,8 @@ def get_fundamentals(symbol: str):
                         ).to_dict(orient='records')[:4]) if (qfin is not None and not qfin.empty) else [],
                     }
                     tools_used.append('yfinance_financials')
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("yfinance financials fetch failed for %s: %s", symbol, e)
 
         if 'balance' in include:
             try:
@@ -204,8 +204,8 @@ def get_fundamentals(symbol: str):
                         ).to_dict(orient='records')[:4]) if (qbs is not None and not qbs.empty) else [],
                     }
                     tools_used.append('yfinance_balance_sheet')
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("yfinance balance sheet fetch failed for %s: %s", symbol, e)
 
         if 'cashflow' in include:
             try:
@@ -221,8 +221,8 @@ def get_fundamentals(symbol: str):
                         ).to_dict(orient='records')[:4]) if (qcf is not None and not qcf.empty) else [],
                     }
                     tools_used.append('yfinance_cashflow')
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("yfinance cash flow fetch failed for %s: %s", symbol, e)
 
         result.update(_meta('+'.join(tools_used) or 'N/A', 90))
 

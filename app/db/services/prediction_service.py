@@ -74,16 +74,30 @@ class PredictionService:
             return stock
         return None
     
+    _ALLOWED_ORDER_BY = {
+        'prediction_date DESC': 'prediction_date DESC',
+        'prediction_date ASC': 'prediction_date ASC',
+        'prediction_date': 'prediction_date DESC',
+        'current_price': 'current_price DESC',
+        'predicted_price': 'predicted_price DESC',
+        'company_name': 'company_name ASC',
+        'security_id': 'security_id ASC',
+    }
+
     @staticmethod
     def get_all(limit: int = None, offset: int = 0, order_by: str = 'prediction_date DESC') -> List[Prediction]:
         """Get all predictions with optional pagination"""
         db = get_session_manager()
 
-        query = f'SELECT * FROM predictions ORDER BY {order_by}'
-        if limit:
-            query += f' LIMIT {limit} OFFSET {offset}'
-        
-        rows = db.fetch_all(query)
+        safe_order_by = PredictionService._ALLOWED_ORDER_BY.get(order_by, 'prediction_date DESC')
+        if limit is not None:
+            safe_limit = max(1, min(int(limit), 10000))
+            safe_offset = max(0, int(offset))
+            query = f'SELECT * FROM predictions ORDER BY {safe_order_by} LIMIT ? OFFSET ?'  # nosec B608
+            rows = db.fetch_all(query, (safe_limit, safe_offset))
+        else:
+            query = f'SELECT * FROM predictions ORDER BY {safe_order_by}'  # nosec B608
+            rows = db.fetch_all(query)
 
         return [Prediction(**row) for row in rows]
 

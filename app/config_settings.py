@@ -19,11 +19,8 @@ class Config:
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
     # Flask settings
-    FLASK_HOST = '0.0.0.0'
+    FLASK_HOST = '0.0.0.0'  # nosec B104 – intentional: containerised deployment requires all-interface binding
     FLASK_PORT = int(os.getenv('FLASK_PORT', 5005))
-
-    # Ollama AI Configuration (Local LLM)
-    OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     OLLAMA_MODEL = os.getenv('OLLAMA_MODEL_NAME', 'phi4-mini')
 
     @classmethod

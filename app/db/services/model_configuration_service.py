@@ -88,7 +88,7 @@ class ModelConfigurationService:
         values = list(update_fields.values()) + [config_id]
         
         try:
-            return db.update(f'UPDATE model_configurations SET {set_clause} WHERE id = ?', tuple(values))
+            return db.update(f'UPDATE model_configurations SET {set_clause} WHERE id = ?', tuple(values))  # nosec B608
         except Exception as e:
             print(f"Error updating model configuration: {e}")
             return False

@@ -289,8 +289,8 @@ class CopilotSession:
             if chart_handler:
                 try:
                     tool_results["generate_forecast_chart"] = chart_handler(data=market)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug("generate_forecast_chart failed: %s", e)
 
         report = _format_markdown_report(ticker, market, sentiment, tool_results)
         return {"role": "assistant", "content": report}
