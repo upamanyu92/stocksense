@@ -75,14 +75,25 @@ except Exception as e:
     logging.error(f"Failed to initialize database schema: {e}")
     # Continue anyway - schema might already exist
 
-# Initialize Ollama local LLM
+# Initialize LLM based on system setting
 try:
-    logging.info("Initializing Ollama local LLM...")
-    Config.initialize_ollama()
-    logging.info("Ollama local LLM initialized successfully")
+    from app.db.services.system_settings_service import SystemSettingsService
+    active_agent = SystemSettingsService.get_setting('active_llm_agent', 'ollama')
+
+    if active_agent == 'ollama':
+        logging.info("Initializing Ollama local LLM...")
+        Config.initialize_ollama()
+        logging.info("Ollama local LLM initialized successfully")
+    elif active_agent == 'copilot':
+        logging.info("Active agent set to Copilot. Skipping Ollama initialization.")
+    elif active_agent == 'gemini':
+        logging.info("Active agent set to Gemini. Skipping Ollama initialization.")
+    else:
+        logging.info(f"Unknown active agent: {active_agent}. Initializing Ollama as fallback...")
+        Config.initialize_ollama()
 except Exception as e:
-    logging.warning(f"Ollama initialization warning: {e}")
-    logging.warning("Predictions will not work until Ollama is running (ollama serve)")
+    logging.warning(f"LLM initialization warning: {e}")
+    logging.warning("Predictions may not work correctly until the configured LLM is available")
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)

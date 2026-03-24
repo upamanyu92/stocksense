@@ -240,6 +240,23 @@ class SchemaManager:
                 )
             ''')
 
+            # ========== SYSTEM SETTINGS TABLE ==========
+            self._log("  Creating system_settings table...")
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    description TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Insert default active_llm_agent
+            cursor.execute('''
+                INSERT OR IGNORE INTO system_settings (key, value, description)
+                VALUES ('active_llm_agent', 'copilot', 'The AI agent currently in use for predictions (ollama, gemini, copilot)')
+            ''')
+
             # ========== NOTIFICATIONS TABLE ==========
             self._log("  Creating notifications table...")
             cursor.execute('''
