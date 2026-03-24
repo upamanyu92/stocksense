@@ -19,11 +19,8 @@ class Config:
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
     # Flask settings
-    FLASK_HOST = '0.0.0.0'
+    FLASK_HOST = '0.0.0.0'  # nosec B104 – intentional: containerised deployment requires all-interface binding
     FLASK_PORT = int(os.getenv('FLASK_PORT', 5005))
-
-    # Gemini AI Configuration
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
     @classmethod
     def ensure_directories(cls):

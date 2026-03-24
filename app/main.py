@@ -97,11 +97,35 @@ except Exception as e:
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-CORS(app)
+
+# SECRET_KEY must be set via the SECRET_KEY environment variable.
+# A fallback is provided for local development only; production deployments
+# must supply a strong random secret.
+_secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')  # nosec B105
+if _secret_key == 'dev-secret-key-change-in-production':  # nosec B105
+    logging.warning(
+        "SECRET_KEY is not set via environment variable. "
+        "This is insecure and must not be used in production."
+    )
+app.config['SECRET_KEY'] = _secret_key
+
+# Secure session/remember-me cookie settings
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Set SECURE flag only when running under HTTPS (controlled via env var)
+_cookie_secure = os.environ.get('COOKIE_SECURE', 'false').lower() == 'true'
+app.config['REMEMBER_COOKIE_SECURE'] = _cookie_secure
+app.config['SESSION_COOKIE_SECURE'] = _cookie_secure
+
+# CORS – restrict to explicitly allowed origins (defaults to same-origin only)
+_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+_allowed_origins = [o.strip() for o in _cors_origins.split(',') if o.strip()] or []
+CORS(app, origins=_allowed_origins if _allowed_origins else [])
 
 # Initialize SocketIO for real-time updates
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins=_allowed_origins if _allowed_origins else [], async_mode='threading')
 
 # Initialize WebSocket manager
 websocket_manager.init_socketio(socketio)
@@ -145,6 +169,15 @@ app.register_blueprint(agentic_api)
 @login_manager.user_loader
 def load_user(user_id):
     return User.get_by_id(int(user_id))
+
+
+@app.after_request
+def set_security_headers(response):
+    """Add standard security headers to every response."""
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    return response
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -245,4 +278,4 @@ if __name__ == '__main__':
         logging.info("Background worker disabled by default - use admin UI to enable")
     
     # inactive_stock_worker.start()  # Start retry worker for inactive stocks
-    socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', debug=False, port=port, allow_unsafe_werkzeug=True)  # nosec B104

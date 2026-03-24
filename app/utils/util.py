@@ -46,7 +46,7 @@ def predict_algo(stock_data: Optional[dict], stock_symbol: str) -> float:
 def check_index_existence(index_name: str, table_name: str) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='index' AND name='{index_name}'")
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name=?", (index_name,))
     exists = cursor.fetchone() is not None
     conn.close()
     return exists

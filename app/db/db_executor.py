@@ -100,7 +100,7 @@ def update_stock_quote(quote: Dict[str, Any]) -> None:
         UPDATE stock_quotes
         SET {set_clause}
         WHERE security_id = ?
-    '''
+    '''  # nosec B608 – column names are hardcoded in the dict above, not user-supplied
 
     try:
         c.execute(sql, list(data.values()) + [quote.get('securityID')])

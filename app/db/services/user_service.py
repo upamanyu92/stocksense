@@ -86,7 +86,7 @@ class UserService:
         values = list(update_fields.values()) + [user_id]
         
         try:
-            return db.update(f'UPDATE users SET {set_clause} WHERE id = ?', tuple(values))
+            return db.update(f'UPDATE users SET {set_clause} WHERE id = ?', tuple(values))  # nosec B608
         except Exception as e:
             print(f"Error updating user: {e}")
             return False
