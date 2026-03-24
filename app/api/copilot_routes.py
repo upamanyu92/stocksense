@@ -107,7 +107,6 @@ def health():
           "success": true,
           "copilot_api_available": false,
           "github_token_set": false,
-          "alpha_vantage_configured": true,
           "openai_package_installed": true,
           "model": "gpt-4o",
           "tools": ["fetch_market_data", "run_nlp_sentiment", "generate_forecast_chart"]
@@ -123,7 +122,6 @@ def health():
             openai_available = False
 
         from app.agents.copilot_agent import CopilotClient, _TOOL_HANDLERS
-        from app.config.alpha_vantage_config import AlphaVantageConfig
 
         client = CopilotClient()
 
@@ -131,7 +129,6 @@ def health():
             "success": True,
             "copilot_api_available": client.is_available(),
             "github_token_set": bool(os.getenv("GITHUB_TOKEN")),
-            "alpha_vantage_configured": AlphaVantageConfig.is_configured(),
             "openai_package_installed": openai_available,
             "model": os.getenv("COPILOT_MODEL", "gpt-4o"),
             "tools": list(_TOOL_HANDLERS.keys()),
