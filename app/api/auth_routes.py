@@ -22,7 +22,7 @@ def _is_safe_redirect_url(target: str) -> bool:
 def login():
     """Login page and handler"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard.user_dashboard'))
+        return redirect(url_for('premium_dashboard.premium_dashboard'))
 
     if request.method == 'POST':
         username = request.form.get('username')
@@ -42,7 +42,7 @@ def login():
                 next_page = request.args.get('next')
                 if next_page and _is_safe_redirect_url(next_page):
                     return redirect(next_page)
-                return redirect(url_for('dashboard.user_dashboard'))
+                return redirect(url_for('premium_dashboard.premium_dashboard'))
             else:
                 flash('User account is inactive', 'error')
         else:
