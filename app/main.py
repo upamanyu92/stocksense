@@ -190,7 +190,7 @@ def root():
     from flask import redirect, url_for
     from flask_login import current_user
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard.user_dashboard'))
+        return redirect(url_for('premium_dashboard.premium_dashboard'))
     return redirect(url_for('auth.login'))
 
 # WebSocket event handlers for real-time updates
