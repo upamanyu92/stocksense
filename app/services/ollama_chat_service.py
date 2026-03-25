@@ -1,12 +1,37 @@
 """
-Ollama LLM integration for chat agent - handles natural language processing with local LLM
+Ollama LLM integration for chat agent - handles natural language processing with local LLM.
+Falls back to GitHub Copilot / GitHub Models API when Ollama is unavailable.
 """
+import asyncio
+import concurrent.futures
 import logging
 import json
 from typing import Dict, Any, Optional
+
+import requests.exceptions
+
 from app.models.ollama_model import _call_ollama_with_retry
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async(coro):
+    """
+    Run an async coroutine from a synchronous context.
+
+    Uses asyncio.run() when no event loop is active; otherwise submits
+    the coroutine to a background thread to avoid 'cannot be called from
+    a running event loop' errors (e.g. when Flask-SocketIO is active).
+    """
+    try:
+        asyncio.get_running_loop()
+        # A loop is already running – execute in a dedicated thread
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    except RuntimeError:
+        # No running loop – safe to call asyncio.run() directly
+        return asyncio.run(coro)
 
 
 class OllamaChatService:
@@ -79,15 +104,66 @@ When user asks about:
                 'entities': entities,
                 'success': True
             }
-        except Exception as e:
-            logger.error(f"Error in Ollama chat processing: {e}")
-            return {
-                'response': "I apologize, but I encountered an error processing your request. Please try again.",
-                'intent': 'error',
-                'action': None,
-                'entities': {},
-                'success': False
-            }
+        except (requests.exceptions.RequestException, OSError, TimeoutError, RuntimeError, Exception) as e:
+            # Catches connectivity failures (ConnectionError, Timeout) and the generic Exception
+            # raised by _call_ollama_with_retry when Ollama returns a non-200 HTTP status.
+            logger.warning(f"Ollama chat processing failed ({e}); attempting GitHub Copilot fallback")
+            try:
+                return self._process_with_copilot(user_message, context, conversation_history)
+            except Exception as copilot_exc:
+                logger.error(f"GitHub Copilot fallback also failed: {copilot_exc}")
+                return {
+                    'response': "I apologize, but I encountered an error processing your request. Please try again.",
+                    'intent': 'error',
+                    'action': None,
+                    'entities': {},
+                    'success': False
+                }
+
+    def _process_with_copilot(self,
+                              user_message: str,
+                              context: Optional[Dict[str, Any]] = None,
+                              conversation_history: Optional[list] = None) -> Dict[str, Any]:
+        """
+        Fallback: process the user message via the GitHub Copilot / GitHub Models API
+        when Ollama is unavailable (e.g. running in Docker without a local Ollama service).
+
+        Requires:
+            - GITHUB_TOKEN env var set to a valid personal-access-token or Copilot token
+            - ``openai`` package installed (``pip install openai>=1.0.0``)
+        """
+        # Late import to break the circular dependency:
+        # copilot_agent → (tools) → services, and OllamaChatService ← chat_agent ← chat_routes
+        from app.agents.copilot_agent import CopilotClient
+
+        client = CopilotClient()
+        if not client.is_available():
+            raise RuntimeError(
+                "GitHub Copilot API is unavailable: GITHUB_TOKEN not set or openai package missing"
+            )
+
+        context_str = self._build_context_string(context, conversation_history)
+        full_message = f"Context:\n{context_str}\n\nUser: {user_message}"
+
+        async def _run_session() -> str:
+            session = await client.create_session(
+                system_prompt=self.SYSTEM_PROMPT,
+                tools=[],
+                tool_handlers={},
+            )
+            return await session.run(full_message)
+
+        response_text = _run_async(_run_session())
+        intent, action, entities = self._parse_response(response_text, user_message)
+
+        logger.info("GitHub Copilot fallback succeeded for chat message")
+        return {
+            'response': response_text.strip(),
+            'intent': intent,
+            'action': action,
+            'entities': entities,
+            'success': True,
+        }
 
     def _build_context_string(self,
                              context: Optional[Dict] = None,
