@@ -140,7 +140,7 @@
                             </div>
                             <span class="header-profile-name">{{ username }}</span>
                             <div class="profile-dropdown">
-                                <a href="#" class="profile-dropdown-item" onclick="var s=document.getElementById('section-settings');if(s){s.style.display='block';s.scrollIntoView({behavior:'smooth',block:'start'});if(window.PremiumDashboard)window.PremiumDashboard.refresh();}return false;">
+                                <a href="#" class="profile-dropdown-item" onclick="return openAccountSection();">
                                     <i class="fas fa-user-circle"></i> My Account
                                 </a>
                                 <a href="/notifications" class="profile-dropdown-item">

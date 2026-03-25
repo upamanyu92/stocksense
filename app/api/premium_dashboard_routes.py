@@ -13,6 +13,7 @@ from flask import Blueprint, jsonify, request, render_template
 from flask_login import login_required, current_user
 
 from app.utils.util import get_db_connection
+from app.db.session_manager import get_session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -1279,7 +1280,6 @@ def check_kill_criteria_batch():
 def get_alerts_feed():
     """Return recent notifications/alerts for the current user."""
     try:
-        from app.db.session_manager import get_session_manager
         db = get_session_manager()
 
         # Fetch notifications scoped to this user (or global ones with user_id IS NULL)
@@ -1380,7 +1380,9 @@ def paper_trade():
         gross_pnl = (exit_price - avg_buy_price) * qty if avg_buy_price else 0
         pnl_pct = ((exit_price - avg_buy_price) / avg_buy_price * 100) if avg_buy_price else 0
 
-        # Simplified tax estimate (15% STCG for illustrative purposes)
+        # Simplified tax estimate: 15% STCG (Short Term Capital Gains) for illustrative
+        # purposes only. LTCG (>1yr holding) is taxed at 10% above ₹1L. Consult a tax
+        # adviser for actual liability.
         tax_estimate = max(gross_pnl * 0.15, 0)
         net_proceeds = exit_price * qty - tax_estimate
 

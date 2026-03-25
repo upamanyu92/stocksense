@@ -1051,12 +1051,19 @@
         sparkId +
         '" style="width:60px;height:22px;"></canvas></td>' +
         '<td style="padding:10px;">' +
-        '<button class="watchlist-remove-btn" onclick="removeFromWatchlist(\'' + sym + '\')" title="Remove">' +
+        '<button class="watchlist-remove-btn" data-remove-sym="' + sym + '" title="Remove">' +
         '<i class="fas fa-times"></i>' +
         '</button></td></tr>';
     });
     html += '</tbody></table>';
     container.innerHTML = html;
+
+    // Wire up remove buttons via event delegation (avoids inline-onclick XSS)
+    container.querySelectorAll('.watchlist-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        removeFromWatchlist(btn.getAttribute('data-remove-sym'));
+      });
+    });
 
     // Sparklines
     data.watchlist.forEach(function (item, i) {
@@ -1650,13 +1657,25 @@
       items.forEach(function (item) {
         var sym = escapeHtml(item.symbol || item.security_id || '');
         var name = escapeHtml(item.company_name || item.name || sym);
-        html += '<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+        html += '<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;"' +
+          ' data-sym="' + sym + '" data-name="' + name + '">' +
           '<div><div class="search-result-name">' + name + '</div><div class="search-result-symbol">' + sym + '</div></div>' +
-          '<button class="search-result-btn btn-watch" onclick="addToWatchlist(\'' + sym + '\',\'' + name + '\');toggleWatchlistAdd();">' +
+          '<button class="search-result-btn btn-watch wl-add-btn" data-sym="' + sym + '" data-name="' + name + '">' +
           '<i class="fas fa-plus"></i> Add</button>' +
           '</div>';
       });
-      if (resultsEl) { resultsEl.innerHTML = html; resultsEl.style.display = 'block'; }
+      if (resultsEl) {
+        resultsEl.innerHTML = html;
+        resultsEl.style.display = 'block';
+        // Wire up Add buttons via event delegation to prevent inline-onclick XSS
+        resultsEl.querySelectorAll('.wl-add-btn').forEach(function (btn) {
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            addToWatchlist(btn.getAttribute('data-sym'), btn.getAttribute('data-name'));
+            toggleWatchlistAdd();
+          });
+        });
+      }
     } catch (err) {
       if (resultsEl) resultsEl.innerHTML = '<div style="padding:10px;color:#f55;font-size:13px;">Search failed</div>';
     }
@@ -1706,6 +1725,16 @@
         panel.classList.remove('open');
       }
     });
+  }
+
+  function openAccountSection() {
+    var s = document.getElementById('section-settings');
+    if (s) {
+      s.style.display = 'block';
+      s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      loadAccountSection();
+    }
+    return false;
   }
 
   // ---------------------------------------------------------------------------
@@ -2237,6 +2266,7 @@
   window.watchlistAddSearch = watchlistAddSearch;
   window.addToWatchlist = addToWatchlist;
   window.removeFromWatchlist = removeFromWatchlist;
+  window.openAccountSection = openAccountSection;
 
   // ---------------------------------------------------------------------------
   // Boot
