@@ -1023,6 +1023,7 @@
       '<th style="padding:8px 10px;">Price</th>' +
       '<th style="padding:8px 10px;">Change</th>' +
       '<th style="padding:8px 10px;width:70px;">Trend</th>' +
+      '<th style="padding:8px 10px;width:60px;"></th>' +
       '</tr></thead><tbody>';
 
     data.watchlist.forEach(function (item, i) {
@@ -1030,15 +1031,14 @@
       var positive = change >= 0;
       var color = positive ? '#00ff87' : '#ff4757';
       var sparkId = 'wlSparkline' + i;
+      var sym = escapeHtml(item.symbol || item.stock_symbol || '');
       html +=
         '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">' +
         '<td style="padding:10px;">' +
         '<div style="font-weight:600;">' +
         escapeHtml(item.company_name || item.symbol || item.stock_symbol) +
         '</div>' +
-        '<div style="font-size:11px;color:#aaa;">' +
-        escapeHtml(item.symbol || item.stock_symbol) +
-        '</div></td>' +
+        '<div style="font-size:11px;color:#aaa;">' + sym + '</div></td>' +
         '<td style="padding:10px;">' +
         formatCurrency(item.current_price || item.last_price || 0) +
         '</td>' +
@@ -1049,7 +1049,11 @@
         '</td>' +
         '<td style="padding:10px;"><canvas id="' +
         sparkId +
-        '" style="width:60px;height:22px;"></canvas></td></tr>';
+        '" style="width:60px;height:22px;"></canvas></td>' +
+        '<td style="padding:10px;">' +
+        '<button class="watchlist-remove-btn" onclick="removeFromWatchlist(\'' + sym + '\')" title="Remove">' +
+        '<i class="fas fa-times"></i>' +
+        '</button></td></tr>';
     });
     html += '</tbody></table>';
     container.innerHTML = html;
@@ -1502,29 +1506,34 @@
         items.forEach(function (item) {
           var name = item.company_name || item.name || item.symbol || '';
           var symbol = item.symbol || item.security_id || '';
+          var symSafe = escapeHtml(symbol);
+          var nameSafe = escapeHtml(name);
           html +=
-            '<div class="search-result-item" data-symbol="' +
-            escapeHtml(symbol) +
-            '" style="padding:10px 14px;cursor:pointer;' +
-            'border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;">' +
-            '<div style="font-weight:600;font-size:13px;">' +
-            escapeHtml(name) +
-            '</div>' +
-            '<div style="font-size:11px;color:#aaa;">' +
-            escapeHtml(symbol) +
+            '<div class="search-result-item" data-symbol="' + symSafe + '" data-name="' + nameSafe + '">' +
+            '<div class="search-result-name">' + nameSafe + '</div>' +
+            '<div class="search-result-symbol">' + symSafe + '</div>' +
+            '<div class="search-result-actions">' +
+            '<button class="search-result-btn btn-view" data-action="view" data-symbol="' + symSafe + '">' +
+            '<i class="fas fa-chart-line"></i> View Analysis</button>' +
+            '<button class="search-result-btn btn-watch" data-action="watch" data-symbol="' + symSafe + '" data-name="' + nameSafe + '">' +
+            '<i class="fas fa-star"></i> Watchlist</button>' +
             '</div></div>';
         });
         results.innerHTML = html;
         // Attach click handlers via event delegation
-        results.querySelectorAll('.search-result-item').forEach(function (el) {
-          el.addEventListener('mouseenter', function () {
-            el.style.background = 'rgba(0,212,255,0.08)';
+        results.querySelectorAll('[data-action="view"]').forEach(function (btn) {
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            selectStock(btn.getAttribute('data-symbol'));
           });
-          el.addEventListener('mouseleave', function () {
-            el.style.background = 'transparent';
-          });
-          el.addEventListener('click', function () {
-            selectStock(el.getAttribute('data-symbol'));
+        });
+        results.querySelectorAll('[data-action="watch"]').forEach(function (btn) {
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            addToWatchlist(btn.getAttribute('data-symbol'), btn.getAttribute('data-name'));
+            results.style.display = 'none';
+            var inp = document.getElementById('stockSearchInput');
+            if (inp) inp.value = '';
           });
         });
         results.style.display = 'block';
@@ -1555,7 +1564,176 @@
     if (results) results.style.display = 'none';
     var input = document.getElementById('stockSearchInput');
     if (input) input.value = '';
-    window.location.href = '/stocks?symbol=' + encodeURIComponent(symbol);
+    // Show the stock detail section instead of navigating away
+    viewPrediction(symbol);
+    var detailSection = document.getElementById('section-stockdetail');
+    if (detailSection) {
+      detailSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Watchlist add / remove helpers
+  // ---------------------------------------------------------------------------
+
+  async function addToWatchlist(symbol, companyName) {
+    if (!symbol) { showToast('Symbol is required', 'warning'); return; }
+    try {
+      var data = await apiFetch('/api/watchlist/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_symbol: symbol, company_name: companyName || symbol }),
+      });
+      if (data && data.success) {
+        showToast(symbol + ' added to watchlist', 'success');
+        loadWatchlist();
+      } else {
+        showToast((data && data.error) || 'Could not add to watchlist', 'error');
+      }
+    } catch (err) {
+      showToast('Error adding to watchlist', 'error');
+    }
+  }
+
+  async function removeFromWatchlist(symbol) {
+    if (!symbol) return;
+    try {
+      var data = await apiFetch('/api/watchlist/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_symbol: symbol }),
+      });
+      if (data && data.success) {
+        showToast(symbol + ' removed from watchlist', 'info');
+        loadWatchlist();
+      } else {
+        showToast((data && data.error) || 'Could not remove', 'error');
+      }
+    } catch (err) {
+      showToast('Error removing from watchlist', 'error');
+    }
+  }
+
+  function toggleWatchlistAdd() {
+    var panel = document.getElementById('watchlistAddPanel');
+    if (!panel) return;
+    var isVisible = panel.classList.contains('visible');
+    if (isVisible) {
+      panel.classList.remove('visible');
+    } else {
+      panel.classList.add('visible');
+      var inp = document.getElementById('watchlistSearchInput');
+      if (inp) inp.focus();
+    }
+  }
+
+  async function watchlistAddSearch() {
+    var input = document.getElementById('watchlistSearchInput');
+    var query = input ? input.value.trim() : '';
+    if (query.length < 2) { showToast('Enter at least 2 characters', 'warning'); return; }
+    var resultsEl = document.getElementById('watchlistSearchResults');
+    if (resultsEl) {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#aaa;font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Searching…</div>';
+      resultsEl.style.display = 'block';
+    }
+    try {
+      var data = await apiFetch('/api/stocks/search?q=' + encodeURIComponent(query) + '&max_results=8');
+      if (!data || !data.results || data.results.length === 0) {
+        data = await apiFetch('/api/stocks/suggestions?q=' + encodeURIComponent(query) + '&limit=8');
+      }
+      var items = (data && (data.results || data.suggestions)) || [];
+      if (!items.length) {
+        if (resultsEl) resultsEl.innerHTML = '<div style="padding:10px;color:#888;font-size:13px;">No results found</div>';
+        return;
+      }
+      var html = '';
+      items.forEach(function (item) {
+        var sym = escapeHtml(item.symbol || item.security_id || '');
+        var name = escapeHtml(item.company_name || item.name || sym);
+        html += '<div class="search-result-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><div class="search-result-name">' + name + '</div><div class="search-result-symbol">' + sym + '</div></div>' +
+          '<button class="search-result-btn btn-watch" onclick="addToWatchlist(\'' + sym + '\',\'' + name + '\');toggleWatchlistAdd();">' +
+          '<i class="fas fa-plus"></i> Add</button>' +
+          '</div>';
+      });
+      if (resultsEl) { resultsEl.innerHTML = html; resultsEl.style.display = 'block'; }
+    } catch (err) {
+      if (resultsEl) resultsEl.innerHTML = '<div style="padding:10px;color:#f55;font-size:13px;">Search failed</div>';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notification bell panel
+  // ---------------------------------------------------------------------------
+
+  async function loadNotifications() {
+    try {
+      var data = await apiFetch('/api/notifications/?sent=0');
+      var body = document.getElementById('notifPanelBody');
+      var dot = document.getElementById('notifDot');
+      if (!data || !data.notifications || data.notifications.length === 0) {
+        if (body) body.innerHTML = '<div class="notification-panel-empty"><i class="fas fa-bell-slash" style="font-size:20px;margin-bottom:8px;display:block;"></i>No new notifications</div>';
+        if (dot) dot.style.display = 'none';
+        return;
+      }
+      if (dot) dot.style.display = 'block';
+      var html = '';
+      data.notifications.slice(0, 10).forEach(function (n) {
+        html += '<div class="notification-panel-item">' +
+          '<div class="notification-item-title">' + escapeHtml(n.symbol || 'Alert') + '</div>' +
+          '<div class="notification-item-msg">' + escapeHtml(n.message || '') + '</div>' +
+          '</div>';
+      });
+      if (body) body.innerHTML = html;
+    } catch (err) {
+      // Silently fail
+    }
+  }
+
+  function initNotificationBell() {
+    var btn = document.getElementById('notifBellBtn');
+    var panel = document.getElementById('notifPanel');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        loadNotifications();
+      }
+    });
+    document.addEventListener('click', function (e) {
+      if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== btn) {
+        panel.classList.remove('open');
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Account / Settings section loader
+  // ---------------------------------------------------------------------------
+
+  async function loadAccountSection() {
+    try {
+      var ovData = await apiFetch('/api/dashboard/overview');
+      var lvData = await apiFetch('/api/dashboard/user-level');
+      if (ovData && ovData.success && ovData.overview) {
+        var o = ovData.overview;
+        var el = function (id) { return document.getElementById(id); };
+        if (el('acctHoldings')) el('acctHoldings').textContent = o.holdings_count || 0;
+        if (el('acctWatchlist')) el('acctWatchlist').textContent = o.watchlist_count || 0;
+        if (el('acctPredictions')) el('acctPredictions').textContent = o.predictions_count || 0;
+        if (el('acctTrades')) el('acctTrades').textContent = o.recent_trades || 0;
+      }
+      if (lvData && lvData.success && lvData.level) {
+        var lv = lvData.level;
+        var el2 = function (id) { return document.getElementById(id); };
+        if (el2('acctLevel')) el2('acctLevel').textContent = lv.level_name || '—';
+        if (el2('acctXp')) el2('acctXp').textContent = (lv.xp_points || 0) + ' XP';
+        if (el2('acctStreak')) el2('acctStreak').textContent = (lv.streak_days || 0) + ' days';
+      }
+    } catch (err) {
+      // Silently fail
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1922,7 +2100,19 @@
         e.preventDefault();
         var sectionId = link.getAttribute('data-section');
         var section = document.getElementById(sectionId);
-        if (section) {
+
+        // Special handling for settings section (toggled show/hide)
+        if (sectionId === 'section-settings') {
+          var settingsSection = document.getElementById('section-settings');
+          if (settingsSection) {
+            settingsSection.style.display =
+              settingsSection.style.display === 'none' ? 'block' : 'none';
+            if (settingsSection.style.display === 'block') {
+              settingsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              loadAccountSection();
+            }
+          }
+        } else if (section) {
           section.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         // Active state
@@ -1979,6 +2169,7 @@
     initChatWidget();
     initChartTimeTabs();
     initPaperTradeModal();
+    initNotificationBell();
     initWebSocket();
 
     // Load all sections in parallel
@@ -2040,6 +2231,12 @@
     formatPercent: formatPercent,
     showToast: showToast,
   };
+
+  // Expose watchlist and notification helpers for inline onclick handlers
+  window.toggleWatchlistAdd = toggleWatchlistAdd;
+  window.watchlistAddSearch = watchlistAddSearch;
+  window.addToWatchlist = addToWatchlist;
+  window.removeFromWatchlist = removeFromWatchlist;
 
   // ---------------------------------------------------------------------------
   // Boot
