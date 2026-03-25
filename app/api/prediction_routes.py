@@ -22,7 +22,7 @@ prediction_bp = Blueprint('prediction', __name__, url_prefix='/api/predictions')
 status_queue = queue.Queue()
 
 
-@prediction_bp.route('/', methods=['GET'])
+@prediction_bp.route('/', methods=['GET'], strict_slashes=False)
 def get_predictions():
     """Get top stock predictions with pagination"""
     logging.info("Fetching top stock predictions")
