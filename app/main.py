@@ -7,6 +7,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_socketio import SocketIO, emit
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.api.agentic_routes import agentic_api
 from app.api.alert_routes import bp as alert_bp
@@ -97,6 +98,9 @@ except Exception as e:
 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir)
+# Trust one level of reverse-proxy headers (e.g. Render.com) so Flask
+# generates https:// redirect URLs instead of http://.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # SECRET_KEY must be set via the SECRET_KEY environment variable.
 # A fallback is provided for local development only; production deployments
