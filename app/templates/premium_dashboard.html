@@ -110,10 +110,24 @@
                     </div>
 
                     <div class="header-actions">
-                        <button class="header-action-btn" aria-label="Notifications">
-                            <i class="fas fa-bell"></i>
-                            <span class="notification-dot"></span>
-                        </button>
+                        <div class="notification-bell-wrapper">
+                            <button class="header-action-btn" id="notifBellBtn" aria-label="Notifications">
+                                <i class="fas fa-bell"></i>
+                                <span class="notification-dot" id="notifDot"></span>
+                            </button>
+                            <div id="notifPanel" class="notification-panel">
+                                <div class="notification-panel-header">
+                                    Notifications
+                                    <a href="/notifications" style="font-size:11px;color:var(--color-ai);font-weight:400;">View all</a>
+                                </div>
+                                <div id="notifPanelBody">
+                                    <div class="notification-panel-empty">
+                                        <i class="fas fa-bell-slash" style="font-size:20px;margin-bottom:8px;display:block;"></i>
+                                        No notifications yet
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <button class="header-action-btn" data-action="toggle-chat" aria-label="AI Assistant">
                             <i class="fas fa-robot"></i>
@@ -126,6 +140,12 @@
                             </div>
                             <span class="header-profile-name">{{ username }}</span>
                             <div class="profile-dropdown">
+                                <a href="#" class="profile-dropdown-item" onclick="return openAccountSection();">
+                                    <i class="fas fa-user-circle"></i> My Account
+                                </a>
+                                <a href="/notifications" class="profile-dropdown-item">
+                                    <i class="fas fa-bell"></i> Notifications
+                                </a>
                                 <a href="/logout" class="profile-dropdown-item">
                                     <i class="fas fa-sign-out-alt"></i> Logout
                                 </a>
@@ -322,6 +342,20 @@
                             <h2 class="card-section-title">
                                 <i class="fas fa-star"></i> Watchlist
                             </h2>
+                            <button class="card-section-action" id="addWatchlistToggle" onclick="toggleWatchlistAdd()">
+                                <i class="fas fa-plus"></i> Add Stock
+                            </button>
+                        </div>
+                        <!-- Inline add-to-watchlist panel -->
+                        <div id="watchlistAddPanel" class="watchlist-add-panel">
+                            <input type="text" id="watchlistSearchInput" class="watchlist-add-input" placeholder="Search symbol or company…" autocomplete="off">
+                            <div id="watchlistSearchResults" class="search-results-dropdown" style="position:static;box-shadow:none;border-radius:var(--radius-md);display:none;"></div>
+                            <button class="card-section-action" onclick="watchlistAddSearch()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                            <button class="card-section-action" style="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);" onclick="toggleWatchlistAdd()">
+                                Cancel
+                            </button>
                         </div>
                         <div id="watchlistContainer" class="watchlist-cards" data-skeleton-count="4">
                             <div class="watchlist-card glass-card skeleton-card">
@@ -676,6 +710,67 @@
                                 <div class="alert-feed-body">
                                     <div class="skeleton skeleton-heading"></div>
                                     <div class="skeleton skeleton-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── Settings / Account Section ── -->
+                    <section id="section-settings" class="dashboard-section full-width" style="display:none;">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-user-circle"></i> My Account
+                            </h2>
+                        </div>
+                        <div id="accountContainer" class="settings-grid">
+                            <!-- Rendered by JS -->
+                            <div class="settings-card">
+                                <div class="settings-card-title"><i class="fas fa-id-card"></i> Profile</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Username</span>
+                                    <span class="settings-stat-value">{{ username }}</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Dashboard</span>
+                                    <span class="settings-stat-value">Premium</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Logout</span>
+                                    <span class="settings-stat-value"><a href="/logout" style="color:var(--color-loss);">Sign out</a></span>
+                                </div>
+                            </div>
+                            <div class="settings-card" id="accountStatsCard">
+                                <div class="settings-card-title"><i class="fas fa-chart-bar"></i> Trading Stats</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Holdings</span>
+                                    <span class="settings-stat-value" id="acctHoldings">—</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Watchlist Items</span>
+                                    <span class="settings-stat-value" id="acctWatchlist">—</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Predictions Run</span>
+                                    <span class="settings-stat-value" id="acctPredictions">—</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Recent Trades (7d)</span>
+                                    <span class="settings-stat-value" id="acctTrades">—</span>
+                                </div>
+                            </div>
+                            <div class="settings-card" id="accountLevelCard">
+                                <div class="settings-card-title"><i class="fas fa-trophy"></i> Gamification</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Level</span>
+                                    <span class="settings-stat-value" id="acctLevel">—</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">XP Points</span>
+                                    <span class="settings-stat-value" id="acctXp">—</span>
+                                </div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-label">Streak</span>
+                                    <span class="settings-stat-value" id="acctStreak">—</span>
                                 </div>
                             </div>
                         </div>
