@@ -93,8 +93,14 @@ class PortfolioService:
 
     @staticmethod
     def delete_holding(user_id: int, holding_id: int) -> bool:
-        """Delete a holding."""
+        """Delete a holding. Returns False if the holding doesn't exist."""
         db = get_session_manager()
+        existing = db.fetch_one(
+            'SELECT id FROM portfolio_holdings WHERE id = ? AND user_id = ?',
+            (holding_id, user_id),
+        )
+        if not existing:
+            return False
         return db.delete(
             'DELETE FROM portfolio_holdings WHERE id = ? AND user_id = ?',
             (holding_id, user_id),

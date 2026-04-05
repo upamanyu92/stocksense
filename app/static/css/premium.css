@@ -4269,3 +4269,18 @@ a:hover {
   border-top: 1px solid var(--border-subtle);
 }
 
+
+/* ── Onboarding Step Dots ── */
+.onboarding-step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  transition: background 0.3s;
+}
+.onboarding-step-dot.active {
+  background: var(--color-gain, #00ff87);
+}
+.onboarding-step-content h4 {
+  color: var(--color-text, #fff);
+}
