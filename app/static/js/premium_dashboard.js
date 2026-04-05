@@ -2186,6 +2186,429 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Portfolio Management Features
+  // ---------------------------------------------------------------------------
+
+  /** Switch portfolio sub-tabs */
+  function pfSwitchTab(btn, tabId) {
+    var parent = btn.closest('.dashboard-section');
+    if (!parent) return;
+    parent.querySelectorAll('.av-tab').forEach(function (b) { b.classList.remove('active'); });
+    parent.querySelectorAll('.av-tab-content').forEach(function (el) { el.style.display = 'none'; });
+    btn.classList.add('active');
+    var tab = document.getElementById(tabId);
+    if (tab) tab.style.display = 'block';
+
+    // Load data for the tab
+    if (tabId === 'pfTransactionsTab') loadTransactions();
+    if (tabId === 'pfAllocationTab') loadAllocation();
+  }
+
+  /** Load portfolio summary cards */
+  async function loadPortfolioSummary() {
+    try {
+      var data = await apiFetch('/api/portfolio/summary');
+      if (!data || !data.success) return;
+      var s = data.summary;
+      var inv = document.getElementById('pfTotalInvested');
+      var cur = document.getElementById('pfCurrentValue');
+      var pnl = document.getElementById('pfTotalPnl');
+      if (inv) inv.textContent = formatCurrency(s.total_invested);
+      if (cur) cur.textContent = formatCurrency(s.total_current_value);
+      if (pnl) {
+        pnl.textContent = formatCurrency(s.total_pnl) + ' (' + formatPercent(s.pnl_percent) + ')';
+        pnl.style.color = s.total_pnl >= 0 ? '#00ff87' : '#ff4757';
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  /** Load transactions list */
+  async function loadTransactions() {
+    var container = document.getElementById('transactionsContainer');
+    if (!container) return;
+    container.innerHTML = '<p style="color:#888;text-align:center;padding:16px;">Loading...</p>';
+    try {
+      var data = await apiFetch('/api/portfolio/transactions?limit=30');
+      if (!data || !data.success || !data.transactions || data.transactions.length === 0) {
+        container.innerHTML = '<p style="color:#888;text-align:center;padding:24px;">No transactions yet.</p>';
+        return;
+      }
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+        '<thead><tr style="color:#aaa;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08);">' +
+        '<th style="padding:8px;">Date</th><th style="padding:8px;">Symbol</th>' +
+        '<th style="padding:8px;">Type</th><th style="padding:8px;">Qty</th>' +
+        '<th style="padding:8px;">Price</th><th style="padding:8px;">Total</th>' +
+        '<th style="padding:8px;"></th></tr></thead><tbody>';
+      data.transactions.forEach(function (t) {
+        var typeColor = t.transaction_type === 'BUY' ? '#00ff87' : '#ff4757';
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">' +
+          '<td style="padding:8px;">' + escapeHtml(t.transaction_date || '') + '</td>' +
+          '<td style="padding:8px;font-weight:600;">' + escapeHtml(t.stock_symbol) + '</td>' +
+          '<td style="padding:8px;color:' + typeColor + ';font-weight:600;">' + escapeHtml(t.transaction_type) + '</td>' +
+          '<td style="padding:8px;">' + t.quantity + '</td>' +
+          '<td style="padding:8px;">' + formatCurrency(t.price) + '</td>' +
+          '<td style="padding:8px;">' + formatCurrency(t.total_value) + '</td>' +
+          '<td style="padding:8px;"><button onclick="deleteTransaction(' + t.id + ')" style="background:none;border:none;color:#ff4757;cursor:pointer;" title="Delete"><i class="fas fa-trash-can"></i></button></td></tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = '<p style="color:#ff4757;text-align:center;padding:16px;">Failed to load transactions.</p>';
+    }
+  }
+
+  /** Delete a transaction */
+  async function deleteTransaction(id) {
+    if (!confirm('Delete this transaction? Holdings will be recalculated.')) return;
+    try {
+      var resp = await apiFetch('/api/portfolio/transactions/' + id, { method: 'DELETE' });
+      if (resp && resp.success) {
+        showToast('Transaction deleted', 'success');
+        loadTransactions();
+        loadPortfolio();
+        loadPortfolioSummary();
+      } else {
+        showToast('Failed to delete transaction', 'error');
+      }
+    } catch (e) {
+      showToast('Error deleting transaction', 'error');
+    }
+  }
+
+  /** Load asset allocation chart */
+  async function loadAllocation() {
+    try {
+      var data = await apiFetch('/api/portfolio/allocation');
+      var listEl = document.getElementById('allocationList');
+      var canvas = document.getElementById('allocationChart');
+      if (!data || !data.success || !data.allocation || data.allocation.length === 0) {
+        if (listEl) listEl.innerHTML = '<p style="color:#888;text-align:center;">No allocation data. Add holdings first.</p>';
+        return;
+      }
+
+      // Render chart
+      if (canvas && window.Chart) {
+        var ctx = canvas.getContext('2d');
+        if (canvas._chartInstance) canvas._chartInstance.destroy();
+        var labels = data.allocation.map(function (a) { return a.stock_symbol; });
+        var values = data.allocation.map(function (a) { return a.allocation_percent; });
+        var colors = ['#00ff87', '#00d4ff', '#ffd93d', '#ff6b9d', '#a855f7',
+                      '#06b6d4', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981'];
+        canvas._chartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: labels, datasets: [{ data: values, backgroundColor: colors.slice(0, values.length) }] },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'right', labels: { color: '#ccc', font: { size: 11 } } },
+            },
+          },
+        });
+      }
+
+      // Render list
+      if (listEl) {
+        var html = '';
+        data.allocation.forEach(function (a) {
+          html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">' +
+            '<span>' + escapeHtml(a.stock_symbol) + '</span>' +
+            '<span style="color:#aaa;">' + a.allocation_percent.toFixed(1) + '% · ' + formatCurrency(a.invested_value) + '</span></div>';
+        });
+        listEl.innerHTML = html;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  /** Run AI portfolio analysis */
+  async function runPortfolioAnalysis(type) {
+    var result = document.getElementById('aiAnalysisResult');
+    var meta = document.getElementById('aiAnalysisMeta');
+    if (result) result.innerHTML = '<p style="color:#888;text-align:center;"><i class="fas fa-spinner fa-spin"></i> Generating AI analysis...</p>';
+    if (meta) meta.style.display = 'none';
+
+    try {
+      var data = await apiFetch('/api/settings/portfolio-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: type }),
+      });
+      if (data && data.success) {
+        if (result) result.innerHTML = data.analysis.replace(/\n/g, '<br>');
+        if (meta) {
+          meta.style.display = 'block';
+          var modelEl = document.getElementById('aiModelUsed');
+          var timeEl = document.getElementById('aiGeneratedAt');
+          if (modelEl) modelEl.textContent = 'Model: ' + (data.model_used || 'unknown');
+          if (timeEl) timeEl.textContent = data.cached ? 'Cached' : 'Generated just now';
+        }
+      } else {
+        if (result) result.innerHTML = '<p style="color:#ff4757;">Failed to generate analysis.</p>';
+      }
+    } catch (e) {
+      if (result) result.innerHTML = '<p style="color:#ff4757;">Error generating analysis.</p>';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Import Modal
+  // ---------------------------------------------------------------------------
+
+  function initImportModal() {
+    var btn = document.getElementById('importPortfolioBtn');
+    var modal = document.getElementById('importModal');
+    var closeBtn = document.getElementById('importModalClose');
+    var form = document.getElementById('importForm');
+
+    if (btn && modal) {
+      btn.addEventListener('click', function () { modal.hidden = false; });
+    }
+    if (closeBtn && modal) {
+      closeBtn.addEventListener('click', function () { modal.hidden = true; });
+    }
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target.classList.contains('modal-backdrop')) modal.hidden = true;
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var fileInput = document.getElementById('importFile');
+        var statusDiv = document.getElementById('importStatus');
+        var submitBtn = document.getElementById('importSubmitBtn');
+
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+          if (statusDiv) {
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(255,71,87,0.15)';
+            statusDiv.style.color = '#ff4757';
+            statusDiv.textContent = 'Please select a file.';
+          }
+          return;
+        }
+
+        var file = fileInput.files[0];
+        var formData = new FormData();
+        formData.append('file', file);
+
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...'; }
+        if (statusDiv) { statusDiv.style.display = 'block'; statusDiv.style.background = 'rgba(0,212,255,0.1)'; statusDiv.style.color = '#00d4ff'; statusDiv.textContent = 'Processing file...'; }
+
+        try {
+          var endpoint = file.name.toLowerCase().endsWith('.csv') ? '/api/portfolio/import/csv' : '/api/portfolio/import/xlsx';
+          var resp = await fetch(endpoint, { method: 'POST', body: formData });
+          var data = await resp.json();
+
+          if (data.success) {
+            statusDiv.style.background = 'rgba(0,255,135,0.1)';
+            statusDiv.style.color = '#00ff87';
+            statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> Import successful! ' +
+              data.imported + ' transactions imported' +
+              (data.skipped ? ', ' + data.skipped + ' skipped' : '') +
+              (data.errors && data.errors.length ? ', ' + data.errors.length + ' errors' : '') +
+              ' (Format: ' + escapeHtml(data.broker_format || 'unknown') + ')';
+            // Refresh portfolio
+            loadPortfolio();
+            loadPortfolioSummary();
+            showToast('Portfolio imported successfully!', 'success');
+          } else {
+            statusDiv.style.background = 'rgba(255,71,87,0.15)';
+            statusDiv.style.color = '#ff4757';
+            statusDiv.textContent = 'Import failed: ' + (data.error || 'Unknown error');
+          }
+        } catch (err) {
+          statusDiv.style.background = 'rgba(255,71,87,0.15)';
+          statusDiv.style.color = '#ff4757';
+          statusDiv.textContent = 'Error: ' + err.message;
+        }
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Import'; }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SenseAI Section
+  // ---------------------------------------------------------------------------
+
+  function initSenseAI() {
+    var sendBtn = document.getElementById('senseAiSendBtn');
+    var input = document.getElementById('senseAiInput');
+
+    if (sendBtn && input) {
+      sendBtn.addEventListener('click', function () { sendSenseAiMessage(); });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); sendSenseAiMessage(); }
+      });
+    }
+
+    // Load model status
+    loadModelStatus();
+  }
+
+  async function loadModelStatus() {
+    try {
+      var data = await apiFetch('/api/settings/model-status');
+      var dot = document.getElementById('modelStatusDot');
+      var text = document.getElementById('modelStatusText');
+      if (!data || !data.success) {
+        if (dot) dot.style.background = '#ff4757';
+        if (text) text.textContent = 'Unable to check model status';
+        return;
+      }
+      if (data.active_model && data.active_model !== 'none') {
+        if (dot) dot.style.background = '#00ff87';
+        if (text) text.textContent = 'AI Model Active: ' + data.active_model +
+          (data[data.active_model] && data[data.active_model].model ? ' (' + data[data.active_model].model + ')' : '');
+      } else {
+        if (dot) dot.style.background = '#ffd93d';
+        if (text) text.textContent = 'No AI model available. Using template-based analysis.';
+      }
+    } catch (e) {
+      var dot2 = document.getElementById('modelStatusDot');
+      var text2 = document.getElementById('modelStatusText');
+      if (dot2) dot2.style.background = '#ff4757';
+      if (text2) text2.textContent = 'Error checking model status';
+    }
+  }
+
+  async function sendSenseAiMessage() {
+    var input = document.getElementById('senseAiInput');
+    var messages = document.getElementById('senseAiMessages');
+    if (!input || !messages) return;
+    var msg = input.value.trim();
+    if (!msg) return;
+
+    // Add user message
+    var userDiv = document.createElement('div');
+    userDiv.className = 'chat-message user';
+    userDiv.innerHTML = '<p>' + escapeHtml(msg) + '</p>';
+    messages.appendChild(userDiv);
+    input.value = '';
+    messages.scrollTop = messages.scrollHeight;
+
+    // Loading indicator
+    var loadingDiv = document.createElement('div');
+    loadingDiv.className = 'chat-message agent';
+    loadingDiv.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Thinking...</p>';
+    messages.appendChild(loadingDiv);
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+      var data = await apiFetch('/api/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+
+      loadingDiv.remove();
+
+      var agentDiv = document.createElement('div');
+      agentDiv.className = 'chat-message agent';
+      if (data && data.success) {
+        agentDiv.innerHTML = '<p>' + escapeHtml(data.response).replace(/\n/g, '<br>') + '</p>';
+      } else {
+        agentDiv.innerHTML = '<p style="color:#ff4757;">Sorry, I encountered an error. Please try again.</p>';
+      }
+      messages.appendChild(agentDiv);
+      messages.scrollTop = messages.scrollHeight;
+    } catch (e) {
+      loadingDiv.remove();
+      var errDiv = document.createElement('div');
+      errDiv.className = 'chat-message agent';
+      errDiv.innerHTML = '<p style="color:#ff4757;">Connection error. Please check your network.</p>';
+      messages.appendChild(errDiv);
+    }
+  }
+
+  function senseAiQuickAction(message) {
+    var input = document.getElementById('senseAiInput');
+    if (input) {
+      input.value = message;
+      sendSenseAiMessage();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Onboarding Flow
+  // ---------------------------------------------------------------------------
+
+  var onboardingStepIndex = 0;
+  var onboardingSteps = ['welcome', 'model_setup', 'portfolio', 'watchlist'];
+
+  function initOnboarding() {
+    apiFetch('/api/settings/onboarding').then(function (data) {
+      if (!data || !data.success || data.completed) return;
+      // Show onboarding
+      var overlay = document.getElementById('onboardingOverlay');
+      if (overlay) overlay.hidden = false;
+      onboardingStepIndex = data.step_index || 0;
+      showOnboardingStep(onboardingStepIndex);
+    }).catch(function () { /* skip onboarding on error */ });
+
+    var nextBtn = document.getElementById('onbNextBtn');
+    var skipBtn = document.getElementById('onbSkipBtn');
+    var skipBtn2 = document.getElementById('onboardingSkipBtn');
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', function () {
+        onboardingStepIndex++;
+        if (onboardingStepIndex >= onboardingSteps.length) {
+          completeOnboarding();
+        } else {
+          showOnboardingStep(onboardingStepIndex);
+          apiFetch('/api/settings/onboarding/advance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        }
+      });
+    }
+
+    if (skipBtn) {
+      skipBtn.addEventListener('click', function () { completeOnboarding(); });
+    }
+    if (skipBtn2) {
+      skipBtn2.addEventListener('click', function () { completeOnboarding(); });
+    }
+  }
+
+  function showOnboardingStep(idx) {
+    onboardingSteps.forEach(function (step, i) {
+      var el = document.getElementById('onb-' + step);
+      if (el) el.style.display = i === idx ? 'block' : 'none';
+    });
+
+    // Update step dots
+    document.querySelectorAll('.onboarding-step-dot').forEach(function (dot, i) {
+      dot.classList.toggle('active', i <= idx);
+    });
+
+    var nextBtn = document.getElementById('onbNextBtn');
+    if (nextBtn) {
+      nextBtn.textContent = idx >= onboardingSteps.length - 1 ? 'Finish' : 'Next';
+    }
+
+    // Load model status for model_setup step
+    if (onboardingSteps[idx] === 'model_setup') {
+      apiFetch('/api/settings/model-status').then(function (data) {
+        var el = document.getElementById('onbModelStatus');
+        if (!el) return;
+        if (data && data.success && data.active_model !== 'none') {
+          el.innerHTML = '<span style="color:#00ff87;"><i class="fas fa-check-circle"></i> AI model detected: ' + escapeHtml(data.active_model) + '</span>';
+        } else {
+          el.innerHTML = '<span style="color:#ffd93d;"><i class="fas fa-exclamation-triangle"></i> No AI model found. The app will use template-based analysis. You can set up Ollama later.</span>';
+        }
+      });
+    }
+  }
+
+  function completeOnboarding() {
+    var overlay = document.getElementById('onboardingOverlay');
+    if (overlay) overlay.hidden = true;
+    apiFetch('/api/settings/onboarding/skip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    showToast('Setup complete! Explore your dashboard.', 'success');
+  }
+
+  // ---------------------------------------------------------------------------
   // Master initialization
   // ---------------------------------------------------------------------------
 
@@ -2199,6 +2622,9 @@
     initChartTimeTabs();
     initPaperTradeModal();
     initNotificationBell();
+    initImportModal();
+    initSenseAI();
+    initOnboarding();
     initWebSocket();
 
     // Load all sections in parallel
@@ -2213,6 +2639,7 @@
       loadSentiment(),
       loadUserLevel(),
       loadPortfolio(),
+      loadPortfolioSummary(),
       loadRiskMeter(),
       loadAlertsFeed(),
     ]);
@@ -2252,6 +2679,7 @@
       loadSentiment();
       loadUserLevel();
       loadPortfolio();
+      loadPortfolioSummary();
       loadRiskMeter();
       loadAlertsFeed();
       checkKillCriteriaBatch();
@@ -2267,6 +2695,12 @@
   window.addToWatchlist = addToWatchlist;
   window.removeFromWatchlist = removeFromWatchlist;
   window.openAccountSection = openAccountSection;
+
+  // Expose new portfolio/AI features for inline onclick handlers
+  window.pfSwitchTab = pfSwitchTab;
+  window.runPortfolioAnalysis = runPortfolioAnalysis;
+  window.senseAiQuickAction = senseAiQuickAction;
+  window.deleteTransaction = deleteTransaction;
 
   // ---------------------------------------------------------------------------
   // Boot

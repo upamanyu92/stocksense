@@ -59,6 +59,12 @@
                     <span class="sidebar-link-label">Portfolio</span>
                 </a>
 
+                <a href="#" class="sidebar-link" data-section="section-senseai">
+                    <span class="sidebar-link-icon"><i class="fas fa-wand-magic-sparkles"></i></span>
+                    <span class="sidebar-link-label">SenseAI</span>
+                    <span class="sidebar-badge" style="background:var(--color-accent-blue)">AI</span>
+                </a>
+
                 <a href="#" class="sidebar-link" data-section="section-risk">
                     <span class="sidebar-link-icon"><i class="fas fa-shield-halved"></i></span>
                     <span class="sidebar-link-label">Risk Meter</span>
@@ -423,22 +429,136 @@
                             <h2 class="card-section-title">
                                 <i class="fas fa-briefcase"></i> Portfolio
                             </h2>
-                            <button class="card-section-action" data-action="add-trade" aria-label="Add trade">
-                                <i class="fas fa-plus"></i> Add Trade
-                            </button>
+                            <div style="display:flex;gap:8px;">
+                                <button class="card-section-action" id="importPortfolioBtn" aria-label="Import portfolio">
+                                    <i class="fas fa-file-import"></i> Import
+                                </button>
+                                <button class="card-section-action" data-action="add-trade" aria-label="Add trade">
+                                    <i class="fas fa-plus"></i> Add Trade
+                                </button>
+                            </div>
                         </div>
-                        <div id="portfolioContainer" class="glass-card" data-skeleton-count="3">
-                            <div class="skeleton-card">
-                                <div class="skeleton skeleton-text"></div>
-                                <div class="skeleton skeleton-number"></div>
+
+                        <!-- Portfolio Summary Cards -->
+                        <div id="portfolioSummaryCards" class="settings-grid" style="margin-bottom:16px;">
+                            <div class="settings-card">
+                                <div class="settings-card-title"><i class="fas fa-wallet"></i> Total Invested</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-value" id="pfTotalInvested" style="font-size:1.3rem;">—</span>
+                                </div>
                             </div>
-                            <div class="skeleton-card">
-                                <div class="skeleton skeleton-text"></div>
-                                <div class="skeleton skeleton-number"></div>
+                            <div class="settings-card">
+                                <div class="settings-card-title"><i class="fas fa-chart-line"></i> Current Value</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-value" id="pfCurrentValue" style="font-size:1.3rem;">—</span>
+                                </div>
                             </div>
-                            <div class="skeleton-card">
-                                <div class="skeleton skeleton-text"></div>
-                                <div class="skeleton skeleton-number"></div>
+                            <div class="settings-card">
+                                <div class="settings-card-title"><i class="fas fa-arrow-trend-up"></i> Total P&amp;L</div>
+                                <div class="settings-stat-row">
+                                    <span class="settings-stat-value" id="pfTotalPnl" style="font-size:1.3rem;">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs: Holdings | Transactions | Allocation | AI Analysis -->
+                        <div class="av-tabs" style="margin-bottom:12px;">
+                            <button class="av-tab active" onclick="pfSwitchTab(this,'pfHoldingsTab')">Holdings</button>
+                            <button class="av-tab" onclick="pfSwitchTab(this,'pfTransactionsTab')">Transactions</button>
+                            <button class="av-tab" onclick="pfSwitchTab(this,'pfAllocationTab')">Allocation</button>
+                            <button class="av-tab" onclick="pfSwitchTab(this,'pfAnalysisTab')">AI Analysis</button>
+                        </div>
+
+                        <div id="pfHoldingsTab" class="av-tab-content" style="display:block;">
+                            <div id="portfolioContainer" class="glass-card" data-skeleton-count="3">
+                                <div class="skeleton-card">
+                                    <div class="skeleton skeleton-text"></div>
+                                    <div class="skeleton skeleton-number"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="pfTransactionsTab" class="av-tab-content" style="display:none;">
+                            <div id="transactionsContainer" class="glass-card">
+                                <p style="color:var(--color-text-muted);text-align:center;padding:24px;">Loading transactions...</p>
+                            </div>
+                        </div>
+
+                        <div id="pfAllocationTab" class="av-tab-content" style="display:none;">
+                            <div class="glass-card" style="padding:16px;">
+                                <canvas id="allocationChart" height="300"></canvas>
+                                <div id="allocationList" style="margin-top:12px;"></div>
+                            </div>
+                        </div>
+
+                        <div id="pfAnalysisTab" class="av-tab-content" style="display:none;">
+                            <div class="glass-card" style="padding:16px;">
+                                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                                    <button class="card-section-action" onclick="runPortfolioAnalysis('summary')">
+                                        <i class="fas fa-file-lines"></i> Summary
+                                    </button>
+                                    <button class="card-section-action" onclick="runPortfolioAnalysis('risk')">
+                                        <i class="fas fa-shield-halved"></i> Risk
+                                    </button>
+                                    <button class="card-section-action" onclick="runPortfolioAnalysis('allocation')">
+                                        <i class="fas fa-chart-pie"></i> Allocation
+                                    </button>
+                                    <button class="card-section-action" onclick="runPortfolioAnalysis('recommendation')">
+                                        <i class="fas fa-lightbulb"></i> Recommendations
+                                    </button>
+                                </div>
+                                <div id="aiAnalysisResult" style="white-space:pre-wrap;line-height:1.6;">
+                                    <p style="color:var(--color-text-muted);text-align:center;">Click an analysis type above to generate AI-powered insights about your portfolio.</p>
+                                </div>
+                                <div id="aiAnalysisMeta" style="margin-top:8px;font-size:0.75rem;color:var(--color-text-muted);display:none;">
+                                    <span id="aiModelUsed"></span> · <span id="aiGeneratedAt"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ── SenseAI Section ── -->
+                    <section id="section-senseai" class="dashboard-section full-width" style="display:none;">
+                        <div class="card-section-header">
+                            <h2 class="card-section-title">
+                                <i class="fas fa-wand-magic-sparkles"></i> SenseAI
+                            </h2>
+                        </div>
+                        <div class="glass-card" style="padding:16px;">
+                            <!-- Model Status -->
+                            <div id="modelStatusBar" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                                <span id="modelStatusDot" style="width:8px;height:8px;border-radius:50%;background:#555;"></span>
+                                <span id="modelStatusText" style="font-size:0.85rem;color:var(--color-text-muted);">Checking AI model status...</span>
+                            </div>
+
+                            <!-- SenseAI Chat -->
+                            <div id="senseAiChat" style="border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden;">
+                                <div id="senseAiMessages" style="max-height:400px;overflow-y:auto;padding:16px;">
+                                    <div class="chat-message agent">
+                                        <p>Welcome to SenseAI! I can analyze stocks, review your portfolio, and answer finance questions. What would you like to know?</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex;border-top:1px solid rgba(255,255,255,0.08);padding:8px;">
+                                    <input type="text" id="senseAiInput" placeholder="Ask about stocks, portfolio, or market trends..."
+                                           style="flex:1;background:transparent;border:none;color:var(--color-text);padding:8px 12px;font-size:0.9rem;outline:none;"
+                                           autocomplete="off">
+                                    <button id="senseAiSendBtn" style="background:var(--color-gain);border:none;border-radius:8px;padding:8px 16px;color:#000;cursor:pointer;font-weight:600;">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="card-section-action" onclick="senseAiQuickAction('Analyze my portfolio performance')">
+                                    <i class="fas fa-chart-line"></i> Portfolio Analysis
+                                </button>
+                                <button class="card-section-action" onclick="senseAiQuickAction('What stocks should I watch today?')">
+                                    <i class="fas fa-eye"></i> Market Watch
+                                </button>
+                                <button class="card-section-action" onclick="senseAiQuickAction('Suggest ways to diversify my portfolio')">
+                                    <i class="fas fa-shuffle"></i> Diversification Tips
+                                </button>
                             </div>
                         </div>
                     </section>
@@ -920,6 +1040,93 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ========== PORTFOLIO IMPORT MODAL ========== -->
+    <div id="importModal" class="trade-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="trade-modal-body">
+            <div class="trade-modal-header">
+                <h3 class="trade-modal-title"><i class="fas fa-file-import"></i> Import Portfolio</h3>
+                <button id="importModalClose" class="trade-modal-close" aria-label="Close">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div style="padding:16px;">
+                <p style="color:var(--color-text-muted);margin-bottom:12px;">
+                    Upload your brokerage statement (XLSX or CSV). Supported formats:
+                    Zerodha, Groww, Angel One, ICICI Direct, mutual fund statements, and generic formats.
+                </p>
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="trade-input-group">
+                        <label class="trade-input-label" for="importFile">Select File</label>
+                        <input type="file" id="importFile" accept=".xlsx,.xls,.csv"
+                               style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;color:var(--color-text);width:100%;">
+                    </div>
+                    <div id="importStatus" style="display:none;padding:12px;border-radius:8px;margin-top:12px;"></div>
+                    <div class="trade-modal-footer" style="margin-top:16px;">
+                        <button type="button" class="trade-modal-close" onclick="document.getElementById('importModal').hidden=true">Cancel</button>
+                        <button type="submit" id="importSubmitBtn" class="trade-submit-btn">
+                            <i class="fas fa-upload"></i> Upload &amp; Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ONBOARDING OVERLAY ========== -->
+    <div id="onboardingOverlay" class="trade-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="trade-modal-body" style="max-width:500px;">
+            <div class="trade-modal-header">
+                <h3 class="trade-modal-title"><i class="fas fa-rocket"></i> Welcome to StockSense!</h3>
+                <button id="onboardingSkipBtn" class="trade-modal-close" aria-label="Skip">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div style="padding:16px;">
+                <!-- Step indicators -->
+                <div id="onboardingSteps" style="display:flex;gap:6px;margin-bottom:16px;">
+                    <div class="onboarding-step-dot active" data-step="welcome"></div>
+                    <div class="onboarding-step-dot" data-step="model_setup"></div>
+                    <div class="onboarding-step-dot" data-step="portfolio"></div>
+                    <div class="onboarding-step-dot" data-step="watchlist"></div>
+                </div>
+
+                <!-- Step content -->
+                <div id="onboardingContent">
+                    <div id="onb-welcome" class="onboarding-step-content">
+                        <h4 style="margin-bottom:8px;">Let's get you set up</h4>
+                        <p style="color:var(--color-text-muted);">StockSense uses AI to help you track investments, analyze stocks, and make informed decisions. Let's configure your experience.</p>
+                    </div>
+                    <div id="onb-model_setup" class="onboarding-step-content" style="display:none;">
+                        <h4 style="margin-bottom:8px;"><i class="fas fa-robot"></i> AI Model Setup</h4>
+                        <p style="color:var(--color-text-muted);margin-bottom:12px;">StockSense works best with a local AI model. Check your model status below.</p>
+                        <div id="onbModelStatus" style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.04);">Checking...</div>
+                    </div>
+                    <div id="onb-portfolio" class="onboarding-step-content" style="display:none;">
+                        <h4 style="margin-bottom:8px;"><i class="fas fa-briefcase"></i> Import Your Portfolio</h4>
+                        <p style="color:var(--color-text-muted);margin-bottom:12px;">You can import your brokerage statement or add holdings manually later.</p>
+                        <button class="card-section-action" onclick="document.getElementById('onboardingOverlay').hidden=true;document.getElementById('importModal').hidden=false;">
+                            <i class="fas fa-file-import"></i> Import Now
+                        </button>
+                        <span style="color:var(--color-text-muted);margin-left:8px;font-size:0.85rem;">or skip this step</span>
+                    </div>
+                    <div id="onb-watchlist" class="onboarding-step-content" style="display:none;">
+                        <h4 style="margin-bottom:8px;"><i class="fas fa-star"></i> Add to Watchlist</h4>
+                        <p style="color:var(--color-text-muted);">Use the search bar to find stocks and add them to your watchlist for real-time tracking and AI predictions.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;margin-top:20px;">
+                    <button id="onbSkipBtn" class="trade-modal-close" style="font-size:0.85rem;">Skip Setup</button>
+                    <button id="onbNextBtn" class="trade-submit-btn" style="min-width:120px;">
+                        Next <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

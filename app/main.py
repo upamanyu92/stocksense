@@ -20,9 +20,11 @@ from app.api.dashboard_routes import dashboard_bp
 from app.api.llm_routes import llm_bp
 from app.api.notification_routes import notification_bp
 from app.api.nse_routes import nse_bp
+from app.api.portfolio_routes import portfolio_bp
 from app.api.prediction_routes import prediction_bp
 from app.api.premium_dashboard_routes import premium_dashboard_bp
 from app.api.price_stream_routes import price_stream_bp
+from app.api.settings_routes import settings_bp
 from app.api.stock_routes import stock_bp
 from app.api.system_routes import system_bp
 from app.api.watchlist_routes import watchlist_bp
@@ -59,6 +61,27 @@ try:
         logging.info('Premium dashboard tables ensured')
 except Exception as e:
     logging.warning(f'Failed to run premium tables migration: {e}')
+
+# Execute migrations for portfolio management tables
+try:
+    portfolio_mgmt_path = os.path.join(os.path.dirname(__file__), 'db', 'migrations', 'create_portfolio_management_tables.sql')
+    if os.path.exists(portfolio_mgmt_path):
+        conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), 'db', 'stock_predictions.db'))
+        with open(portfolio_mgmt_path, 'r') as f:
+            sql = f.read()
+            conn.executescript(sql)
+        conn.close()
+        logging.info('Portfolio management tables ensured')
+except Exception as e:
+    logging.warning(f'Failed to run portfolio management migration: {e}')
+
+# Initialize user settings table
+try:
+    from app.services.user_settings_service import UserSettingsService
+    UserSettingsService.ensure_table()
+    logging.info('User settings table ensured')
+except Exception as e:
+    logging.warning(f'Failed to initialize user settings table: {e}')
 
 # Configure logging
 logging.basicConfig(
@@ -169,6 +192,8 @@ app.register_blueprint(llm_bp)
 app.register_blueprint(nse_bp)
 app.register_blueprint(premium_dashboard_bp)
 app.register_blueprint(agentic_api)
+app.register_blueprint(portfolio_bp)
+app.register_blueprint(settings_bp)
 
 @login_manager.user_loader
 def load_user(user_id):

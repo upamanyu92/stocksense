@@ -7,7 +7,9 @@ from flask_login import LoginManager, UserMixin
 
 from app.api.auth_routes import auth_bp
 from app.api.dashboard_routes import dashboard_bp
+from app.api.portfolio_routes import portfolio_bp
 from app.api.premium_dashboard_routes import premium_dashboard_bp
+from app.api.settings_routes import settings_bp
 from app.api.system_routes import system_bp
 
 
@@ -116,6 +118,84 @@ def _init_test_db(db_path: Path) -> None:
             triggered_at TEXT,
             created_at TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS portfolio_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            stock_symbol TEXT NOT NULL,
+            company_name TEXT,
+            transaction_type TEXT NOT NULL,
+            quantity REAL NOT NULL DEFAULT 0,
+            price REAL NOT NULL DEFAULT 0.0,
+            total_value REAL NOT NULL DEFAULT 0.0,
+            fees REAL DEFAULT 0.0,
+            notes TEXT,
+            transaction_date TEXT NOT NULL,
+            source TEXT DEFAULT 'manual',
+            import_batch_id TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS portfolio_imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            batch_id TEXT NOT NULL UNIQUE,
+            filename TEXT NOT NULL,
+            file_type TEXT NOT NULL DEFAULT 'xlsx',
+            broker_format TEXT,
+            total_rows INTEGER DEFAULT 0,
+            imported_rows INTEGER DEFAULT 0,
+            skipped_rows INTEGER DEFAULT 0,
+            error_rows INTEGER DEFAULT 0,
+            errors TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT (datetime('now')),
+            completed_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS quote_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stock_symbol TEXT NOT NULL,
+            date TEXT NOT NULL,
+            open_price REAL,
+            high_price REAL,
+            low_price REAL,
+            close_price REAL,
+            volume INTEGER,
+            adj_close REAL,
+            source TEXT DEFAULT 'yfinance',
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(stock_symbol, date)
+        );
+
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            default_exchange TEXT DEFAULT 'NSE',
+            currency TEXT DEFAULT 'INR',
+            theme TEXT DEFAULT 'dark',
+            onboarding_completed INTEGER DEFAULT 0,
+            onboarding_step TEXT DEFAULT 'welcome',
+            default_llm TEXT DEFAULT 'ollama',
+            notifications_enabled INTEGER DEFAULT 1,
+            email_digest_enabled INTEGER DEFAULT 0,
+            risk_tolerance TEXT DEFAULT 'moderate',
+            investment_horizon TEXT DEFAULT 'medium',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS portfolio_analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            analysis_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            model_used TEXT,
+            confidence REAL DEFAULT 0.0,
+            metadata TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            expires_at TEXT
+        );
         """
     )
 
@@ -193,6 +273,79 @@ def app(monkeypatch, tmp_path):
     monkeypatch.setattr("app.utils.util.get_db_connection", _get_conn)
     monkeypatch.setattr("app.api.premium_dashboard_routes.get_db_connection", _get_conn)
 
+    # Patch session manager for new services
+    from app.db import session_manager as sm_module
+
+    class _FakeSessionManager:
+        """Minimal session manager backed by the test DB."""
+        def _conn(self):
+            return _get_conn()
+
+        def fetch_one(self, query, args=()):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            row = cur.fetchone()
+            conn.close()
+            return dict(row) if row else None
+
+        def fetch_all(self, query, args=()):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            rows = cur.fetchall()
+            conn.close()
+            return [dict(r) for r in rows]
+
+        def insert(self, query, args=()):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            conn.commit()
+            lid = cur.lastrowid
+            conn.close()
+            return lid
+
+        def update(self, query, args=()):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            affected = cur.rowcount
+            conn.commit()
+            conn.close()
+            return affected > 0
+
+        def delete(self, query, args=()):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            affected = cur.rowcount
+            conn.commit()
+            conn.close()
+            return affected > 0
+
+        def execute(self, query, args=(), commit=False, fetch=None):
+            conn = self._conn()
+            cur = conn.cursor()
+            cur.execute(query, args)
+            if commit:
+                conn.commit()
+            result = None
+            if fetch == 'one':
+                result = cur.fetchone()
+            elif fetch == 'all':
+                result = cur.fetchall()
+            conn.close()
+            return result
+
+    _fake_sm = _FakeSessionManager()
+    monkeypatch.setattr(sm_module, "get_session_manager", lambda: _fake_sm)
+
+    # Also patch the imported references in service modules
+    monkeypatch.setattr("app.services.portfolio_service.get_session_manager", lambda: _fake_sm)
+    monkeypatch.setattr("app.services.user_settings_service.get_session_manager", lambda: _fake_sm)
+    monkeypatch.setattr("app.services.portfolio_analysis_service.get_session_manager", lambda: _fake_sm)
+
     users = {
         "demo": DummyUser(1, "demo", "demo@example.com", True),
     }
@@ -216,6 +369,8 @@ def app(monkeypatch, tmp_path):
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(dashboard_bp)
     flask_app.register_blueprint(premium_dashboard_bp)
+    flask_app.register_blueprint(portfolio_bp)
+    flask_app.register_blueprint(settings_bp)
     flask_app.register_blueprint(system_bp)
 
     @flask_app.route("/health")
