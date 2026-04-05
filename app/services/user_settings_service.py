@@ -92,6 +92,9 @@ class UserSettingsService:
         params = []
         for key, value in updates.items():
             if key in allowed_fields:
+                # Validate field name contains only safe characters (defense-in-depth)
+                if not key.isidentifier():
+                    continue
                 set_clauses.append(f'{key} = ?')
                 params.append(value)
 

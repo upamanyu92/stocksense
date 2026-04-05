@@ -62,8 +62,8 @@ def add_holding():
         )
 
         return jsonify({'success': True, 'holding_id': holding_id})
-    except (ValueError, TypeError) as e:
-        return jsonify({'error': f'Invalid data: {e}'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid numeric data provided'}), 400
     except Exception as e:
         logger.error(f"Error adding holding: {e}", exc_info=True)
         return jsonify({'error': 'Failed to add holding'}), 500
@@ -145,8 +145,8 @@ def add_transaction():
         )
 
         return jsonify({'success': True, 'transaction_id': txn_id})
-    except (ValueError, TypeError) as e:
-        return jsonify({'error': f'Invalid data: {e}'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid numeric data provided'}), 400
     except Exception as e:
         logger.error(f"Error adding transaction: {e}", exc_info=True)
         return jsonify({'error': 'Failed to add transaction'}), 500
@@ -236,6 +236,9 @@ def import_xlsx():
 
         result = PortfolioService.import_xlsx(current_user.id, file_bytes, filename)
         status_code = 200 if result.get('success') else 400
+        # Sanitize error details to avoid exposing internal information
+        if not result.get('success') and 'error' in result:
+            result['error'] = 'Import failed. Check file format and try again.'
         return jsonify(result), status_code
 
     except Exception as e:
@@ -269,6 +272,9 @@ def import_csv():
         csv_content = file_bytes.decode('utf-8', errors='replace')
         result = PortfolioService.import_csv(current_user.id, csv_content, filename)
         status_code = 200 if result.get('success') else 400
+        # Sanitize error details to avoid exposing internal information
+        if not result.get('success') and 'error' in result:
+            result['error'] = 'Import failed. Check file format and try again.'
         return jsonify(result), status_code
 
     except Exception as e:
