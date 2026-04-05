@@ -14,6 +14,8 @@
   let chatOpen = false;
   let sidebarCollapsed = false;
   const REFRESH_MS = 60000;
+  const HEATMAP_ANIMATION_DELAY_INCREMENT = 0.06;
+  const HEATMAP_MAX_ANIMATION_DELAY = 0.6;
 
   // ---------------------------------------------------------------------------
   // Utility helpers
@@ -1244,7 +1246,22 @@
       var stockCount = s.stock_count || 0;
       var gainers = s.gainers || 0;
       var losers = s.losers || 0;
-      var neutral = Math.max(stockCount - gainers - losers, 0);
+      var classifiedTotal = gainers + losers;
+      if (classifiedTotal > stockCount) {
+        console.warn(
+          '[SectorHeatmap] Inconsistent classification totals for sector:',
+          s.name,
+          {
+            stockCount: stockCount,
+            gainers: gainers,
+            losers: losers,
+            classifiedTotal: classifiedTotal,
+            hint:
+              'Verify /api/dashboard/sector-heatmap source aggregation and refresh stock_quotes snapshot to align gainers/losers totals with stock_count',
+          }
+        );
+      }
+      var neutral = Math.max(stockCount - classifiedTotal, 0);
       var trendClass = 'flat';
       if (change > 2) trendClass = 'strong-gain';
       else if (change > 0) trendClass = 'gain';
@@ -1254,7 +1271,10 @@
         stockCount > 0
           ? Math.max(0, Math.min(100, Math.round((gainers / stockCount) * 100)))
           : 0;
-      var delay = Math.min(idx * 0.06, 0.6).toFixed(2);
+      var delay = Math.min(
+        idx * HEATMAP_ANIMATION_DELAY_INCREMENT,
+        HEATMAP_MAX_ANIMATION_DELAY
+      ).toFixed(2);
       html +=
         '<article class="heatmap-cell ' +
         trendClass +
@@ -1285,7 +1305,11 @@
         neutral +
         '</span>' +
         '</div>' +
-        '<div class="heatmap-progress-track" role="presentation">' +
+        '<div class="heatmap-progress-track" role="progressbar" aria-label="Sector breadth for ' +
+        escapeHtml(s.name) +
+        '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+        breadthPct +
+        '">' +
         '<div class="heatmap-progress-fill" style="width:' +
         breadthPct +
         '%"></div>' +
