@@ -14,6 +14,8 @@
   let chatOpen = false;
   let sidebarCollapsed = false;
   const REFRESH_MS = 60000;
+  const HEATMAP_ANIMATION_DELAY_INCREMENT = 0.06;
+  const HEATMAP_MAX_ANIMATION_DELAY = 0.6;
 
   // ---------------------------------------------------------------------------
   // Utility helpers
@@ -1239,37 +1241,90 @@
       return;
     }
     var html = '';
-    data.sectors.forEach(function (s) {
+    data.sectors.forEach(function (s, idx) {
       var change = s.avg_change || 0;
-      var bg;
-      if (change > 2) bg = 'rgba(0,255,135,0.25)';
-      else if (change > 0) bg = 'rgba(0,255,135,0.12)';
-      else if (change > -2) bg = 'rgba(255,71,87,0.12)';
-      else bg = 'rgba(255,71,87,0.25)';
-      var textColor = change >= 0 ? '#00ff87' : '#ff4757';
+      var stockCount = s.stock_count || 0;
+      var gainers = s.gainers || 0;
+      var losers = s.losers || 0;
+      var classifiedTotal = gainers + losers;
+      if (classifiedTotal > stockCount) {
+        console.warn(
+          '[SectorHeatmap] Inconsistent classification totals for sector:',
+          s.name,
+          {
+            stockCount: stockCount,
+            gainers: gainers,
+            losers: losers,
+            classifiedTotal: classifiedTotal,
+            hint:
+              'Verify /api/dashboard/sector-heatmap source aggregation and refresh stock_quotes snapshot to align gainers/losers totals with stock_count',
+          }
+        );
+      }
+      var neutral = Math.max(stockCount - classifiedTotal, 0);
+      var trendClass = 'flat';
+      if (change > 2) trendClass = 'strong-gain';
+      else if (change > 0) trendClass = 'gain';
+      else if (change < -2) trendClass = 'strong-loss';
+      else if (change < 0) trendClass = 'loss';
+      var breadthPct =
+        stockCount > 0
+          ? Math.max(0, Math.min(100, Math.round((gainers / stockCount) * 100)))
+          : 0;
+      var delay = Math.min(
+        idx * HEATMAP_ANIMATION_DELAY_INCREMENT,
+        HEATMAP_MAX_ANIMATION_DELAY
+      ).toFixed(2);
       html +=
-        '<div style="background:' +
-        bg +
-        ';border-radius:10px;padding:14px;text-align:center;' +
-        'min-width:120px;flex:1 1 120px;">' +
-        '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">' +
+        '<article class="heatmap-cell ' +
+        trendClass +
+        '" style="--enter-delay:' +
+        delay +
+        's;">' +
+        '<div class="heatmap-cell-top">' +
+        '<div class="heatmap-cell-label" title="' +
+        escapeHtml(s.name) +
+        '">' +
         escapeHtml(s.name) +
         '</div>' +
-        '<div style="font-size:18px;font-weight:700;color:' +
-        textColor +
-        ';">' +
+        '<div class="heatmap-cell-value">' +
         formatPercent(change) +
         '</div>' +
-        '<div style="font-size:11px;color:#aaa;margin-top:4px;">' +
-        (s.stock_count || 0) +
-        ' stocks &bull; ' +
-        (s.gainers || 0) +
-        ' <span style="color:#00ff87;">▲</span> ' +
-        (s.losers || 0) +
-        ' <span style="color:#ff4757;">▼</span></div></div>';
+        '</div>' +
+        '<div class="heatmap-cell-metrics">' +
+        '<span><i class="fas fa-layer-group"></i> ' +
+        stockCount +
+        '</span>' +
+        '<span class="is-gain"><i class="fas fa-arrow-up"></i> ' +
+        gainers +
+        '</span>' +
+        '<span class="is-loss"><i class="fas fa-arrow-down"></i> ' +
+        losers +
+        '</span>' +
+        '<span><i class="fas fa-minus"></i> ' +
+        neutral +
+        '</span>' +
+        '</div>' +
+        '<div class="heatmap-progress-track" role="progressbar" aria-label="Sector breadth for ' +
+        escapeHtml(s.name) +
+        '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+        breadthPct +
+        '">' +
+        '<div class="heatmap-progress-fill" style="width:' +
+        breadthPct +
+        '%"></div>' +
+        '</div>' +
+        '<div class="heatmap-cell-meta"><span>Breadth</span><strong>' +
+        breadthPct +
+        '%</strong></div>' +
+        '</article>';
     });
     container.innerHTML =
-      '<div style="display:flex;flex-wrap:wrap;gap:10px;">' + html + '</div>';
+      '<div class="heatmap-grid compact-heatmap" data-count="' +
+      data.sectors.length +
+      '">' +
+      html +
+      '</div>';
   }
 
   // ---------------------------------------------------------------------------
