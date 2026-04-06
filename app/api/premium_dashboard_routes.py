@@ -593,6 +593,55 @@ def get_sentiment():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# NSE sector indices used as fallback when local DB has insufficient data
+_NSE_SECTOR_INDICES = [
+    ('IT', '^CNXIT'),
+    ('Banking', '^NSEBANK'),
+    ('Auto', '^CNXAUTO'),
+    ('FMCG', '^CNXFMCG'),
+    ('Financial Services', '^CNXFIN'),
+    ('Pharma', '^CNXPHARMA'),
+    ('Energy', '^CNXENERGY'),
+    ('Metal', '^CNXMETAL'),
+    ('Realty', '^CNXREALTY'),
+    ('Media', '^CNXMEDIA'),
+]
+
+_MIN_DB_SECTORS = 3  # fall back to live indices when fewer sectors found in DB
+
+
+def _fetch_sector_data_from_indices():
+    """Fetch live sector performance from NSE sector indices via yfinance."""
+    symbols = [sym for _, sym in _NSE_SECTOR_INDICES]
+    name_map = {sym: name for name, sym in _NSE_SECTOR_INDICES}
+    sectors = []
+    try:
+        tickers = yf.Tickers(' '.join(symbols))
+        for symbol in symbols:
+            try:
+                ticker = tickers.tickers[symbol]
+                fast_info = ticker.fast_info
+                raw_change = fast_info.get('regularMarketChangePercent')
+                if raw_change is None:
+                    # Skip sectors where live data is unavailable
+                    continue
+                change_pct = float(raw_change)
+                sectors.append({
+                    'name': name_map[symbol],
+                    # stock_count is 0 for index-sourced entries (individual
+                    # stock counts are not available from sector indices)
+                    'stock_count': 0,
+                    'avg_change': round(change_pct, 2),
+                    'gainers': 1 if change_pct > 0 else 0,
+                    'losers': 1 if change_pct < 0 else 0,
+                })
+            except Exception as e:
+                logger.warning(f"Could not fetch sector data for {symbol}: {e}")
+    except Exception as e:
+        logger.warning(f"Could not fetch live sector index data: {e}")
+    return sorted(sectors, key=lambda s: s['avg_change'], reverse=True)
+
+
 @premium_dashboard_bp.route('/api/dashboard/sector-heatmap', methods=['GET'])
 @login_required
 def sector_heatmap():
@@ -624,6 +673,13 @@ def sector_heatmap():
                 'gainers': row[3],
                 'losers': row[4]
             })
+
+        # Fall back to live NSE sector index data when the local DB has
+        # insufficient sector coverage (fresh install or background worker not yet run).
+        if len(sectors) < _MIN_DB_SECTORS:
+            live_sectors = _fetch_sector_data_from_indices()
+            if live_sectors:
+                sectors = live_sectors
 
         return jsonify({
             'success': True,
